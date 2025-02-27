@@ -1,0 +1,26 @@
+name: spinqick
+dependencies:
+    - addict
+    - lmfit
+    - matplotlib-core
+    - netcdf4
+    - numpy<2.0
+    - pydantic
+    - pydantic-settings
+    - python>=3.10
+    - pyyaml
+    - qick>=0.2.261
+    - scipy
+
+    # Addtional dev dependencies
+    - black
+    - docformatter
+    - ipython
+    - isort
+    - mypy
+    - pre-commit
+    - pre-commit-hooks
+    - pylint
+    - pytest
+    - ruff
+    - types-pyyaml

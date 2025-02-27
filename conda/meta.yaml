@@ -1,0 +1,43 @@
+{% set data = load_setup_py_data() %}
+
+
+package:
+    name: spinqick
+    version: {{ data.get("version") }}
+
+build:
+    number: 0
+    script: "python -m pip install --no-deps --no-build-isolation --no-index -vv ."
+    noarch: python
+
+source:
+    path: ..
+
+requirements:
+    host:
+        - python>=3.10
+        - pip
+        - setuptools
+    run:
+        - addict
+        - lmfit
+        - matplotlib-core
+        - netcdf4
+        - numpy<2.0
+        - pydantic
+        - pydantic-settings
+        - python>=3.10
+        - pyyaml
+        - qick>=0.2.261
+        - scipy
+
+test:
+    requires:
+        - pytest
+    imports:
+        - spinqick
+    commands:
+        - pytest test  # Need to specify path to override toml
+    source_files:
+        - test
+        - pyproject.toml  # Contains pytest config
