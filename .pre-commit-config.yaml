@@ -1,0 +1,70 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        description: "Black: The uncompromising Python code formatter"
+        entry: black
+        language: system
+        require_serial: true
+        types: [python]
+      - id: docformatter
+        name: docformatter
+        description: 'Formats docstrings to follow PEP 257.'
+        entry: docformatter
+        args: [-i]
+        language: system
+        types: [python]
+      - id: isort
+        name: isort
+        entry: isort
+        require_serial: true
+        language: system
+        types: [python]
+        args: ['--filter-files']
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+        description: Check for files that contain merge conflict strings.
+        entry: check-merge-conflict
+        language: system
+        types: [text]
+      - id: check-json
+        name: Check JSON
+        description: This hook checks json files for parseable syntax.
+        entry: check-json
+        language: system
+        types: [json]
+      - id: check-toml
+        name: Check Toml
+        description: This hook checks toml files for parseable syntax.
+        entry: check-toml
+        language: system
+        types: [toml]
+      - id: check-yaml
+        name: Check Yaml
+        description: This hook checks yaml files for parseable syntax.
+        entry: check-yaml
+        language: system
+        types: [yaml]
+        exclude: 'conda/meta.yaml'
+        args: [--unsafe]
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        description: Ensures that a file is either empty, or ends with one newline.
+        entry: end-of-file-fixer
+        language: system
+        types: [text]
+        stages: [commit, push, manual]
+      - id: mixed-line-ending
+        name: Mixed line ending
+        description: Replaces or checks mixed line ending
+        entry: mixed-line-ending
+        language: system
+        types: [text]
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        description: This hook trims trailing whitespace.
+        entry: trailing-whitespace-fixer
+        language: system
+        types: [text]
+        stages: [commit, push, manual]
