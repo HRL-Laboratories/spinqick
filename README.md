@@ -1,7 +1,7 @@
 # spinQICK
 
 <p align="center">
- <img src="graphics/SpinQICK_logo.svg" alt="SpinQICK logo" width=40% height=auto>
+ <img src="graphics/SpinQICK_logo.svg" alt="spinQICK logo" width=40% height=auto>
 </p>
 
 ## Description
@@ -44,7 +44,7 @@ In addition to the above four directories, the `settings.py` file contains a use
 SpinQICK is under active development. As such there may be changes that break existing code built on this package. SpinQICK follows [Semantic Versioning](https://semver.org/), with patches and minor versions being backwards compatible, and major version revisions representing changes that break existing API implementation.
 
 ### Near-term Updates
-Current implementation of the SpinQICK API is built on the QICK [tProc 1 V4](https://github.com/openquantumhardware/qick/blob/main/firmware/tProcessor_64_and_Signal_Generator_V4.pdf) instruction set. Later revisions will move to [tProc 2](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/qick_processor_TRM.pdf), released in QICK version 0.2.285.
+Current implementation of the spinQICK API is built on the QICK [tProc 1 V4](https://github.com/openquantumhardware/qick/blob/main/firmware/tProcessor_64_and_Signal_Generator_V4.pdf) instruction set. Later revisions will move to [tProc 2](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/qick_processor_TRM.pdf), released in QICK version 0.2.285.
 
 ## Authors
 Abigail Wessels<sup>[1](#HRL)</sup>, Andrew E. Oriani<sup>[1](#HRL)</sup>
