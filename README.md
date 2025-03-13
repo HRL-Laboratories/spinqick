@@ -1,13 +1,13 @@
-# SpinQICK
+# spinQICK
 
 <p align="center">
  <img src="graphics/SpinQICK_logo.svg" alt="SpinQICK logo" width=40% height=auto>
 </p>
 
 ## Description
-Welcome to SpinQICK, an open-source extension to the [Quantum Instrumentation Control Kit](https://github.com/openquantumhardware/qick) (QICK) designed to control electrostatically confined solid-state spin-qubits! SpinQICK enables researchers to use low-cost off-the-shelf Xilinx Radio Frequency System-on-Chip (RFSoC) Field Programmable Gate Arrays (FPGAs) to rapidly develop novel application specific experimental hardware and software for controlling spin-qubits.
+Welcome to spinQICK, an open-source extension to the [Quantum Instrumentation Control Kit](https://github.com/openquantumhardware/qick) (QICK) designed to control electrostatically confined solid-state spin-qubits! SpinQICK enables researchers to use low-cost off-the-shelf Xilinx Radio Frequency System-on-Chip (RFSoC) Field Programmable Gate Arrays (FPGAs) to rapidly develop novel application specific experimental hardware and software for controlling spin-qubits.
 
-This package utilizes both the standard QICK API and modified low-level QICK assembly to implement standard measurement and control methods that are unique to electrostatically confined spin-qubit systems. These methods currently accomodate single-spin (Loss-DiVincenzo) qubits and include charge-stability and electrostatic tune-up, initialization and parity readout, single-spin coherent control and characterization (T1, T2*, T2-Echo, Ramsey, All-XY), exchange calibration, and two-qubit gates. In addition to these facilities, this package also provides features for parameter-management, plotting, and demonstrations to help get started with SpinQICK.
+This package utilizes both the standard QICK API and modified low-level QICK assembly to implement standard measurement and control methods that are unique to electrostatically confined spin-qubit systems. These methods currently accomodate single-spin (Loss-DiVincenzo) qubits and include charge-stability and electrostatic tune-up, initialization and parity readout, single-spin coherent control and characterization (T1, T2*, T2-Echo, Ramsey, All-XY), exchange calibration, and two-qubit gates. In addition to these facilities, this package also provides features for parameter-management, plotting, and demonstrations to help get started with spinQICK.
 
 ## Hardware
 - [ZCU216 RFSoC](https://www.xilinx.com/products/boards-and-kits/zcu216.html)
@@ -23,7 +23,7 @@ This package utilizes both the standard QICK API and modified low-level QICK ass
 - Pyro4 must also be installed on the ZCU216 board, see [QICK demo](https://github.com/openquantumhardware/qick/blob/main/pyro4/00_nameserver.ipynb) for information on running Pyro server on the RFSoC
 
 ## Package Structure
-All code for the API can be found in `src/spinqick` with demo notebooks illustrating the use of the API and resources for getting started found in `demo_notebooks`. The SpinQICK API is organized into four folders as follows.
+All code for the API can be found in `src/spinqick` with demo notebooks illustrating the use of the API and resources for getting started found in `demo_notebooks`. The spinQICK API is organized into four folders as follows.
 
 ### Experiments
 High-level experimental code, including the general `dot_experiment` class inherited by subsequent experiments. Experiments are organized into exchange only (`eo_single_qubit`) and ld single (`ld_single_qubit`) and two qubit (`ld_2_qubit`), electrostatic tune-up (`tune_electrostatic`), and calibration experiments (`system_calibrations`). The readout functionality for Pauli-spin blockade can be found in `psb_setup`, and routines for taking noise using QICK's DSO functionality can be found in `measure_noise`.
