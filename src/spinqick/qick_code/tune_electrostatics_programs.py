@@ -9,7 +9,7 @@ from spinqick.helper_functions import dac_pulses
 
 
 class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
-    """QICK class to sweep two gates against each other, using QICK not slow DAC"""
+    """QICK class to sweep two gate voltages against each other, using QICK not slow DAC"""
 
     def initialize(self):
         # Define shortcuts for more convenient access of experiment parameters
@@ -19,6 +19,25 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
         self.init_dcs()
         self.declare_gen(ch=cfg.gates.gy.gen, nqz=1)
         self.declare_gen(ch=cfg.gates.gx.gen, nqz=1)
+
+        if cfg.add_pat:
+            if cfg.pat_freq < 3000:
+                nqz = 1
+            else:
+                nqz = 2
+            self.declare_gen(cfg.pat_gen, nqz=nqz)
+            freq = self.freq2reg(cfg.pat_freq, gen_ch=cfg.pat_gen)
+            self.set_pulse_registers(
+                ch=cfg.pat_gen,
+                style=Waveform.CONSTANT,
+                freq=freq,
+                phase=0,
+                mode=Mode.ONESHOT,
+                gain=cfg.pat_gain,
+                stdysel=Stdysel.ZERO,
+                length=self.us2cycles(self.cfg.gvg_expt.measure_delay)
+                + self.cfg.DCS_cfg.length,
+            )
 
         # Set the default pulse registers to be used in the body when calling the pulse
         self.add_pulse(
@@ -92,6 +111,8 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
         )
         self.pulse(ch=self.cfg.gvg_expt.gates.gx.gen, t=0)
         measure_delay_cycles = self.us2cycles(self.cfg.gvg_expt.measure_delay)
+        if self.cfg.gvg_expt.add_pat:
+            self.pulse(ch=self.cfg.gvg_expt.pat_gen, t=0)
         self.sync_all(measure_delay_cycles)
 
         ### readout
@@ -99,6 +120,7 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
             adcs=[self.cfg.DCS_cfg.ro_ch],
             pulse_ch=self.cfg.DCS_cfg.res_ch,
             adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            pins=[self.cfg.gvg_expt.trig_pin],
             t=0,
             wait=True,
             syncdelay=measure_delay_cycles,
@@ -110,24 +132,23 @@ class GvG(averager_program.RAveragerProgram, readout.Readout):
 
     def initialize(self):
         self.init_dcs()
+        self.trigger(pins=[self.cfg.gvg_expt.trig_pin], width=100)
+        meas_delay = self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay)
         self.sync_all()
-        self.trigger(pins=[0], width=100)
+        self.synci(meas_delay)
 
     def body(self):
-        # Plays our readout pulse at t = measure_delay, waits again for measure_delay after pulse.
-        # basically this is just creating a buffer around the readout window
-        self.sync_all(self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay))
-        self.measure(
+        # Plays our readout pulse at t = measure_delay, waits again for measure_delay after pulse. This is just creating a buffer around the readout window
+        self.trigger(
             adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
             adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
-            # pins = [0],
-            t=self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay),
-            wait=True,
-            # syncdelay = 0
-        )  ### adds a buffer at the end
+            t=0,
+        )
+        self.pulse(ch=self.cfg.DCS_cfg.res_ch, t=0)
 
         self.synci(
-            self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay)
-            + self.cfg.DCS_cfg.readout_length
+            self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay * 2)
+            + self.cfg.DCS_cfg.length
         )
+
+        self.wait_all()

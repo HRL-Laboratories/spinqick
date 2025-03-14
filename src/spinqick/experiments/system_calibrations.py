@@ -8,6 +8,7 @@ TODO: adc_trig_offset measurement
 import logging
 import os
 from typing import Sequence, Tuple
+import time
 
 import netCDF4
 import numpy as np
@@ -54,15 +55,17 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         self,
         p_gate: str,
         x_gate: str,
-        p_dc_range: Tuple[float, float, int] = (-0.1, 0.1, 10),
+        p_dc_range: Tuple[float, float, int] = (-0.1, 0.1, 100),
         p_pulse_range: Tuple[float, float, int] = (0, 10000, 100),
         x_pulse_gain: int = 100,
         point_avgs: int = 10,
+        chop_time: float = 0.05,
         measure_buffer: float = 10,
         plot: bool = True,
         save_data: bool = True,
     ):
-        """Calibrate baseband voltage based off of low speed dacs. Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs"""
+        """Calibrate baseband voltage based off of low speed dacs.
+        Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs"""
 
         p_dc_start, p_dc_stop, p_dc_npts = p_dc_range
         p_pulse_start, p_pulse_stop, p_pulse_npts = p_pulse_range
@@ -75,78 +78,74 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             str(x_gate)
         ].qick_gen
         self.config.calibrate_cfg.p_gate.gain = p_pulse_start
-        self.config.calibrate_cfg.p_gate.chop_time = self.soccfg.us2cycles(0.010)
+        self.config.calibrate_cfg.p_gate.chop_time = self.soccfg.us2cycles(chop_time)
         self.config.calibrate_cfg.x_gate.gain = x_pulse_gain
         # these phases could be used to modify phase offset of adc, p and x gates
         self.config.calibrate_cfg.res_phase = 0
         self.config.calibrate_cfg.res_phase_diff = 0
-        self.config.expts = point_avgs
+        self.config.calibrate_cfg.trig_pin = self.hardware_config.slow_dac_trig_pin
+        self.config.expts = p_dc_npts
         self.config.start = p_pulse_start
         self.config.step = (p_pulse_stop - p_pulse_start) / p_pulse_npts
         self.config.reps = 1
-        self.config.measure_delay = measure_buffer
+        self.config.calibrate_cfg.measure_delay = measure_buffer
 
         t_min_slow_dac = 2.65  # microseconds
 
         # DC P Sweep
         p_bias = self.vdc.get_dc_voltage(p_gate)
-        n_vp = p_dc_npts
         vp_start = p_dc_start + p_bias
         vp_stop = p_dc_stop + p_bias
-        vp_sweep = np.linspace(vp_start, vp_stop, n_vp)
+        vp_sweep = np.linspace(vp_start, vp_stop, p_dc_npts)
 
         # Baseband P sweep
         baseband_sweep = np.linspace(p_pulse_start, p_pulse_stop, p_pulse_npts)
 
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.readout_length) + measure_buffer
+            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
         )
-        if slow_dac_step_len < t_min_slow_dac:
-            measure_buffer = 2.7 - self.soccfg.cycles2us(
-                self.config.DCS_cfg.readout_length
-            )
-            slow_dac_step_len = (
-                self.soccfg.cycles2us(self.config.DCS_cfg.readout_length)
-                + measure_buffer
-            )
 
-        data = np.zeros((point_avgs, n_vp, p_pulse_range[2]), dtype=complex)
-        for i, gain in enumerate(baseband_sweep):
-            self.config.calibrate_cfg.p_gate.gain = int(gain)
-            self.vdc.program_ramp(
-                vp_start, vp_stop, slow_dac_step_len * 1e-6, n_vp, p_gate
-            )
+        data = np.zeros((point_avgs, p_dc_npts, p_pulse_npts), dtype=complex)
+        for avg in range(point_avgs):
+            for i, gain in enumerate(baseband_sweep):
+                self.config.calibrate_cfg.p_gate.gain = int(gain)
+                self.vdc.program_ramp(
+                    vp_start, vp_stop, slow_dac_step_len * 1e-6, p_dc_npts, p_gate
+                )
+                self.vdc.arm_sweep(p_gate)
 
-            # Start QICK code and run the slow_dac ramp
-            meas = system_calibrations_programs.BasebandVoltageCalibration(
-                self.soccfg, self.config
-            )
-            expt_pts, avgi, avgq = meas.acquire(
-                self.soc, load_pulses=True, progress=False
-            )
-            trans_data = avgi[0][:] + 1j * avgq[0][:]
+                # Start QICK code and run the slow_dac ramp
+                meas = system_calibrations_programs.BasebandVoltageCalibration(
+                    self.soccfg, self.config
+                )
+                expt_pts, avgi, avgq = meas.acquire(
+                    self.soc, load_pulses=True, progress=False
+                )
+                trans_data = avgi[0][:] + 1j * avgq[0][:]
 
-            data[:, :, i] = trans_data
+                data[avg, :, i] = trans_data
+                time.sleep(0.010)
 
-            # Ramp voltage back down to the starting value
-            self.vdc.program_ramp(
-                vp_stop, vp_start, t_min_slow_dac * 1e-6, n_vp, p_gate
-            )
-            self.vdc.digital_trigger(p_gate)
+        # Ramp voltage back down to the starting value
+        self.vdc.set_dc_voltage(p_bias, p_gate)
+        time.sleep(0.010)
+        self.soc.reset_gens()
 
         # try to rotate iq data into one axis, plot
         phi_rot = np.mean(np.arctan2(data.imag, data.real))
         data_rot = data * np.exp(-1j * phi_rot)
         data_mean = np.mean(data_rot.real, axis=0)
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
             plot_tools.plot2_simple(
                 baseband_sweep, vp_sweep, data_mean, cbar_label="transconductance"
             )
+            plt.title("baseband voltage calibration")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_baseband_cal.nc")
             fig_file = os.path.join(data_path, str(stamp) + "_baseband_cal.png")
             cfg_file = os.path.join(data_path, str(stamp) + "_baseband_cal.yaml")
@@ -159,7 +158,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
             # create dimensions for all data
             nc_file.createDimension("V_baseband", p_pulse_range[2])
-            nc_file.createDimension("Vdc", n_vp)
+            nc_file.createDimension("Vdc", p_dc_npts)
             nc_file.createDimension("shots", point_avgs)
             nc_file.createDimension("IQ", 2)
 
@@ -309,9 +308,9 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         self,
         m_dot: str,
         gate: str,
-        m_range: Tuple[float, float, int] = (-0.01, 0.01, 100),
-        gate_range: Tuple[float, float, int] = (-0.01, 0.01, 20),
-        measure_buffer: float = 30,
+        sdac_range: Tuple[float, float, int] = (-0.01, 0.01, 100),
+        gate_range: Tuple[float, float, int] = (-0.01, 0.01, 100),
+        measure_buffer: float = 50,
         plot: bool = True,
         save_data: bool = True,
     ):
@@ -321,7 +320,8 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
         t_min_slow_dac = 2.65
         gate_start, gate_stop, n_vg = gate_range
-        m_start, m_stop, n_vm = m_range
+        m_start, m_stop, n_vm = sdac_range
+        m_bias = self.vdc.get_dc_voltage(m_dot)
 
         # M Sweep
         m_bias = self.vdc.get_dc_voltage(m_dot)
@@ -337,23 +337,15 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.readout_length)
-            + 2 * measure_buffer
-        )
-        if slow_dac_step_len < t_min_slow_dac:
-            measure_buffer = 2.7 - self.soccfg.cycles2us(
-                self.config.DCS_cfg.readout_length
-            )
-        slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.readout_length)
-            + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
         )
 
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_vm
         self.config.start = vg_start
-        self.config.step = (vg_start - vg_stop) / n_vg
+        self.config.step = (vg_stop - vg_start) / n_vg
         self.config.reps = 1
+        self.config.gvg_expt.trig_pin = self.hardware_config.slow_dac_trig_pin
 
         data = np.zeros_like(vg_sweep)
         mdata = np.zeros((len(vg_sweep), n_vm))
@@ -362,6 +354,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             self.vdc.program_ramp(
                 vm_start, vm_stop, slow_dac_step_len * 1e-6, n_vm, m_dot
             )
+            self.vdc.arm_sweep(m_dot)
 
             # Start a Vy sweep at a Vx increment and store the data
             meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
@@ -369,8 +362,6 @@ class SystemCalibrations(dot_experiment.DotExperiment):
                 self.soc, load_pulses=True, progress=False
             )
             mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
-
-            # Ramp Vy voltage back down to the starting value
             self.vdc.program_ramp(vm_stop, vm_start, t_min_slow_dac * 1e-6, n_vm, m_dot)
             self.vdc.digital_trigger(m_dot)
 
@@ -379,20 +370,31 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             try:
                 out = gaussian.fit(mag, pars, x=vm_sweep)
             except Exception as exc:
-                logger.error(
-                    "fit failed, %s, setting m to initial value", exc, exc_info=True
-                )
-
-            data[i] = out.params["center"].value
-            mdata[i, :] = mag
+                logger.error("fit failed, %s", exc, exc_info=True)
+            if np.logical_and(
+                out.params["center"].value > vm_start,
+                out.params["center"].value < vm_stop,
+            ):
+                data[i] = out.params["center"].value
+                mdata[i, :] = mag
+            else:
+                data[i] = np.nan
+                mdata[i, :] = mag
 
         self.vdc.set_dc_voltage(m_bias, m_dot)
         self.vdc.set_dc_voltage(gate_bias, gate)
 
         line = LinearModel()
         pars = line.guess(data, x=vg_sweep)
-        out = line.fit(data, pars, x=vg_sweep)
-        logger.info("slope is %f" % out.params["slope"].value)
+        try:
+            out = line.fit(data, pars, x=vg_sweep)
+            slope = out.params["slope"].value
+            logger.info("slope is %f" % slope)
+        except Exception as exc:
+            slope = np.nan
+            logger.error(" line fit failed, %s", exc, exc_info=True)
+
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
             # plot the data
             plt.figure()
@@ -400,10 +402,44 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             plt.plot(vg_sweep, out.best_fit)
 
             plt.title("cross coupling")
-            plt.xlabel(" %s (mV)" % (gate))
-            plt.ylabel("conductance (arbs)")
+            plt.xlabel(" %s (V)" % (gate))
+            plt.ylabel("fitted center voltage (V)")
+        if save_data:
+            # make a directory for today's date and create a unique timestamp
 
-        return data, mdata
+            data_file = os.path.join(data_path, str(stamp) + "_caps_cal.nc")
+            fig_file = os.path.join(data_path, str(stamp) + "_caps_cal.png")
+            cfg_file = os.path.join(data_path, str(stamp) + "_caps_cal.yaml")
+
+            # save the config and the plot
+            file_manager.save_config(self.config, cfg_file)
+            plt.savefig(fig_file)
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+
+            # create dimensions for all data
+            nc_file.createDimension("vm", n_vm)
+            nc_file.createDimension("vg", n_vg)
+
+            # create variables and fill in data
+            crosscaps = nc_file.createVariable(
+                "fulldata",
+                np.float32,
+                (
+                    "vm",
+                    "vg",
+                ),
+            )
+            crosscaps.units = "V"
+            gx = nc_file.createVariable("Vg", np.float32, ("vg"))
+            gx.units = "Volts"
+            gx[:] = vg_sweep
+            gy = nc_file.createVariable("Vm", np.float32, ("vm"))
+            gy.units = "Volts"
+            gy[:] = vm_sweep
+            crosscaps[:, :] = data
+            nc_file.close()
+            logger.info("data saved at %s" % data_file)
+        return data, mdata, slope
 
     @dot_experiment.updater
     def sweep_adc_trig_offset(

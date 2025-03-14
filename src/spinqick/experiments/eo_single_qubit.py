@@ -28,7 +28,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self.symmetric_axis = np.zeros((2, 2, 2))  # [[p21,p31,X1],[p22,p32,X2]]
 
     @dot_experiment.updater
-    def do_house_cell23(
+    def do_nonequilibrium_cell23(
         self,
         p_gates: Tuple[str, str],
         x_gate: str,
@@ -43,7 +43,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         plot: bool = True,
         save_data: bool = True,
     ):
-        """do a scan of the house cell.  Right now this implies PSB readout on dots 1 and 2, and scanning house cell for dots 2 and 3.
+        """do a scan of the non-equilibrium cell.  Right now this implies PSB readout on dots 1 and 2, and scanning non-equilibrium cell for dots 2 and 3.
         This helps us to set the detuning axis for a fingerprint plot. TODO add capability to do dots 1 and 2
 
         :param p_gates: p gates corresponding to dots 2 and 3 (if dots 1 and 2 are for readout)
@@ -82,7 +82,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self.config.shots = point_avgs
         self.config.reps = full_avgs
 
-        meas = eo_single_qubit_programs.DoHouseCell(self.soccfg, self.config)
+        meas = eo_single_qubit_programs.DoNonEquilibriumCell(self.soccfg, self.config)
         expt_pts, mag = meas.acquire(self.soc, load_pulses=True, progress=True)
 
         expt_pts[0] = self.dac2volts(expt_pts[0], p2_gate) * 1000
@@ -92,13 +92,13 @@ class EOSingleQubit(dot_experiment.DotExperiment):
 
         if plot:
             plot_tools.plot2_simple(p3_pts, p2_pts, mag, cbar_label="probability")
-            plt.title("housecell")
+            plt.title("non-equilibrium cell")
             plt.xlabel("%s (mV)" % p3_gate)
             plt.ylabel("%s (mV)" % p2_gate)
 
         if save_data:
             data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
-            data_file = os.path.join(data_path, str(stamp) + "_housecell.nc")
+            data_file = os.path.join(data_path, str(stamp) + "_nonequilibrium_cell.nc")
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
             nc_file.add_axis("p2", data=p2_array, units="Volts")
             nc_file.add_axis("p3", data=p3_array, units="Volts")
@@ -205,7 +205,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
 
         if save_data:
             data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
-            data_file = os.path.join(data_path, str(stamp) + "_housecell.nc")
+            data_file = os.path.join(data_path, str(stamp) + "_fingerprint.nc")
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
             nc_file.add_axis("p2", data=p2_axis, units="Volts")
             nc_file.add_axis("p3", data=p3_axis, units="Volts")
@@ -221,5 +221,4 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         return [x_axis, p2_axis, p3_axis], mag
 
 
-# TODO add do_rotation_calibration
 # TODO add do_rotation_calibration

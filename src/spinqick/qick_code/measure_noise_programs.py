@@ -13,14 +13,14 @@ def grab_noise(
     config: config_models.ReadoutConfig,
     pulse_length: float,
     demodulate: bool,
-    readout_freq: float,
     readout_tone: bool = True,
     continuous_tone: bool = False,
 ) -> asm_v1.QickProgram:
     gain = config.DCS_cfg.pulse_gain_readout
     gen_ch = config.DCS_cfg.res_ch
     readout_ch = config.DCS_cfg.ro_ch
-    freq = soccfg.freq2reg(readout_freq)
+    freq = config.DCS_cfg.dds_freq
+    freq_round = soccfg.adcfreq(freq, gen_ch, readout_ch)
     pulse_time = pulse_length
     if continuous_tone:
         pulse_mode = Mode.PERIODIC
@@ -33,19 +33,20 @@ def grab_noise(
         # turn on a tone which runs for the full acquisition
         noiseprogram.set_pulse_registers(
             ch=gen_ch,
-            freq=soccfg.freq2reg(freq, gen_ch=gen_ch, ro_ch=readout_ch),
+            freq=soccfg.freq2reg(freq_round, gen_ch=gen_ch, ro_ch=readout_ch),
             phase=0,
             gain=gain,
             mode=pulse_mode,
             style=Waveform.CONSTANT,
             length=pulse_time,
+            phrst=1,
         )
 
     if demodulate:
         noiseprogram.declare_readout(
             ch=readout_ch,
-            freq=freq,
-            length=pulse_time,
+            freq=freq_round,
+            length=pulse_time,  # the ddr4 will grab longer time trace automatically
             gen_ch=gen_ch,
             sel=Outsel.PRODUCT,
         )
@@ -53,9 +54,10 @@ def grab_noise(
         noiseprogram.declare_readout(
             ch=readout_ch, freq=0, length=pulse_time, gen_ch=gen_ch, sel=Outsel.INPUT
         )
+    noiseprogram.sync_all(100)
     if readout_tone:
-        noiseprogram.pulse(ch=gen_ch)
-    noiseprogram.trigger(ddr4=True, mr=True, pins=[0])
+        noiseprogram.pulse(ch=gen_ch, t=0)
+    noiseprogram.trigger(ddr4=True, mr=True, t=0)
     noiseprogram.end()
 
     return noiseprogram
