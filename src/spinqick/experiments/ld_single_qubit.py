@@ -45,9 +45,9 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         start_freq: float,
         stop_freq: float,
         num_pts: int,
-        RF_gen: int,
         expt_avgs: int,
         RF_length: float = 10,
+        nqz: int = 1,
         plot: bool = True,
         save_data=True,
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -57,7 +57,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         :param start_freq: Lowest RF frequency in MHz
         :param stop_freq: Max RF frequency in MHz
         :param num_pts: Number of points in the frequency sweep
-        :param RF_gen: RF channel number
         :param expt_avgs: Number of times to run sweep and average full experiemtn
         :param RF_length: Pulse length of RF drive in microseconds
         :param plot: Plot result
@@ -67,76 +66,101 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.RF_expt.start = start_freq
         self.config.RF_expt.stop = stop_freq
         self.config.RF_expt.expts = num_pts
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_length = self.soccfg.us2cycles(RF_length)
+        self.config.RF_expt.nqz = nqz
         self.config.expts = num_pts
         self.config.step = np.round((stop_freq - start_freq) / num_pts, decimals=6)
         self.config.reps = 1
 
         meas = ld_single_qubit_programs.ScanRFFrequency(self.soccfg, self.config)
+        full_mag = np.zeros(
+            (
+                expt_avgs,
+                2,
+                num_pts,
+            )
+        )
         for avg in range(expt_avgs):
             expt_pts, temp_i, temp_q = meas.acquire(
-                self.soc, load_pulses=True, progress=True
+                self.soc, load_pulses=True, progress=False
             )
+            rel_mag = plot_tools.interpret_data_PSB(temp_i, temp_q)
+            full_data = np.sqrt(temp_i[0] ** 2 + temp_q[0] ** 2)
             if avg == 0:
-                avgi, avgq = temp_i[0], temp_q[0]
+                if self.config.PSB_cfg.thresholding:
+                    mag = plot_tools.interpret_data_PSB(
+                        temp_i, temp_q, thresh=self.config.PSB_cfg.thresh
+                    )
+                else:
+                    mag = rel_mag
             else:
-                avgi += temp_i[0]
-                avgq += temp_q[0]
-        avgi /= expt_avgs
-        avgq /= expt_avgs
+                if self.config.PSB_cfg.thresholding:
+                    mag += plot_tools.interpret_data_PSB(
+                        temp_i, temp_q, thresh=self.config.PSB_cfg.thresh
+                    )
+                else:
+                    mag += rel_mag
+            full_mag[avg, :, :] = full_data
+        mag = mag / expt_avgs
 
         self.soc.reset_gens()
-        mag = np.sqrt(avgi**2 + avgq**2)
-        differential_signal = mag[1] - mag[0]
+        data_path, stamp = file_manager.get_new_timestamp()
         if plot:
             plt.figure()
-            plt.plot(expt_pts, differential_signal)
-            plt.ylabel("difference in conducatance (ADC raw units)")
+            plt.plot(expt_pts + start_freq, mag)
+            if self.config.PSB_cfg.thresholding:
+                plt.ylabel("singlet probability")
+            else:
+                plt.ylabel("difference in conductance between ref and measure")
             plt.xlabel("frequency (MHz)")
 
         if save_data:
-            # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp()
             data_file = os.path.join(data_path, str(stamp) + "_RF_freq_scan.nc")
-            cfg_file = os.path.join(data_path, str(stamp) + "_RF_freq_scan.yaml")
-
-            # save the config
-            file_manager.save_config(self.config, cfg_file)
-
             # save our scan data
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
             nc_file.add_axis(label="frequency", data=expt_pts, units="MHz")
+            nc_file.add_axis(label="avgs", data=np.arange(expt_avgs))
+            nc_file.add_axis(label="measurements", data=np.array([0, 1]))
             nc_file.add_dataset(
                 label="change_in_conductance",
                 axes=["frequency"],
-                data=differential_signal,
+                data=mag,
+                units="adc_magnitude",
+            )
+            nc_file.add_dataset(
+                label="full_data",
+                axes=["avgs", "measurements", "frequency"],
+                data=full_mag,
                 units="adc_magnitude",
             )
             nc_file.data_flavour = "scan_rf_frequency"
             if plot:
                 nc_file.save_last_plot()
+            nc_file.save_config(self.config)
             nc_file.close()
             logger.info("data saved at %s" % data_file)
-        return expt_pts, differential_signal
+        return expt_pts, mag
 
     @dot_experiment.updater
     def rabi_chevron(
         self,
         RF_gain: int,
-        RF_gen: int,
         freq_range: Tuple[float, float, int] = (1000, 2000, 50),
         time_range: Tuple[float, float, int] = (0.01, 10, 50),
         point_avgs: int = 10,
         RF_cooldown: float = 10,
         trig_offset: float = 0.1,
+        off_resonant_frequency: float = 0,
+        off_resonant_time: float = 2,
+        nqz: int = 1,
         plot: bool = True,
         save_data: bool = True,
     ):
         """sweeps frequency on FPGA and time in an outer python loop.
 
         :param RF_gain: DAC units
-        :param RF_gen: DAC channel being used for RF
         :param freq_range: (start frequency (MHz), stop frequency (MHz), number of steps)
         :param time_range: (start time (us), stop time (us), number of steps)
         :param point_avgs: number of averages per point
@@ -145,13 +169,18 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         """
         start_freq, stop_freq, freq_pts = freq_range
         start_time, stop_time, time_pts = time_range
+
         self.config.RF_expt.RF_gain = RF_gain
         self.config.RF_expt.start = start_freq
         self.config.RF_expt.stop = stop_freq
         self.config.RF_expt.expts = freq_pts
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
+        self.config.RF_expt.nqz = nqz
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trig_offset)
+        self.config.RF_expt.off_resonant_frequency = off_resonant_frequency
+        self.config.RF_expt.off_resonant_time = self.soccfg.us2cycles(off_resonant_time)
         self.config.expts = point_avgs
         # need these dummy parameters for our fake sweep
         self.config.start = 1
@@ -168,23 +197,21 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 self.soc, load_pulses=True, progress=False
             )
             data[:, :, :, :, i] = [avgi[0], avgq[0]]
+        data_path, stamp = file_manager.get_new_timestamp()
         if plot:
-            if self.config.PSB_config.threshold:
-                thresh = self.config.PSB_config.thresh
+            if self.config["PSB_cfg"]["thresholding"]:
+                thresh = self.config["PSB_cfg"]["thresh"]
             else:
                 thresh = None
             plot_tools.plot2_PSBdata(
-                [times, expt_pts[0]], [data[0][0]], [data[0][1]], thresh=thresh
+                [expt_pts[0], times], [data[0]], [data[1]], thresh=thresh
             )
-            plt.xlabel("time (us)")
-            if self.config.PSB_config.threshold:
-                plt.ylabel("probability")
-            else:
-                plt.ylabel("DCS conductance (arbs)")
+            plt.xlabel("frequency (MHz)")
+            plt.ylabel("time (us)")
+            plt.title("Rabi Chevron")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
 
         if save_data:
-            # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp()
             data_file = os.path.join(data_path, str(stamp) + "_RabiChevron_scan.nc")
             fig_file = os.path.join(data_path, str(stamp) + "_RabiChevron_scan.png")
             cfg_file = os.path.join(data_path, str(stamp) + "_RabiChevron_scan.yaml")
@@ -227,13 +254,13 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def rabi_chevron_v2(
         self,
         RF_gain: int,
-        RF_gen: int,
-        freq_range: Tuple[float, float, int] = (1000, 2000, 50),
+        freq_range: Tuple[float, float, int],
         time_range: Tuple[float, float, int] = (0.01, 10, 50),
         point_avgs: int = 10,
         full_avgs: int = 1,
+        nqz: int = 1,
         RF_cooldown: float = 10,
-        trig_ignore: bool = True,
+        trig_ignore: bool = False,
         plot: bool = True,
         save_data: bool = True,
     ):
@@ -241,17 +268,17 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         Utilizes the FlexyPSBAveragerPrograms.
 
         :param RF_gain: DAC units
-        :param RF_gen: DAC channel being used for RF
         :param freq_range: (start frequency (MHz), stop frequency (MHz), number of steps)
         :param time_range: (start time (us), stop time (us), number of steps)
         :param point_avgs: number of averages per point (shots)
         :param full_avgs: averages of full experiment (reps)
+        :param nqz: nyquist zone
         :param RF_cooldown: time to pause after RF drive before the second measurement
         :param trig_ignore: Set to true to perform your measurement directly after the RF pulse.  If set to false, it waits for the trigger to return to zero
         :param plot: plot result
         :param save_data: save data and plot
         """
-
+        RF_gen = self.hardware_config.RF_gen
         start = self.soccfg.us2cycles(time_range[0])
         stop = self.soccfg.us2cycles(time_range[1])
         step = int((stop - start) / time_range[2])
@@ -265,17 +292,21 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.start = start
         self.config.step = step
         self.config.expts = time_range[2]
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.trig_ignore = trig_ignore
         self.config.RF_expt.RF_gain = RF_gain
-        self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
+        self.config.RF_expt.RF_cooldown = RF_cooldown
         self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.nqz = nqz
         self.config.inner_loop = "time"
         self.config.outer_loop = "freq"
         self.config.shots = point_avgs
+        self.config.RF_expt.nqz = nqz
         self.config.reps = full_avgs
 
         meas = ld_single_qubit_programs.RabiChevronV2(self.soccfg, self.config)
-        expt_pts, mag = meas.acquire(self.soc, load_pulses=True, progress=False)
+        expt_pts, mag = meas.acquire(self.soc, load_pulses=True, progress=True)
+        data_path, stamp = file_manager.get_new_timestamp()
 
         times = self.soccfg.cycles2us(expt_pts[0])
         frequencies = self.soccfg.reg2freq(expt_pts[1])
@@ -285,19 +316,17 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             meas_units = "conductance_arbs"
         if plot:
             plot_tools.plot2_simple(
-                xarray=times, yarray=frequencies, data=mag, cbar_label=meas_units
+                xarray=frequencies,
+                yarray=times,
+                data=np.transpose(mag),
+                cbar_label=meas_units,
             )
-            plt.xlabel("time (us)")
-            plt.ylabel("frequency")
+            plt.ylabel("time (us)")
+            plt.xlabel("frequency (MHz)")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
 
         if save_data:
-            # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp()
             data_file = os.path.join(data_path, str(stamp) + "_RabiChevron_scan.nc")
-            cfg_file = os.path.join(data_path, str(stamp) + "_RabiChevron_scan.yaml")
-
-            # save the config and the plot
-            file_manager.save_config(self.config, cfg_file)
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
 
             # create dimensions for all data
@@ -315,6 +344,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 units=meas_units,
             )
             nc_file.save_last_plot()
+            nc_file.save_config(self.config)
             nc_file.close()
             logger.info("data saved at %s" % data_file)
 
@@ -324,33 +354,40 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def time_rabi(
         self,
         RF_gain: int,
-        RF_gen: int,
         RF_freq: float,
         time_range: Tuple[float, float, int] = (0.01, 10, 50),
         point_avgs: int = 10,
         RF_cooldown: float = 10,
+        off_resonant_frequency: float = 0,
+        off_resonant_time: float = 2,
+        nqz: int = 1,
         plot: bool = True,
         save_data: bool = True,
     ):
         """perform a time rabi experiment.  This script loops over pulse time in software, but since this experiment is 1D that is plenty fast for us.
 
         :param RF_gain: RF gain in DAC units
-        :param RF_gen: RFSoC generator output corresponding to the RF generator
         :RF_freq: Drive frequency in MHz
         :time_range: (time_start, time_stop, points) in microseconds
         :point_avgs: number of averages per time point
         :RF_cooldown: time to pause after RF drive before the second measurement
+        :param nqz: nyquist zone
         :plot: plot result
         :save_data: save data and plot
         """
         start_time, stop_time, time_pts = time_range
         self.config.RF_expt.RF_gain = RF_gain
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_freq = RF_freq
-        self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
+        self.config.RF_expt.nqz = nqz
+        self.config.RF_expt.RF_cooldown = RF_cooldown
+        self.config.RF_expt.off_resonant_frequency = off_resonant_frequency
+        self.config.RF_expt.off_resonant_time = self.soccfg.us2cycles(off_resonant_time)
         self.config.expts = point_avgs
         self.config.start = 1
         self.config.stop = 10
+        self.config.reps = 1
 
         times = np.linspace(start_time, stop_time, time_pts)
         data = np.zeros((2, 2, point_avgs, time_pts))
@@ -364,13 +401,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             if point_avgs == 1:
                 data[:, :, 0, i] = [avgi[0], avgq[0]]
             data[:, :, :, i] = [avgi[0], avgq[0]]
+        data_path, stamp = file_manager.get_new_timestamp()
         if plot:
-            if self.config.PSB_config["thresholding"]:
+            if self.config["PSB_cfg"]["thresholding"]:
                 plot_tools.plot1_PSBdata(
                     [times],
-                    [data[0][0]],
-                    [data[0][1]],
-                    thresh=self.config.PSB_config["threshold"],
+                    [data[0]],
+                    [data[1]],
+                    thresh=self.config["PSB_cfg"]["thresh"],
                 )
 
                 plt.ylabel("probability")
@@ -380,10 +418,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 )
                 plt.ylabel("DCS conductance (arbs)")
             plt.xlabel("time (us)")
+            plt.title("time rabi python sweep")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp()
+            # data_path, stamp = file_manager.get_new_timestamp()
             data_file = os.path.join(data_path, str(stamp) + "_TimeRabi_scan.nc")
             fig_file = os.path.join(data_path, str(stamp) + "_TimeRabi_scan.png")
             cfg_file = os.path.join(data_path, str(stamp) + "_TimeRabi_scan.yaml")
@@ -423,13 +463,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def time_rabi_v2(
         self,
         RF_gain: int,
-        RF_gen: int,
         RF_freq: float,
         time_range: Tuple[float, float, int] = (0.01, 10, 50),
         point_avgs: int = 10,
+        full_avgs: int = 1,
         RF_cooldown: float = 10,
         trig_offset: float = 0.1,
-        trig_ignore: bool = True,
+        trig_ignore: bool = False,
+        nqz: int = 1,
         plot: bool = True,
         save_data: bool = True,
     ):
@@ -437,12 +478,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         Sadly we can't sweep the trigger width on the FPGA, so the RF trigger is left on for longer than the pulse time
 
         :param RF_gain: RF gain in DAC units
-        :param RF_gen: RFSoC generator output corresponding to the RF generator
         :param RF_freq: Drive frequency in MHz
         :param time_range: (time_start, time_stop, points) in microseconds
         :param point_avgs: number of averages per time point
         :param RF_cooldown: time to pause after RF drive before the second measurement
         :param trig_ignore: Set to true to perform your measurement directly after the RF pulse.  If set to false, it waits for the trigger to return to zero
+        :param nqz: nyquist zone
         :param plot: plot result
         :param save_data: save data
         """
@@ -457,34 +498,39 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.stop = stop
         self.config.step = step
         self.config.RF_expt.RF_gain = RF_gain
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_freq = RF_freq
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trig_offset)
-        self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
+        self.config.RF_expt.RF_cooldown = RF_cooldown
+        self.config.RF_expt.nqz = nqz
         self.config.expts = time_pts
         self.config.shots = point_avgs
         self.config.expts_outer = 1
         self.config.start_outer = 1
         self.config.step_outer = 1
-        self.config.reps = 1
+        self.config.reps = full_avgs
 
         meas = ld_single_qubit_programs.TimeRabiV2(self.soccfg, self.config)
         expt_pts, mag = meas.acquire(self.soc, load_pulses=True, progress=False)
 
         x_axis = self.soccfg.cycles2us(expt_pts[0])
-        if self.config.PSB_cfg.thresholding:
+        if self.config["PSB_cfg"]["thresholding"]:
             meas_units = "singlet_probability"
         else:
             meas_units = "conductance_arbs"
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
             plt.figure()
             plt.plot(x_axis, mag[0])
+            plt.title("time rabi fpga sweep")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
             plt.ylabel(meas_units)
             plt.xlabel("time (us)")
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
+            # data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_TimeRabi_scan.nc")
             cfg_file = os.path.join(data_path, str(stamp) + "_TimeRabi_scan.yaml")
 
@@ -505,45 +551,56 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def amplitude_rabi(
         self,
         RF_time: float,
-        RF_gen: int,
         RF_freq: float,
         gain_range: Tuple[float, float, int] = (0, 5000, 50),
         RF_cooldown: float = 10,
         trigger_offset: float = 0.1,
+        full_avgs: int = 1,
+        nqz: int = 1,
         plot: bool = True,
         save_data: bool = True,
     ):
         """Rabi experiment which sweeps RF amplitude, keeping RF time constant. Currently this has no averaging built in, because I'm using Raverager.
 
         :param RF_time: pulse length, microseconds
-        :param RF_gen: RF DAC channel
         :param RF_freq: MHz
         :param gain_range: gain sweep parameters in dac units; (start_gain, stop_gain, number of points)
         :param RF_cooldown: time between RF pulse and readout
+        :param nqz: nyquist zone
 
         """
 
-        self.config.RF_expt.start_gain = gain_range[0]
-        self.config.RF_expt.step_gain = int(
-            (gain_range[1] - gain_range[0]) / gain_range[2]
-        )
         self.config.RF_expt.gain_pts = gain_range[2]
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_freq = RF_freq
+        self.config.RF_expt.nqz = nqz
         self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_time)
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trigger_offset)
         self.config.expts = gain_range[2]
         self.config.start = gain_range[0]
+        self.config.step = int((gain_range[1] - gain_range[0]) / gain_range[2])
+        self.config.reps = 1
 
-        meas = ld_single_qubit_programs.AmplitudeRabi(self.soccfg, self.config)
-        expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
         if self.config.PSB_cfg.thresholding:
             thresh = self.config.PSB_cfg.thresh
         else:
             thresh = None
+        full_data = np.zeros((full_avgs, gain_range[2]))
+        for avg in range(full_avgs):
+            meas = ld_single_qubit_programs.AmplitudeRabi(self.soccfg, self.config)
+            expt_pts, avgi, avgq = meas.acquire(
+                self.soc, load_pulses=True, progress=False
+            )
+            processed_data = plot_tools.interpret_data_PSB(
+                avgi, avgq, data_dim="1D", thresh=thresh
+            )
+            full_data[avg, :] = processed_data
+        avged_data = np.mean(full_data, axis=0)
         if plot:
-            plot_tools.plot1_PSBdata([expt_pts], avgi, avgq, thresh=thresh)
+            plt.figure()
+            plt.plot(expt_pts, avged_data, ".-")
             plt.xlabel("RF amplitude (DAC units)")
             plt.title("amplitude rabi")
             if thresh is None:
@@ -565,6 +622,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
             # create dimensions for all data
             nc_file.createDimension("gain", gain_range[2])
+            nc_file.createDimension("avgs", full_avgs)
             nc_file.createDimension("triggers", 2)
             nc_file.createDimension("IQ", 2)
 
@@ -586,14 +644,13 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             nc_file.close()
             logger.info("data saved at %s" % data_file)
 
-        return expt_pts, avgi, avgq
+        return expt_pts, avgi, avgq, full_data
 
     @dot_experiment.updater
     def allxy(
         self,
         RF_gain: int,
         RF_freq: float,
-        RF_gen: int,
         RF_time: float,
         point_avgs: int = 10,
         expt_avgs: int = 10,
@@ -606,7 +663,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         :param RF_gain: amplitude of RF drive in dac units (pi/2 pulse)
         :param RF_freq: frequency of RF drive in MHz
-        :param RF_gen: RFSoC DAC channel for RF drive
         :param RF_time: time of RF pulse in microseconds (pi/2 pulse)
         :param point_avgs: averages per point
         :param expt_avgs: averages of full experiment
@@ -615,38 +671,61 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         """
 
         self.config.RF_expt.RF_freq = RF_freq
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_gain = RF_gain
-        self.config.RF_expt.RF_time = RF_time
-        self.config.RF_expt.RF_cooldown = RF_cooldown
+        self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_time)
+        self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trig_offset)
         self.config.RF_expt.pulse_delay = self.soccfg.us2cycles(0)
         # parameters for dummy sweep
         self.config.expts = point_avgs
         self.config.start = 1
         self.config.stop = 10
+        self.config.reps = 1
 
         AllXY_seq = [
             "I,I",
+            "I,I",
+            "X180,X180",
             "X180,X180",
             "Y180,Y180",
+            "Y180,Y180",
+            "X180,Y180",
             "X180,Y180",
             "Y180,X180",
+            "Y180,X180",
+            "X90,I",
             "X90,I",
             "Y90,I",
+            "Y90,I",
+            "X90,Y90",
             "X90,Y90",
             "Y90,X90",
+            "Y90,X90",
+            "X90,Y180",
             "X90,Y180",
             "Y90,X180",
+            "Y90,X180",
+            "X180,Y90",
             "X180,Y90",
             "Y180,X90",
+            "Y180,X90",
+            "X90,X180",
             "X90,X180",
             "X180,X90",
+            "X180,X90",
+            "Y90,Y180",
             "Y90,Y180",
             "Y180,Y90",
+            "Y180,Y90",
+            "X180,I",
             "X180,I",
             "Y180,I",
+            "Y180,I",
             "X90,X90",
+            "X90,X90",
+            "Y90,Y90",
             "Y90,Y90",
         ]
 
@@ -666,23 +745,27 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         else:
             thresh = None
         avged_data_1 = plot_tools.interpret_data_PSB(
-            [data[0][0]], [data[0][1]], thresh=thresh
+            [data[0]], [data[1]], thresh=thresh
         )
         avged_data_2 = np.mean(avged_data_1, axis=1)
         if plot:
+            plt.figure()
             plt.plot(
-                AllXY_seq,
+                np.arange(len(avged_data_2)),
                 avged_data_2,
-                "ko-",
+                "k.-",
             )
 
             plt.title("AllXY")
             plt.tight_layout()
-            plt.xticks(rotation=45)
+            plt.xticks(
+                ticks=np.arange(len(avged_data_2)), labels=AllXY_seq, rotation=90
+            )
             if thresh is not None:
                 plt.ylabel("probability")
             else:
                 plt.ylabel("DCS conductance")
+            plt.tight_layout()
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
@@ -718,14 +801,13 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             processed[:] = avged_data_2
             nc_file.close()
             logger.info("data saved at %s" % data_file)
-        return expt_pts, data
+        return expt_pts, data, avged_data_2, AllXY_seq
 
     @dot_experiment.updater
     def phase_control(
         self,
         RF_gain: int,
         RF_freq: float,
-        RF_gen: int,
         RF_time: float,
         phase_steps: int = 10,
         point_avgs: int = 10,
@@ -741,7 +823,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         :param RF_gain: amplitude of RF drive in DAC units (corresponding to pi/2 pulse)
         :param RF_freq: frequency of RF drive in MHz
-        :param RF_gen: RFSoC generator producing RF drive
         :param RF_time: time of RF pulse (corresponding to pi/2 pulse) in microseconds
         :param phase_steps: number of points in the phase sweep
         :param point_avgs: averages at each point in the sweep
@@ -750,13 +831,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         :param trigger_offset: time in microseconds to wait after triggering the RF switch before triggering a pulse
         """
         self.config.RF_expt.RF_freq = RF_freq
-        self.config.RF_expt.RF_gen = RF_gen
         self.config.RF_expt.RF_gain = RF_gain
         self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_time)
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.RF_expt.phase_pulse_1 = 0
         self.config.RF_expt.pulse_delay = self.soccfg.us2cycles(0)
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trigger_offset)
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         # dummy parameters for inner qicksweep loop
         self.config.expts = point_avgs
         self.config.start = 1
@@ -778,12 +860,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 data[:, :, :, i, n] = [avgi[0], avgq[0]]
         if thresholding:
             avged_data_1 = plot_tools.interpret_data_PSB(
-                [data[0][0]], [data[0][1]], thresh=thresh
+                [data[0]], [data[1]], thresh=thresh
             )
         else:
-            avged_data_1 = plot_tools.interpret_data_PSB([data[0][0]], [data[0][1]])
+            avged_data_1 = plot_tools.interpret_data_PSB([data[0]], [data[1]])
         avged_data_2 = np.mean(avged_data_1, axis=1)
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
+            plt.figure()
             plt.plot(
                 phase_sweep,
                 avged_data_2,
@@ -791,6 +875,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             )
 
             plt.title("phase control")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
             plt.xlabel("phase offset (degrees)")
             if thresh:
                 plt.ylabel("probability")
@@ -800,7 +885,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_phase_control.nc")
             fig_file = os.path.join(data_path, str(stamp) + "_phase_control.png")
             cfg_file = os.path.join(data_path, str(stamp) + "_phase_control.yaml")
@@ -838,7 +922,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self,
         RF_gain: int,
         RF_freq: float,
-        RF_gen: int,
         RF_pi_2: float,
         time_range: Tuple[float, float, int] = (1, 10, 20),
         full_avgs: int = 10,
@@ -855,7 +938,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         :param RF_gain: RF out of the RFSoC in DAC units
         :param RF_freq: Frequency of RF drive, in MHz
-        :param RF_gen: RFSoC generator channel to power RF out
         :param RF_pi_2: Pi/2 pulse time, in microseconds. Obtain from an amplitude Rabi
         :time_range: (time_start, time_stop, points) in microseconds
         :param full_avgs: averages over the full experiment
@@ -868,12 +950,15 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         """
         self.config.RF_expt.RF_freq = RF_freq
-        self.config.RF_expt.RF_gen = RF_gen
         self.config.RF_expt.RF_gain = RF_gain
         self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_pi_2)
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.RF_expt.ramsey_freq = ramsey_freq
         self.config.RF_expt.trig_offset = self.soccfg.us2cycles(trigger_offset)
+        if RF_freq > 3000:
+            self.config.RF_expt.nqz = 2
+        else:
+            self.config.RF_expt.nqz = 1
         self.config.expts = time_range[2]
         self.config.start = self.soccfg.us2cycles(time_range[0])
         self.config.step = int(
@@ -884,6 +969,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.start_outer = 1
         self.config.reps = full_avgs
         self.config.shots = point_avgs
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
 
         meas = ld_single_qubit_programs.RamseyFringes(self.soccfg, self.config)
         expt_pts, data = meas.acquire(self.soc, load_pulses=True, progress=False)
@@ -927,7 +1014,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def ramsey_2d(
         self,
         RF_gain: int,
-        RF_gen: int,
         RF_pi_2: float,
         time_range: Tuple[float, float, int] = (1, 10, 20),
         freq_range: Tuple[float, float, int] = (1, 10, 20),
@@ -941,7 +1027,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         :param RF_gain: RF out of the RFSoC in DAC units
         :param RF_freq: Frequency of RF drive, in MHz
-        :param RF_gen: RFSoC generator channel to power RF out
         :param RF_pi_2: Pi/2 pulse time, in microseconds. Obtain from an amplitude Rabi
         :param time_range: (time_start, time_stop, points) in microseconds
         :param freq_range: (freq_start, freq_stop, points) in MHz
@@ -950,10 +1035,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         :param RF_cooldown: time in us after the second pulse to wait before readout
         :param save_data: save data
         :param plot: display plot in ipython
-        :param ramsey_freq: provide ramsey frequency in MHz if known.  This will be used to calculate the amount to advance the RF drive phase by.
 
         """
-        self.config.RF_expt.RF_gen = RF_gen
+
+        if freq_range[0] > 3000:
+            self.config.RF_expt.nqz = 2
+        else:
+            self.config.RF_expt.nqz = 1
+
         self.config.RF_expt.RF_gain = RF_gain
         self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_pi_2)
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
@@ -969,9 +1058,11 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.start_outer = self.soccfg.freq2reg(freq_range[0])
         self.config.reps = full_avgs
         self.config.shots = point_avgs
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
 
         meas = ld_single_qubit_programs.Ramsey2D(self.soccfg, self.config)
-        expt_pts, data = meas.acquire(self.soc, load_pulses=True, progress=False)
+        expt_pts, data = meas.acquire(self.soc, load_pulses=True, progress=True)
 
         times = self.soccfg.cycles2us(expt_pts[0])
         frequencies = self.soccfg.reg2freq(expt_pts[1])
@@ -995,7 +1086,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             file_manager.save_config(self.config, cfg_file)
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
 
-            nc_file.add_axis(label="time", data=expt_pts, units="us")
+            nc_file.add_axis(label="time", data=times, units="us")
+            nc_file.add_axis(label="frequency", data=frequencies, units="us")
             if self.config.PSB_cfg.thresholding:
                 readout_label = "thresholded_readout"
                 readout_units = "probability"
@@ -1004,8 +1096,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 readout_units = "raw_adc"
             nc_file.add_dataset(
                 label=readout_label,
-                axes=["time"],
-                data=data[0],
+                axes=["frequency", "time"],
+                data=data,
                 units=readout_units,
             )
             nc_file.data_flavour = "ramsey2d"
@@ -1021,14 +1113,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self,
         RF_gain: int,
         RF_freq: float,
-        RF_gen: int,
         RF_pi_2: float,
         n_echoes: int = 0,
         time_range: Tuple[float, float, int] = (1, 10, 20),
         full_avgs: int = 10,
         point_avgs: int = 10,
         RF_cooldown: float = 10,
-        thresh: bool | None = None,
         save_data: bool = True,
         plot: bool = True,
     ):
@@ -1036,23 +1126,26 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
         :param RF_gain: RF out of the RFSoC in DAC units
         :param RF_freq: Frequency of RF drive, in MHz
-        :param RF_gen: RFSoC generator channel to power RF out
         :param RF_pi_2: Pi/2 pulse time, in microseconds. Obtain from an amplitude Rabi
         :param n_echoes: Number of pi pulses to insert. n=1 for Hahn echo
         :time_range: (time_start, time_stop, points) in microseconds
         :param full_avgs: averages over the full experiment
         :param point_avgs: repeat a single data point measurement and average this many times
         :param RF_cooldown: time in us after the second pulse to wait before readout
-        :param thresh: optionally turn thresholding on or off, regardless of the default in readout_cfg
         :param save_data: save data
         :param plot: display plot in ipython
 
         """
         self.config.RF_expt.RF_freq = RF_freq
-        self.config.RF_expt.RF_gen = RF_gen
+        self.config.RF_expt.RF_gen = self.hardware_config.RF_gen
+        self.config.RF_expt.RF_trig_pin = self.hardware_config.RF_trig_pin
         self.config.RF_expt.RF_gain = RF_gain
         self.config.RF_expt.RF_time = self.soccfg.us2cycles(RF_pi_2)
         self.config.RF_expt.n_echoes = n_echoes
+        if RF_freq > 3000:
+            self.config.RF_expt.nqz = 2
+        else:
+            self.config.RF_expt.nqz = 1
         self.config.RF_expt.RF_cooldown = self.soccfg.us2cycles(RF_cooldown)
         self.config.expts = time_range[2]
         self.config.start = self.soccfg.us2cycles(time_range[0])
@@ -1064,8 +1157,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.start_outer = 1
         self.config.reps = full_avgs
         self.config.shots = point_avgs
-        if thresh is not None:
-            self.config.PSB_config.thresholding = thresh
         meas = ld_single_qubit_programs.SpinEcho(self.soccfg, self.config)
         expt_pts, data = meas.acquire(self.soc, load_pulses=True, progress=False)
         expt_pts = self.soccfg.cycles2us(expt_pts[0])

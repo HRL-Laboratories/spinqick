@@ -55,7 +55,7 @@ def interpret_data_PSB(avgi, avgq, data_dim="2D", thresh=None):
     )
 
     if thresh is not None:
-        mag = np.where(mag > thresh, 0, 1)
+        mag = np.where(np.abs(mag) > thresh, 0, 1)
 
     # average over the number of shots at each point, unless there is only 1 shot per point
     if len(mag.shape) > 2 and data_dim == "2D":

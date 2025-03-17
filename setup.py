@@ -21,7 +21,7 @@ setup(
     install_requires=[
         "addict",
         "lmfit",
-        "matplotlib-core",
+        "matplotlib",
         "netcdf4",
         "numpy<=1.26.0",
         "pydantic-settings",
@@ -29,6 +29,7 @@ setup(
         "pyyaml",
         "qick>=0.2.261",
         "scipy",
+        "Pyro4",
     ],
-    python_requires=">=3.10"
+    python_requires=">=3.10",
 )

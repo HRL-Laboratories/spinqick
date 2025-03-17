@@ -11,7 +11,6 @@ import logging
 import numpy as np
 from addict import Dict
 from matplotlib import pyplot as plt
-import netCDF4
 from scipy import optimize
 from qick import QickConfig
 
@@ -50,10 +49,10 @@ class PsbSetup(dot_experiment.DotExperiment):
         save_data: bool = True,
     ):
         """Produce a measurement histogram to show relative prevalance of measured singlets and triplets.  Fits the data to two Gaussians if plot==True.
-        TODO utilize PSBAverager and update data saving to use helperfunctions.
+        TODO utilize PSBAverager
 
         :param num_measurements: Total number of measurements
-        :param flush_2: Add a second flush, to obtain a random mixture of singlets and triplets for LD qubits.  If false, this program runs a typical psb sequence
+        :param flush_2: Add a second flush, to obtain a random mixture of singlets and triplets for LD qubits.  If false, this program runs a typical EO psb sequence
         :param plot: plot results
         :param save_data: save data and plot
 
@@ -70,7 +69,7 @@ class PsbSetup(dot_experiment.DotExperiment):
         expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=True)
 
         avgvals = plot_tools.interpret_data_PSB(avgi, avgq, data_dim="1D")
-
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
             hist, bins = np.histogram(avgvals, bins=100, range=None, weights=None)
             x = bins + (bins[1] - bins[0]) / 2
@@ -95,6 +94,9 @@ class PsbSetup(dot_experiment.DotExperiment):
             try:
                 popt, pcov = optimize.curve_fit(gauss, x[:-1], hist, p0=guess)
                 plt.plot(x[:-1], gauss(x[:-1], *popt))
+                plt.title("meas hist, %d shots" % num_measurements)
+                plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
+                plt.xlabel("DCS conductance (arbs)")
                 print("sigma1: %f, sigma2: %f" % (popt[1], popt[4]))
                 print("fwhm1: %f, fwhm2: %f" % (popt[1] * 2.355, popt[4] * 2.355))
                 print("mu1: %f, mu2: %f" % (popt[2], popt[5]))
@@ -106,20 +108,15 @@ class PsbSetup(dot_experiment.DotExperiment):
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
+            # data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_meashist.nc")
-            fig_file = os.path.join(data_path, str(stamp) + "_meashist.png")
-            cfg_file = os.path.join(data_path, str(stamp) + "_meashist_cfg.yaml")
-
-            # save the config and the plot
-            file_manager.save_config(self.config, cfg_file)
-            plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
 
             # create dimensions for all data
             nc_file.createDimension("triggers", 2)
             nc_file.createDimension("shots", num_measurements)
             nc_file.createDimension("IQ", 2)
+            nc_file.createDimension("popt", 6)
 
             # create variables and fill in data
             psbraw = nc_file.createVariable(
@@ -130,98 +127,121 @@ class PsbSetup(dot_experiment.DotExperiment):
             psbraw[1, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("shots"))
             processed[:] = avgvals
+            #TODO: check the error handling below
+            try:
+                popt_var = nc_file.createVariable("popt", np.float32, ("popt"))
+                nc_file.snr = snr
+                popt_var[:] = popt
+            except Exception as exc:
+                logger.warning("couldn't save the fit: %s", exc, exc_info=True)
+            nc_file.save_config(self.config)
+            nc_file.save_last_plot()
             nc_file.close()
             logger.info("data saved at %s" % data_file)
 
-        return avgvals, expt_pts, avgi, avgq
+        return avgvals, expt_pts, popt, snr, stamp
 
     @dot_experiment.updater
-    def meas_window_scan(
+    def idle_cell_scan(
         self,
-        scan_type: Literal["flush", "flush_2", "idle", "meas"],
         p_gates: Tuple[str, str],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]] = (
-            (-1, 1, 100),
-            (-1, 1, 100),
+            (-0.01, 0.01, 100),
+            (-0.01, 0.01, 100),
         ),
-        x_init: bool = True,
-        x_gate: str | None = None,
-        point_avgs: int = 100,
+        add_RF: bool = False,
+        RF_gain: int = 1000,
+        RF_freq: float = 4500,
+        RF_gen: int = 6,
+        nqz: int = 1,
+        point_avgs: int = 10,
         plot: bool = True,
         save_data: bool = True,
     ):
         """
-        2D sweep of measurement, flush or idle window coordinates.
+        WIP
+        2D sweep of idle coordinate.  Intended for LD qubit setup
 
         :param scan_type: Choose the coordinate that you want to scan.
         :param p_gates: specify the two plunger gates being used
         :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
-        :param x_init: turn on x gate at idle point
-        :param x_gate: if using x_init, specify the x-gate
         :param point_avgs: number of averages per point
         :param plot: whether to plot data
         :param save_data: saves data to netCDF and saves any figure generated as a png
         """
 
-        # I'm trying to write everything generally in terms of Px and Py to help make it more readable
-        self.config.PSB_sweep_cfg.scan_type = scan_type
-        self.config.PSB_sweep_cfg.x_init = x_init
         Px_gate, Py_gate = p_gates
+        px_start_voltage, px_stop_voltage, px_num_points = p_range[0]
+        py_start_voltage, py_stop_voltage, py_num_points = p_range[1]
 
         self.config.PSB_sweep_cfg.gates.Py.gate = Py_gate
         self.config.PSB_sweep_cfg.gates.Py.start = self.volts2dac(
-            p_range[1][0], Py_gate
+            py_start_voltage, Py_gate
         )
-        self.config.PSB_sweep_cfg.gates.Py.stop = self.volts2dac(p_range[1][1], Py_gate)
-        self.config.PSB_sweep_cfg.gates.Py.expts = p_range[1][2]
+        self.config.PSB_sweep_cfg.gates.Py.stop = self.volts2dac(
+            py_stop_voltage, Py_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Py.expts = py_num_points
         self.config.PSB_sweep_cfg.gates.Px.gate = Px_gate
         self.config.PSB_sweep_cfg.gates.Px.start = self.volts2dac(
-            p_range[0][0], Px_gate
+            px_start_voltage, Px_gate
         )
-        self.config.PSB_sweep_cfg.gates.Px.stop = self.volts2dac(p_range[0][1], Px_gate)
-        self.config.PSB_sweep_cfg.gates.Px.expts = p_range[0][2]
-        self.config.PSB_sweep_cfg.gates.X.gate = x_gate
+        self.config.PSB_sweep_cfg.gates.Px.stop = self.volts2dac(
+            px_stop_voltage, Px_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Px.expts = px_num_points
+        self.config.PSB_sweep_cfg.RF_gain = RF_gain
+        self.config.PSB_sweep_cfg.RF_freq = RF_freq
+        self.config.PSB_sweep_cfg.RF_gen = RF_gen
+        self.config.PSB_sweep_cfg.add_RF = add_RF
+        self.config.PSB_sweep_cfg.nqz = nqz
+        # requirements for the averager function
         self.config.expts = point_avgs
+        self.config.reps = 1
+        self.config.start = 1
+        self.config.stop = 10
 
         # run the scan
-        meas = psb_setup_programs.PSBScanGeneral(self.soccfg, self.config)
+        meas = psb_setup_programs.IdleScan(self.soccfg, self.config)
         expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=True)
+        x_pts = expt_pts[1]
+        y_pts = expt_pts[0]
+        self.soc.reset_gens()
+        # make a directory for today's date and create a unique timestamp
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
 
-        expt_pts[1] = self.dac2volts(expt_pts[1], Px_gate) * 1000
-        expt_pts[0] = self.dac2volts(expt_pts[0], Py_gate) * 1000
         # plot the data
         if plot:
-            mag = plot_tools.interpret_data_PSB(avgi, avgq)
+            if self.config.PSB_cfg.thresholding:
+                mag = plot_tools.interpret_data_PSB(
+                    avgi, avgq, thresh=self.config.PSB_cfg.thresh
+                )
+            else:
+                mag = plot_tools.interpret_data_PSB(avgi, avgq)
             avged_mag = np.transpose(mag)
-            x_pts = expt_pts[1]
-            y_pts = expt_pts[0]
+            x_volts = self.dac2volts(expt_pts[1], Px_gate) * 1000
+            y_volts = self.dac2volts(expt_pts[0], Py_gate) * 1000
 
             plt.figure()
 
-            plt.pcolormesh(x_pts, y_pts, avged_mag, shading="nearest", cmap="binary_r")
-
-            plt.colorbar(label="DCS conductance - reference measurement, arbs")
-            plt.title("scantype = %s" % scan_type)
-            plt.xlabel("%s (mV)" % Px_gate)
-            plt.ylabel("%s (mV)" % Py_gate)
+            plt.pcolormesh(
+                x_volts, y_volts, avged_mag, shading="nearest", cmap="binary_r"
+            )
+            if self.config.PSB_cfg.thresholding:
+                plt.colorbar(label="singlet probability")
+            else:
+                plt.colorbar(label="DCS conductance - reference measurement, arbs")
+            plt.title("idle cell scan")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
+            plt.xlabel("%s (dac units)" % Px_gate)
+            plt.ylabel("%s (dac units)" % Py_gate)
+            plt.tight_layout()
 
         if save_data:
-            # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
-            data_file = os.path.join(
-                data_path, str(stamp) + "_" + scan_type + "_psbscan.nc"
-            )
-            fig_file = os.path.join(
-                data_path, str(stamp) + "_" + scan_type + "_psbscan.png"
-            )
-            cfg_file = os.path.join(
-                data_path, str(stamp) + "_" + scan_type + "_psbscan_cfg.yaml"
-            )
-
-            # save the config and the plot
-            file_manager.save_config(self.config, cfg_file)
+            data_file = os.path.join(data_path, str(stamp) + "_" + "_idlescan.nc")
+            fig_file = os.path.join(data_path, str(stamp) + "_" + "_idlescan.png")
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
 
             # create dimensions for all data
             nc_file.createDimension("Px", p_range[0][2])
@@ -238,16 +258,145 @@ class PsbSetup(dot_experiment.DotExperiment):
             Px = nc_file.createVariable("Px", np.float32, ("Px"))
             Px.units = "dac_units"
             Px.dac2volts = self.dac2volts(1, Px_gate)
-            Px[:] = expt_pts[1]
+            Px[:] = x_pts
             Py = nc_file.createVariable("Py", np.float32, ("Py"))
             Py.units = "dac_units"
             Py.dac2volts = self.dac2volts(1, Py_gate)
-            Py[:] = expt_pts[0]
+            Py[:] = y_pts
             psbraw[0, :, :, :, :] = avgi[0]
             psbraw[1, :, :, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
             processed[:] = plot_tools.interpret_data_PSB(avgi, avgq)
+            nc_file.save_config(self.config)
             nc_file.close()
             logger.info("data saved at %s" % data_file)
 
-        return expt_pts, avgi, avgq
+        return expt_pts, avgi, avgq, stamp
+
+    @dot_experiment.updater
+    def meas_window_scan(
+        self,
+        scan_type: Literal["flush", "flush_2", "meas"],
+        p_gates: Tuple[str, str],
+        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]] = (
+            (-0.01, 0.01, 100),
+            (-0.01, 0.01, 100),
+        ),
+        x_init: bool = True,
+        x_gate: str | None = None,
+        point_avgs: int = 10,
+        plot: bool = True,
+        save_data: bool = True,
+    ):
+        """
+        2D sweep of measurement, flush or idle window coordinates.  This is set up for use with parity readout, and
+        it initializes a random spin state by going to a point denoted init_2 instead of dephasing at idle
+
+        :param scan_type: Choose the coordinate that you want to scan.
+        :param p_gates: specify the two plunger gates being used
+        :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
+        :param x_init: turn on x gate at idle point
+        :param x_gate: if using x_init, specify the x-gate
+        :param point_avgs: number of averages per point
+        :param plot: whether to plot data
+        :param save_data: saves data to netCDF and saves any figure generated as a png
+        """
+
+        # I'm trying to write everything generally in terms of Px and Py to help make it more readable
+        self.config.PSB_sweep_cfg.scan_type = scan_type
+        self.config.PSB_sweep_cfg.x_init = x_init
+        Px_gate, Py_gate = p_gates
+        px_start_voltage, px_stop_voltage, px_num_points = p_range[0]
+        py_start_voltage, py_stop_voltage, py_num_points = p_range[1]
+
+        self.config.PSB_sweep_cfg.gates.Py.gate = Py_gate
+        self.config.PSB_sweep_cfg.gates.Py.start = self.volts2dac(
+            py_start_voltage, Py_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Py.stop = self.volts2dac(
+            py_stop_voltage, Py_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Py.expts = py_num_points
+        self.config.PSB_sweep_cfg.gates.Px.gate = Px_gate
+        self.config.PSB_sweep_cfg.gates.Px.start = self.volts2dac(
+            px_start_voltage, Px_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Px.stop = self.volts2dac(
+            px_stop_voltage, Px_gate
+        )
+        self.config.PSB_sweep_cfg.gates.Px.expts = px_num_points
+        self.config.PSB_sweep_cfg.gates.X.gate = x_gate
+        # requirements for the averager function
+        self.config.expts = point_avgs
+        self.config.reps = 1
+        self.config.start = 1
+        self.config.stop = 10
+
+        # run the scan
+        meas = psb_setup_programs.PSBScanGeneral(self.soccfg, self.config)
+        expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=True)
+
+        x_volts = self.dac2volts(expt_pts[1], Px_gate) * 1000
+        y_volts = self.dac2volts(expt_pts[0], Py_gate) * 1000
+        self.soc.reset_gens()
+        # make a directory for today's date and create a unique timestamp
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
+
+        x_pts = expt_pts[1]
+        y_pts = expt_pts[0]
+
+        # plot the data
+        if plot:
+            mag = plot_tools.interpret_data_PSB(avgi, avgq)
+            avged_mag = np.transpose(mag)
+            plt.figure()
+            plt.pcolormesh(
+                x_volts, y_volts, avged_mag, shading="nearest", cmap="binary_r"
+            )
+            plt.colorbar(label="DCS conductance - reference measurement, arbs")
+
+            plt.title("psb scantype = %s" % scan_type)
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
+            plt.xlabel("%s (mV)" % Px_gate)
+            plt.ylabel("%s (mV)" % Py_gate)
+
+        if save_data:
+            data_file = os.path.join(
+                data_path, str(stamp) + "_" + scan_type + "_psbscan.nc"
+            )
+            fig_file = os.path.join(
+                data_path, str(stamp) + "_" + scan_type + "_psbscan.png"
+            )
+
+            plt.savefig(fig_file)
+            nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
+
+            # create dimensions for all data
+            nc_file.createDimension("Px", p_range[0][2])
+            nc_file.createDimension("Py", p_range[1][2])
+            nc_file.createDimension("triggers", 2)
+            nc_file.createDimension("shots", point_avgs)
+            nc_file.createDimension("IQ", 2)
+
+            # create variables and fill in data
+            psbraw = nc_file.createVariable(
+                "fulldata", np.float32, ("IQ", "triggers", "shots", "Px", "Py")
+            )
+            psbraw.units = "raw_adc"
+            Px = nc_file.createVariable("Px", np.float32, ("Px"))
+            Px.units = "dac_units"
+            Px.dac2volts = self.dac2volts(1, Px_gate)
+            Px[:] = x_pts
+            Py = nc_file.createVariable("Py", np.float32, ("Py"))
+            Py.units = "dac_units"
+            Py.dac2volts = self.dac2volts(1, Py_gate)
+            Py[:] = y_pts
+            psbraw[0, :, :, :, :] = avgi[0]
+            psbraw[1, :, :, :, :] = avgq[0]
+            processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
+            processed[:] = plot_tools.interpret_data_PSB(avgi, avgq)
+            nc_file.save_config(self.config)
+            nc_file.close()
+            logger.info("data saved at %s" % data_file)
+
+        return expt_pts, avgi, avgq, stamp

@@ -8,30 +8,23 @@ from spinqick.qick_code.qick_utils import Outsel, Mode, Stdysel, Waveform
 from spinqick.helper_functions import dac_pulses
 
 
-### System Calibrations ###
-
-
 class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Readout):
-    """Use a loading line to calibrate baseband pulse voltages at the device, given known DC bias voltage."""
+    """Use a loading line to calibrate baseband pulse voltages at the device,
+    given known DC bias voltage.
+    """
 
     def initialize(self):
         cfg = self.cfg
         self.declare_gen(
             ch=cfg.calibrate_cfg.x_gate.gen, nqz=1
         )  # assuming SDAC sweep on p gate.  measure trans with x
-        phase = self.deg2reg(
-            cfg.calibrate_cfg.res_phase,
-            gen_ch=cfg.DCS_cfg.res_ch,
-        )
+
         freq_ro = self.soccfg.adcfreq(
             cfg.DCS_cfg.dds_freq / 2, cfg.calibrate_cfg.x_gate.gen, cfg.DCS_cfg.ro_ch
         )
 
-        # set up x gate.  Hard coded to modulate at half the SD gate frequency
-        phase = self.deg2reg(
-            cfg.calibrate_cfg.res_phase + cfg.calibrate_cfg.res_phase_diff,
-            gen_ch=cfg.calibrate_cfg.x_gate.gen,
-        )
+        # set up x gate.  Hard coded to modulate at half the SD chop frequency
+
         freq_x = self.freq2reg(
             freq_ro, cfg.calibrate_cfg.x_gate.gen, ro_ch=cfg.DCS_cfg.ro_ch
         )
@@ -40,8 +33,8 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
             style=Waveform.CONSTANT,
             freq=freq_x,
             gain=cfg.calibrate_cfg.x_gate.gain,
-            phase=phase,
-            length=cfg.DCS_cfg.readout_length,
+            phase=self.deg2reg(0, gen_ch=cfg.calibrate_cfg.x_gate.gen),
+            length=cfg.DCS_cfg.length,
             mode=Mode.ONESHOT,
         )
 
@@ -64,8 +57,8 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
             style=Waveform.CONSTANT,
             freq=freq,
             gain=cfg.DCS_cfg.pulse_gain_readout,
-            phase=phase,
-            length=cfg.DCS_cfg.readout_length,
+            phase=self.deg2reg(0, gen_ch=cfg.DCS_cfg.res_ch),
+            length=cfg.DCS_cfg.length,
             mode=Mode.ONESHOT,
         )
 
@@ -78,16 +71,16 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
             name="chop",
             idata=dac_pulses.chop(
                 length=cfg.calibrate_cfg.p_gate.chop_time,
-                maxv=cfg.calibrate_cfg.p_gate.gain,
+                maxv=32000,
             ),
         )
         self.add_pulse(
             ch=cfg.calibrate_cfg.p_gate.gen,
             name="baseband",
             idata=dac_pulses.baseband(),
-        )  # initialize
+        )
 
-        self.set_pulse_registers(
+        self.default_pulse_registers(
             ch=cfg.calibrate_cfg.p_gate.gen,
             freq=self.freq2reg(0, gen_ch=cfg.calibrate_cfg.p_gate.gen),
             phase=self.deg2reg(0, gen_ch=cfg.calibrate_cfg.p_gate.gen),
@@ -96,52 +89,36 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
             outsel=Outsel.INPUT,
             stdysel=Stdysel.LAST,
             waveform="chop",
-            gain=cfg.calibrate_cfg.p_gate.gain,
         )
         self.sync_all()
-        self.trigger(pins=[0], t=0, width=100)
-
-    def body(self):
-        self.pulse(self.cfg.calibrate_cfg.x_gate.gen, t=0)
+        self.trigger(pins=[cfg.calibrate_cfg.trig_pin], t=0, width=100)
+        self.synci(self.soccfg.us2cycles(cfg.calibrate_cfg.measure_delay))
         self.set_pulse_registers(
             ch=self.cfg.calibrate_cfg.p_gate.gen,
-            freq=self.freq2reg(0, gen_ch=self.cfg.calibrate_cfg.p_gate.gen),
-            phase=self.deg2reg(0, gen_ch=self.cfg.calibrate_cfg.p_gate.gen),
-            style=Waveform.ARB,
-            mode=Mode.PERIODIC,
-            outsel=Outsel.INPUT,
-            stdysel=Stdysel.LAST,
-            waveform="chop",
             gain=self.cfg.calibrate_cfg.p_gate.gain,
         )
         self.pulse(self.cfg.calibrate_cfg.p_gate.gen, t=0)
-        self.measure(
+
+    def body(self):
+        # start x gate modulation
+        self.pulse(self.cfg.calibrate_cfg.x_gate.gen, t=0)
+        # start chopping P gate
+        self.trigger(
             adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
             adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
             t=0,
-            wait=True,
-            syncdelay=0,
         )
-        self.set_pulse_registers(
-            ch=self.cfg.calibrate_cfg.p_gate.gen,
-            freq=self.freq2reg(0, gen_ch=self.cfg.calibrate_cfg.p_gate.gen),
-            phase=self.deg2reg(0, gen_ch=self.cfg.calibrate_cfg.p_gate.gen),
-            style=Waveform.ARB,
-            mode=Mode.PERIODIC,
-            outsel=Outsel.INPUT,
-            stdysel=Stdysel.LAST,
-            waveform="baseband",
-            gain=0,
+        self.pulse(ch=self.cfg.DCS_cfg.res_ch, t=0)
+        self.synci(
+            self.cfg.DCS_cfg.length
+            + self.soccfg.us2cycles(self.cfg.calibrate_cfg.measure_delay * 2)
         )
-        self.pulse(self.cfg.calibrate_cfg.p_gate.gen, t=0)
-        self.sync_all(self.cfg.measure_delay)
+        # wait for readout to stop before continuing
+        self.wait_all()
 
 
 class HSATune(averager_program.RAveragerProgram, readout.Readout):
-    """baseband pulse 'tune_gate' for a given amount of time, and measure after the pulse ends.
-    designed for tuning the HSA
-    """
+    """baseband pulse 'tune_gate' for a given amount of time, and measure after the pulse ends."""
 
     def initialize(self):
         cfg = self.cfg
@@ -228,7 +205,7 @@ class PulseAndMeasure(averager_program.AveragerProgram):
         self.measure(
             adcs=[self.cfg.DCS_cfg.ro_ch],
             pulse_ch=self.cfg.DCS_cfg.res_ch,
-            pins=[0],
+            pins=[0],  # trigger for debugging on a scope
             adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
             t=0,
             wait=True,

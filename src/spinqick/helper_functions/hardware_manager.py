@@ -3,15 +3,18 @@ these DACs to control steady-state operation of the devices.
 """
 
 from typing import Protocol
+import yaml
+import numpy as np
+import logging
 
 from spinqick.helper_functions import file_manager
 from spinqick.models import hardware_config_models as hcm
 from spinqick.settings import file_settings
 
+logger = logging.getLogger(__name__)
+
 
 class VoltageSource(Protocol):
-    source_type: hcm.VoltageSourceType = hcm.VoltageSourceType.test
-
     def open(self, address: str):
         pass
 
@@ -50,10 +53,11 @@ class DCSource:
         self.cfg = hcm.HardwareConfig(**file_manager.load_config(hardware_path))
 
         self.vsource = voltage_source
+        self.source_type = self.cfg.voltage_source
 
-        if voltage_source.source_type == hcm.VoltageSourceType.test:
+        if self.source_type == hcm.VoltageSourceType.test:
             # use a fake voltage source to test code that calls a dc source
-            print("instantiating... nothing! voltage_source=test.")
+            logger.info("instantiating... nothing! voltage_source=test.")
 
     def get_dc_voltage(self, gate: str) -> float:
         """get voltage at gate.  Values are converted via the dc_conversion_factor parameter which is stored in the hardware config
@@ -87,36 +91,84 @@ class DCSource:
             self.vsource.open(address=address)
             ch = self.cfg.channels[str(gate)].slow_dac_channel
             conversion = self.cfg.channels[gate].dc_conversion_factor
-            self.vsource.set_voltage(ch, volts * conversion)
-            self.vsource.close()
+            vset = volts * conversion
+            if volts > self.cfg.channels[str(gate)].max_v:
+                raise Exception(
+                    "requested voltage would exceed max_v on gate %s" % gate
+                )
+            else:
+                self.vsource.set_voltage(ch, vset)
+                self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("test set %s" % volts)
+            logger.info("test set %s" % volts)
 
-    def set_dc_voltage_compensate(self, volts: float, gate: str, m_gate: str):
+    def calculate_compensated_voltage(
+        self, delta_v: list[float], gates: list[str], iso_gates: list[str]
+    ):
+        # generate crosscoupling matrix
+        gate_list = gates + iso_gates
+        g_dim = len(gate_list)
+        g_array = np.eye(g_dim)
+        voltage_vector = np.zeros((g_dim))
+        voltage_vector[: len(gates)] = delta_v
+        for i, gate_i in enumerate(gate_list):
+            if gate_i in gates:
+                continue
+            for k, gate_k in enumerate(gate_list):
+                if gate_i == gate_k:
+                    continue
+                else:
+                    gate_dict = self.cfg.channels[gate_i]
+                    if isinstance(gate_dict, (hcm.FastGate, hcm.SlowGate)):
+                        crosscoupling_matrix = gate_dict.crosscoupling
+                        if crosscoupling_matrix is None:
+                            raise RuntimeError(
+                                "Can't set compensated voltage without a defined cross-coupling matrix"
+                            )
+                        g_i_k = crosscoupling_matrix[gate_k]
+                        g_array[i, k] = g_i_k
+        v_apply = np.matmul(np.linalg.inv(g_array), voltage_vector)
+        return gate_list, v_apply, g_array
+
+    def set_dc_voltage_compensate(
+        self,
+        volts: float | list[float],
+        gates: str | list[str],
+        iso_gates: str | list[str],
+    ):
         """set gate voltage while compensating m_gate
 
         :param volts: Voltage in units of volts at the gate
-        :param gate: Gate to set voltage on
-        :param m_gate: charge sensor gate to compensate with
+        :param gates: Gate to set voltage on
+        :param iso_gates: charge sensor gate to compensate with
 
         """
 
-        cross_coupling_matrix = self.cfg.channels[gate].crosscoupling
-        if cross_coupling_matrix is None:
-            raise RuntimeError(
-                "Can't set compensated voltage without a defined cross-coupling matrix"
-            )
+        if not isinstance(volts, list):
+            volts = [volts]
+        if not isinstance(gates, list):
+            gates = [gates]
+        if not isinstance(iso_gates, list):
+            iso_gates = [iso_gates]
+
         if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            ### set dc voltage
-            v0 = self.get_dc_voltage(gate)
-            self.set_dc_voltage(volts, gate)
-            ### compensate the m gate
-            crosscoupling = cross_coupling_matrix[m_gate]
-            mbias = self.get_dc_voltage(m_gate)
-            vm = (v0 - volts) * crosscoupling + mbias
-            self.set_dc_voltage(vm, m_gate)
+            delta_v_list = []
+            v0_list = []
+            for k, gate in enumerate(gates):
+                v0 = self.get_dc_voltage(gate)
+                v0_list.append(v0)
+                delta_v = volts[k] - v0
+                delta_v_list.append(delta_v)
+            for iso_gate in iso_gates:
+                v0 = self.get_dc_voltage(iso_gate)
+                v0_list.append(v0)
+            set_gates, set_delta_v, _ = self.calculate_compensated_voltage(
+                delta_v_list, gates, iso_gates
+            )
+            for i, gate in enumerate(set_gates):
+                self.set_dc_voltage(set_delta_v[i] + v0_list[i], gate)
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("test set %s" % volts)
+            logger.info("test set %s" % volts)
 
     def program_ramp(
         self, vstart: float, vstop: float, tstep: float, nsteps: int, gate: str
@@ -135,16 +187,27 @@ class DCSource:
             self.vsource.open(address=address)
             ch = self.cfg.channels[str(gate)].slow_dac_channel
             conversion = self.cfg.channels[gate].dc_conversion_factor
-            self.vsource.set_sweep(
-                ch=ch,
-                start=vstart * conversion,
-                stop=vstop * conversion,
-                length=tstep * nsteps,
-                num_steps=nsteps,
-            )
-            self.vsource.close()
+            vstart_converted = vstart * conversion
+            if vstart > self.cfg.channels[str(gate)].max_v:
+                raise Exception(
+                    "requested ramp start voltage would exceed max_v on gate %s" % gate
+                )
+            vstop_converted = vstop * conversion
+            if vstart > self.cfg.channels[str(gate)].max_v:
+                raise Exception(
+                    "requested ramp end voltage would exceed max_v on gate %s" % gate
+                )
+            else:
+                self.vsource.set_sweep(
+                    ch=ch,
+                    start=vstart_converted,
+                    stop=vstop_converted,
+                    length=tstep * nsteps,
+                    num_steps=nsteps,
+                )
+                self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("test ramp %s to %s" % (vstart, vstop))
+            logger.info("test ramp %s to %s" % (vstart, vstop))
 
     def program_ramp_compensate(
         self,
@@ -152,8 +215,8 @@ class DCSource:
         vstop: float,
         tstep: float,
         nsteps: int,
-        gate: str,
-        m_gate: str,
+        gates: str | list[str],
+        iso_gates: str | list[str],
     ):
         """program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be followed with arm and trigger
 
@@ -164,25 +227,44 @@ class DCSource:
         :param gate: Gate to set voltage on
         :param m_gate: charge sensor gate to compensate with
         """
-        crosscoupling_matrix = self.cfg.channels[gate].crosscoupling
 
-        if crosscoupling_matrix is None:
-            raise RuntimeError(
-                "Can not program ramp with compensation without configuring a crosscoupling-matrix"
-            )
+        if not isinstance(gates, list):
+            gates = [gates]
+        if not isinstance(iso_gates, list):
+            iso_gates = [iso_gates]
+
         if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
+            delta_vstart_list = []
+            delta_vstop_list = []
+            v0_list = []
+            for k, gate in enumerate(gates):
+                v0 = self.get_dc_voltage(gate)
+                v0_list.append(v0)
+                delta_v1 = vstart - v0
+                delta_vstart_list.append(delta_v1)
+                delta_v2 = vstop - v0
+                delta_vstop_list.append(delta_v2)
+            for iso_gate in iso_gates:
+                v0_i = self.get_dc_voltage(iso_gate)
+                v0_list.append(v0_i)
+            set_gates, set_delta_vstart, _ = self.calculate_compensated_voltage(
+                delta_vstart_list, gates, iso_gates
+            )
+            set_gates, set_delta_vstop, _ = self.calculate_compensated_voltage(
+                delta_vstop_list, gates, iso_gates
+            )
+
             # program gate voltages
-            self.program_ramp(vstart, vstop, tstep, nsteps, gate)
-            crosscoupling = crosscoupling_matrix[m_gate]
-            mbias = self.get_dc_voltage(m_gate)
-            gatebias = self.get_dc_voltage(gate)
-            vm_start = (gatebias - vstart) * crosscoupling + mbias
-            vm_stop = (gatebias - vstop) * crosscoupling + mbias
-            # program m-gate voltages
-            self.program_ramp(vm_start, vm_stop, tstep, nsteps, m_gate)
-            self.vsource.close()
+            for i, gate in enumerate(set_gates):
+                self.program_ramp(
+                    set_delta_vstart[i] + v0_list[i],
+                    set_delta_vstop[i] + v0_list[i],
+                    tstep,
+                    nsteps,
+                    gate,
+                )
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("test ramp %s to %s" % (vstart, vstop))
+            logger.info("test ramp %s to %s" % (vstart, vstop))
 
     def digital_trigger(self, gate: str):
         """trigger the fast sweep on DCSource digitally.
@@ -196,7 +278,7 @@ class DCSource:
             self.vsource.trigger(ch=ch)
             self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("fake trigger")
+            logger.info("fake trigger")
 
     def arm_sweep(self, gate: str):
         """arm sleeperdac sweep
@@ -210,5 +292,24 @@ class DCSource:
             self.vsource.arm_sweep(ch=ch)
             self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            print("fake arm sweep")
-            print("fake arm sweep")
+            logger.info("fake arm sweep")
+
+    def save_voltage_state(self, file_path: str | None = None):
+        """save voltage state of all gates
+
+        :param file_path: Path to save voltage data to. Defaults to the default data directory.
+        """
+        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
+            voltage_dict = {}
+            for gate in self.cfg.channels:
+                voltage_dict[gate] = self.get_dc_voltage(gate)
+            if not file_path:
+                f_path, t_stamp = file_manager.get_new_timestamp()
+                file_path = file_manager.get_new_filename(
+                    "_dc_state.yaml", f_path, t_stamp
+                )
+            with open(file_path, "w") as file:
+                yaml.dump(voltage_dict, file)
+
+        elif self.cfg.voltage_source == hcm.VoltageSourceType.test:
+            logger.info("fake save")
