@@ -7,9 +7,9 @@ from spinqick.helper_functions import dac_pulses
 from spinqick.qick_code import spin_averager
 
 
-class DoHouseCell(spin_averager.PSBAveragerProgram, readout.Readout):
+class DoNonEquilibriumCell(spin_averager.PSBAveragerProgram, readout.Readout):
     """
-    Turn on exchange and scan the house cell. Right now this is set up to just do dots 2 and 3, with psb on dots 1 and 2
+    Turn on exchange and scan the non-equilibrium cell. Right now this is set up to just do dots 2 and 3, with psb on dots 1 and 2
     """
 
     def initialize(self):

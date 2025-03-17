@@ -11,11 +11,19 @@ class VoltageSourceType(str, enum.Enum):
     test = "test"
 
 
+class HemtGate(pydantic.BaseModel):
+    slow_dac_address: str
+    slow_dac_channel: int
+    dc_conversion_factor: float
+    max_v: float
+
+
 class SlowGate(pydantic.BaseModel):
     dc_conversion_factor: float
     # slow dac information for DCSource class
     slow_dac_address: str
     slow_dac_channel: int
+    max_v: float
     # crosscoupling between gates
     crosscoupling: Dict[str, float] | None = None
 
@@ -38,7 +46,10 @@ class SourceDrainOut(pydantic.BaseModel):
 class HardwareConfig(pydantic.BaseModel):
     SD_in: SourceDrainIn
     SD_out: SourceDrainOut
-    channels: Dict[str, Union[FastGate, SlowGate]]
+    RF_gen: int | None = None
+    slow_dac_trig_pin: int  # trigger on PMOD header for triggering dac sweeps
+    RF_trig_pin: int | None = None  # trigger pin for the RF switch
+    channels: Dict[str, Union[FastGate, SlowGate, HemtGate]]
     voltage_source: VoltageSourceType = (
         VoltageSourceType.test  # specify the type of dc supply you're using for DCSource class
     )

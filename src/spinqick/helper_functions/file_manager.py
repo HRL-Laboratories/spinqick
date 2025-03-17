@@ -61,7 +61,7 @@ def check_configs_exist():
         logger.error("no hardware config found")
 
 
-def get_new_timestamp(datadir: str = DATA_DIRECTORY) -> tuple[str, float]:
+def get_new_timestamp(datadir: str = DATA_DIRECTORY) -> tuple[str, int]:
     """Set up a data folder for today's date and get a current timestamp
 
     :param datadir: general data directory where you want to store
@@ -109,8 +109,12 @@ def save_config(config: dict, filename: str):
     :param config: dictionary
     :param filename: config file name
     """
+    if isinstance(config, addict.Dict):
+        cfg_dict = config.to_dict()
+    else:
+        cfg_dict = config
     with open(filename, "w") as file:
-        yaml.dump(config, file)
+        yaml.dump(cfg_dict, file)
     logger.info("saved config file", filename)
 
 
@@ -134,6 +138,7 @@ def sync_configs(readout_cfg: Dict, hardware_cfg: Dict) -> Dict:
     config = readout_cfg
     config["DCS_cfg"]["ro_ch"] = hardware_cfg["SD_out"]["qick_adc"]
     config["DCS_cfg"]["res_ch"] = hardware_cfg["SD_in"]["qick_gen"]
+    # add syncing of PSB_config channels here
     return config
 
 

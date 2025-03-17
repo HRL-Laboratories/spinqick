@@ -24,11 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class MeasureNoise(dot_experiment.DotExperiment):
-    """This class holds functions that help the user characterize their system's noise.
-    In general each function sets the necessary config parameters for you and then runs the qick program.
-    They then optionally plot and save the data.
-
-    """
+    """This class holds functions that help the user characterize their system's noise."""
 
     def __init__(
         self,
@@ -41,7 +37,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
         :param soccfg: QickConfig object
         :param soc: Qick object
         :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        :param init_slow_dac: initialize your DC source object before starting any experiments.
         """
         super().__init__(datadir=datadir)
         self.soccfg = soccfg
@@ -55,8 +50,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
         m_dot: str,
         m_range: Tuple[float, float, int] = (-0.008, 0.008, 50),
         time_steps: int = 1000,
-        freq_cutoff: float = 0.01,
+        freq_cutoff: float = 0.1,
         measure_buffer: float = 30,
+        wait_time: float | None = None,
         frequency_fit: bool = True,
         save_data: bool = True,
         plot: bool = True,
@@ -68,6 +64,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
             to the current setpoint
         :param time_steps: number of times to run the sweep
         :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
+        :param wait_time: additional time in seconds between loops, measure longer timescale drift
+        :param frequency_fit: fit frequencies below this value to a power law
         :param save_data: whether or not to autosave the results
         :param plot: whether or not to plot in ipython
         :return: data, times, center_data
@@ -82,18 +80,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         ### setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.readout_length)
-            + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
         )
-        if slow_dac_step_len < 2.65:
-            measure_buffer = 2.7 - self.soccfg.cycles2us(
-                self.config.DCS_cfg.readout_length
-            )
-        slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.readout_length)
-            + 2 * measure_buffer
-        )
-
+        
         # parameters for GvG
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_vm
@@ -108,6 +97,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             self.vdc.program_ramp(
                 vm_start, vm_stop, slow_dac_step_len * 1e-6, n_vm, m_dot
             )
+            self.vdc.arm_sweep(m_dot)
 
             ### Start a Vy sweep at a Vx increment and store the data
             meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
@@ -118,6 +108,11 @@ class MeasureNoise(dot_experiment.DotExperiment):
             data[:, step] = mag
             times[step] = time.time_ns() / 1e9
             time.sleep(0.2)
+            if wait_time:
+                time.sleep(wait_time)
+
+        # return to initial bias
+        self.vdc.set_dc_voltage(m_bias, m_dot)
 
         ### now fit the data
         center_data = np.zeros((time_steps))
@@ -127,10 +122,17 @@ class MeasureNoise(dot_experiment.DotExperiment):
             pars = gaussian.guess(mag, x=vm_sweep)
             try:
                 out = gaussian.fit(mag, pars, x=vm_sweep)
-                center_data[step] = out.params["center"].value
+                if np.logical_and(
+                    out.params["center"].value > vm_start,
+                    out.params["center"].value < vm_stop,
+                ):
+                    center_data[step] = out.params["center"].value
+                else:
+                    center_data[step] = np.nan
             except Exception as exc:
                 logger.error("fit failed: %s", exc, exc_info=True)
 
+        data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         ### plot the data
         if plot:
             plt.figure()
@@ -138,8 +140,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
             plt.pcolormesh(
                 times - times[0], vm_sweep, data, shading="nearest", cmap="binary_r"
             )
-            plt.plot(times - times[0], center_data, "k")
+            plt.plot(times - times[0], center_data, "m")
             plt.title("dcs stability")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
             plt.xlabel(" time (s)")
             plt.ylabel("vm")
 
@@ -165,7 +168,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         if save_data:
             # make a directory for today's date and create a unique timestamp
-            data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
+            # data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_dcs_stability.nc")
             fig_file = os.path.join(data_path, str(stamp) + "_dcs_stability.png")
             cfg_file = os.path.join(data_path, str(stamp) + "_dcs_stability.yaml")
@@ -193,7 +196,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             processed[:] = center_data
             nc_file.close()
             logger.info("data saved at %s" % data_file)
-        if plot:
+        if np.logical_and(plot, frequency_fit):
             plt.figure()
             plt.loglog(freq, asd, "k.")
             plt.plot(freq, linfit(freq, popt[0], 10 ** popt[1]), "r-")
@@ -202,9 +205,13 @@ class MeasureNoise(dot_experiment.DotExperiment):
             plt.ylabel("Vrms/RtHz")
             plt.xlabel("freq (Hz)")
             plt.title("DCS peak location noise")
+            plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
             plt.loglog(freq, asd)
-            plt.ylim(np.min(asd) * 0.9, np.max(asd) * 1.1)
+            plt.ylim(1e-7, np.max(asd) * 1.1)
             if save_data:
+                fig_file = os.path.join(
+                    data_path, str(stamp) + "_fft_dcs_stability.png"
+                )
                 plt.savefig(fig_file)
 
         return times, data, center_data
@@ -231,7 +238,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 -averaged amplitude spectral density
         """
 
-        pulse_time = self.config.DCS_cfg.readout_length  # check this
+        pulse_time = (
+            self.config.DCS_cfg.length
+        )  # not sure if we want to blast the device with a tone for the full period
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
             int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
@@ -242,7 +251,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
             self.config,
             pulse_time,
             demodulate=False,
-            readout_freq=0,
             readout_tone=add_tone,
             continuous_tone=add_tone,
         )
@@ -256,6 +264,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             complex_iq = iq.dot([1, 1j])
 
             print("done, average number %d" % n)
+            self.soc.reset_gens()
             if n == 0:
                 freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power
@@ -266,6 +275,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 power_fft += power_fft_single
 
         average_asd = np.sqrt(power_fft / n_averages)
+        print(qickprogram)
+
         if plot:
             plt.figure()
             plt.loglog(freq, average_asd)
@@ -300,7 +311,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 -averaged amplitude spectral density
         """
 
-        pulse_time = self.config.DCS_cfg.readout_length  # check this
+        pulse_time = self.config.DCS_cfg.length  # check this
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
             int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
@@ -310,7 +321,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
             self.config,
             pulse_time,
             demodulate=True,
-            readout_freq=self.config.DCS_cfg.dds_freq,
             readout_tone=True,
             continuous_tone=continuous_tone,
         )

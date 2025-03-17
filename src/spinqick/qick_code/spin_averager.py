@@ -18,67 +18,34 @@ logger = logging.getLogger(__name__)
 
 
 class PSBAcquireMixin(AcquireMixin):
-    """Modify AcquireMixin with averaging removed.  We can do a reference measurement and subtract it from our actual measurement.
-    dimensions for a program with multiple expts/steps: (n_ch, n_reads, n_expts, 2)
-    """
-
-    def __init__(self, *args, **kwargs):
-        # pass through any init arguments
-        super().__init__(*args, **kwargs)
-
-    def _set_up_thresholding(
-        self, thresholding=None, threshold_val=None, reference_meas=True
-    ):
-        self.ref_meas = reference_meas
-        self.thresholding = thresholding
-        if thresholding:
-            self.PSB_threshold = threshold_val
-        else:
-            self.PSB_threshold = None
-
-    def _ro_offset(self, ch, chcfg):
-        return super()._ro_offset(ch, chcfg)
-
     def _average_buf(
         self,
         d_reps: np.ndarray,
         reads_per_shot: list,
         length_norm: bool = True,
-        remove_offset: bool = False,
-    ) -> list:
+        remove_offset: bool = True,
+    ) -> list[np.ndarray]:
         """
-        first step
+        calculate averaged data in a data acquire round. This function should be overwritten in the child qick program
+        if the data is created in a different shape.
 
         :param d_reps: buffer data acquired in a round
-        :param reads_per_shot: readouts per experiment.  Right now not using this.
-        :param length_norm: normalize by readout window length (disable for thresholded values)
+        :param reads_per_shot: readouts per experiment
+        :param length_norm: normalize by readout window length (should use False if thresholding; this setting is ignored and False is used for readouts where edge-counting is enabled)
         :param remove_offset: if normalizing by length, also subtract the readout's IQ offset if any
         :return: averaged iq data after each round.
         """
         avg_d = []
         for i_ch, (ch, ro) in enumerate(self.ro_chs.items()):
-            # get magnitude of readout signal
-            mag = np.sqrt(d_reps[i_ch][..., 0] ** 2 + d_reps[i_ch][..., 1] ** 2)
-
-            # normalize by the length of the readout window
-            if length_norm:
-                mag /= ro["length"]
+            # remove this averaging step
+            # average over the avg_level
+            avg = d_reps[i_ch]
+            if length_norm and not ro["edge_counting"]:
+                avg = avg / ro["length"]
                 if remove_offset:
-                    mag -= self._ro_offset(ch, ro.get("ro_config"))
-
-            # subtract reference measurement from science measurement
-            if self.ref_meas:
-                # could change this to reads per shot > 1
-                mag_diff = mag[..., 1] - mag[..., 0]
-            else:
-                mag_diff = mag[
-                    ..., 0
-                ]  # right now this ONLY selects the first readout if you told it there is no reference measurement
-            if not self.thresholding:
-                mag_thresh = mag_diff
-            else:
-                mag_thresh = np.where(mag_diff > self.PSB_threshold, 0, 1.0)
-            avg_d.append(mag_thresh)
+                    avg = avg - self._ro_offset(ch, ro.get("ro_config"))
+            # the reads_per_shot axis should be the first one
+            avg_d.append(np.moveaxis(avg, -2, 0))
 
         return avg_d
 
@@ -131,7 +98,7 @@ class PSBAveragerProgram(QickRegisterManagerMixin, PSBAcquire):
 
         # acquiremixin class averages over the reps axis -- we changed that analysis though so this does nothing rn!
         self.setup_acquire(
-            counter_addr=self.COUNTER_ADDR, loop_dims=loop_dims, avg_level=-1
+            counter_addr=self.COUNTER_ADDR, loop_dims=loop_dims, avg_level=None
         )
 
     def initialize(self):
@@ -299,11 +266,7 @@ class PSBAveragerProgram(QickRegisterManagerMixin, PSBAcquire):
 
 class FlexyPSBAveragerProgram(PSBAcquire):
     """
-    Copied from RAveragerProgram, modified to work better for our experiments!  Not fully functional!!!
-
-    RAveragerProgram class, for qubit experiments that sweep over a variable (whose value is stored in expt_pts).
-    It is an abstract base class similar to the AveragerProgram, except has an outer loop which allows one to sweep a parameter in the real-time program rather than looping over it in software.  This can be more efficient for short duty cycles.
-    Acquire gathers data from both ADCs 0 and 1.
+    This is largely copied from RAveragerProgram, modified to work better for our experiments.  This adds an outer loop to sweep another variable and averaging on the innermost (shots) and outermost (reps) loops
 
     :param cfg: Configuration dictionary
     :type cfg: dict
@@ -324,6 +287,9 @@ class FlexyPSBAveragerProgram(PSBAcquire):
         self.inner_addrs = []
         self.outer_sweep = False
         self.inner_sweep = False
+        self.psb_thresholding = self.cfg["PSB_cfg"]["thresholding"]
+        self.psb_threshold = self.cfg["PSB_cfg"]["thresh"]
+        self.psb_reference = self.cfg["PSB_cfg"]["reference_meas"]
         self.make_program()
         self.soft_avgs = 1
         if "rounds" in cfg:
@@ -335,9 +301,10 @@ class FlexyPSBAveragerProgram(PSBAcquire):
             self.cfg["expts"],
             self.cfg["shots"],
         ]
-        # average over the shots axis!
+        # must give it an average level, although we removed that feature
+        # TODO remove this feature
         self.setup_acquire(
-            counter_addr=self.COUNTER_ADDR, loop_dims=loop_dims, avg_level=1
+            counter_addr=self.COUNTER_ADDR, loop_dims=loop_dims, avg_level=0
         )
 
     def initialize(self):
@@ -466,6 +433,8 @@ class FlexyPSBAveragerProgram(PSBAcquire):
         This method optionally loads pulses on to the SoC, configures the ADC readouts, loads the machine code representation of the AveragerProgram onto the SoC, starts the program and streams the data into the Python, returning it as a set of numpy arrays.
         config requirements:
         "reps" = number of repetitions;
+        "shots" = number of shots of the innermost loop
+        Right now this assumes the user is collecting data with only one ADC.
 
         :param soc: Qick object
         :type soc: Qick object
@@ -491,27 +460,35 @@ class FlexyPSBAveragerProgram(PSBAcquire):
         if readouts_per_experiment is not None:
             self.set_reads_per_shot(readouts_per_experiment)
 
-        self._set_up_thresholding(
-            thresholding=self.cfg["PSB_cfg"]["thresholding"],
-            threshold_val=self.cfg["PSB_cfg"]["thresh"],
-            reference_meas=self.cfg["PSB_cfg"]["reference_meas"],
-        )
+        avg_d = super().acquire(soc, soft_avgs=self.soft_avgs, **kwargs)
 
-        avg_d = super().acquire(
-            soc, soft_avgs=self.soft_avgs, remove_offset=False, **kwargs
-        )
+        # reformat the data into separate I and Q arrays
+        # save results to class in case you want to look at it later or for analysis
+        raw = [d.reshape((-1, 2)) for d in self.get_raw()]
+        self.di_buf = [d[:, 0] for d in raw]
+        self.dq_buf = [d[:, 1] for d in raw]
 
         expt_pts = self.get_expt_pts()
-        n_ro = len(self.ro_chs)
 
-        # average over shots and reps axes!
-        for i_ch in range(n_ro):
-            avg_loops = avg_d[i_ch]
-            avg_loops = np.mean(avg_loops, axis=-1)
-            avg_loops = np.mean(avg_loops, axis=0)
-            if i_ch == 0:
-                avg_d_final = avg_loops
-            elif i_ch > 0:
-                avg_d_final = np.vstack(avg_d_final, avg_loops)  # type: ignore
+        # if save_experiments is None:
+        avg_di = [d[..., 0] for d in avg_d]
+        avg_dq = [d[..., 1] for d in avg_d]
+        # assume one adc for now
+        if self.psb_reference:
+            mag_diff = np.sqrt(avg_di[0][0] ** 2 + avg_dq[0][0] ** 2) - np.sqrt(
+                avg_di[0][1] ** 2 + avg_dq[0][1] ** 2
+            )
+        else:
+            mag_diff = np.sqrt(
+                avg_di[0][1] ** 2 + avg_dq[0][1] ** 2
+            )  # if no reference measurement subtraction is desired, return the second measurement
 
-        return expt_pts, avg_d_final
+        if self.psb_thresholding:
+            mag_thresh = np.where(np.abs(mag_diff) > self.psb_threshold, 0, 1.0)
+        else:
+            mag_thresh = mag_diff
+
+        avgd_shots = np.mean(mag_thresh, axis=-1)
+        avgd_reps = np.mean(avgd_shots, axis=0)
+
+        return expt_pts, avgd_reps
