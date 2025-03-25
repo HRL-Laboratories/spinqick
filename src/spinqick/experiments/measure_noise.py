@@ -80,9 +80,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         ### setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
-        
+
         # parameters for GvG
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_vm
@@ -187,9 +187,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
             t = nc_file.createVariable("t", np.float32, ("t"))
             t.units = "ns"
             t[:] = times
-            M = nc_file.createVariable(m_dot, np.float32, (m_dot))
-            M.units = "V"
-            M[:] = vm_sweep
+            m = nc_file.createVariable(m_dot, np.float32, (m_dot))
+            m.units = "V"
+            m[:] = vm_sweep
             raw = nc_file.createVariable("processed", np.float32, (m_dot, "t"))
             raw[:] = data
             processed = nc_file.createVariable("centerdata", np.float32, ("t"))
@@ -239,7 +239,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         """
 
         pulse_time = (
-            self.config.DCS_cfg.length
+            self.config.dcs_cfg.length
         )  # not sure if we want to blast the device with a tone for the full period
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
@@ -256,7 +256,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         )
 
         for n in range(n_averages):
-            self.soc.arm_ddr4(ch=self.config.DCS_cfg.ro_ch, nt=n_transfers)
+            self.soc.arm_ddr4(ch=self.config.dcs_cfg.ro_ch, nt=n_transfers)
             qickprogram.config_all(self.soc)
             self.soc.tproc.start()
             iq = self.soc.get_ddr4(n_transfers)
@@ -311,7 +311,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 -averaged amplitude spectral density
         """
 
-        pulse_time = self.config.DCS_cfg.length  # check this
+        pulse_time = self.config.dcs_cfg.length  # check this
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
             int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
@@ -326,7 +326,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         )
 
         for n in range(n_averages):
-            self.soc.arm_ddr4(ch=self.config.DCS_cfg.ro_ch, nt=n_transfers)
+            self.soc.arm_ddr4(ch=self.config.dcs_cfg.ro_ch, nt=n_transfers)
             qickprogram.config_all(self.soc)
             self.soc.tproc.start()
             iq = self.soc.get_ddr4(n_transfers)

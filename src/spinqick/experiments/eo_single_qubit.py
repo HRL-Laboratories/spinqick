@@ -61,24 +61,24 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         p2_start, p2_stop, p2_pts = p_range[0]
         p3_start, p3_stop, p3_pts = p_range[1]
 
-        self.config.EO_cfg.gates.p3.gate = p3_gate
-        self.config.EO_cfg.gates.p3.gen = self.hardware_config.channels[
+        self.config.eo_cfg.gates.p3.gate = p3_gate
+        self.config.eo_cfg.gates.p3.gen = self.hardware_config.channels[
             p3_gate
         ].qick_gen
-        self.config.EO_cfg.gates.p3.start = self.volts2dac(p3_start, p3_gate)
-        self.config.EO_cfg.gates.p3.stop = self.volts2dac(p3_stop, p3_gate)
-        self.config.EO_cfg.gates.p3.expts = p3_pts
-        self.config.EO_cfg.gates.p2.gate = p2_gate
-        self.config.EO_cfg.gates.p2.gen = self.hardware_config.channels[
+        self.config.eo_cfg.gates.p3.start = self.volts2dac(p3_start, p3_gate)
+        self.config.eo_cfg.gates.p3.stop = self.volts2dac(p3_stop, p3_gate)
+        self.config.eo_cfg.gates.p3.expts = p3_pts
+        self.config.eo_cfg.gates.p2.gate = p2_gate
+        self.config.eo_cfg.gates.p2.gen = self.hardware_config.channels[
             p2_gate
         ].qick_gen
-        self.config.EO_cfg.gates.p2.start = self.volts2dac(p2_start, p2_gate)
-        self.config.EO_cfg.gates.p2.stop = self.volts2dac(p2_stop, p2_gate)
-        self.config.EO_cfg.gates.p2.expts = p2_pts
-        self.config.EO_cfg.gates.x.gate = x_gate
-        self.config.EO_cfg.gates.x.gen = self.hardware_config.channels[x_gate].qick_gen
-        self.config.EO_cfg.gates.x.gain = self.volts2dac(x_amplitude, x_gate)
-        self.config.EO_cfg.gates.x.pulse_time = self.soccfg.us2cycles(x_time)
+        self.config.eo_cfg.gates.p2.start = self.volts2dac(p2_start, p2_gate)
+        self.config.eo_cfg.gates.p2.stop = self.volts2dac(p2_stop, p2_gate)
+        self.config.eo_cfg.gates.p2.expts = p2_pts
+        self.config.eo_cfg.gates.x.gate = x_gate
+        self.config.eo_cfg.gates.x.gen = self.hardware_config.channels[x_gate].qick_gen
+        self.config.eo_cfg.gates.x.gain = self.volts2dac(x_amplitude, x_gate)
+        self.config.eo_cfg.gates.x.pulse_time = self.soccfg.us2cycles(x_time)
         self.config.shots = point_avgs
         self.config.reps = full_avgs
 
@@ -159,28 +159,28 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         p3_stop = self.find_p3_detuning_axis(p2_stop)
         x_start, x_stop, x_pts = x_range
 
-        self.config.EO_cfg.gates.p2.gate = p2_gate
-        self.config.EO_cfg.gates.p2.start = self.volts2dac(p2_start, p2_gate)
-        self.config.EO_cfg.gates.p2.stop = self.volts2dac(p2_stop, p2_gate)
-        self.config.EO_cfg.gates.p2.expts = p2_pts
-        self.config.EO_cfg.gates.p2.gen = self.hardware_config.channels[
+        self.config.eo_cfg.gates.p2.gate = p2_gate
+        self.config.eo_cfg.gates.p2.start = self.volts2dac(p2_start, p2_gate)
+        self.config.eo_cfg.gates.p2.stop = self.volts2dac(p2_stop, p2_gate)
+        self.config.eo_cfg.gates.p2.expts = p2_pts
+        self.config.eo_cfg.gates.p2.gen = self.hardware_config.channels[
             p2_gate
         ].qick_gen
-        self.config.EO_cfg.gates.p3.gate = p3_gate
-        self.config.EO_cfg.gates.p3.start = self.volts2dac(p3_start, p3_gate)
-        self.config.EO_cfg.gates.p3.stop = self.volts2dac(p3_stop, p3_gate)
-        self.config.EO_cfg.gates.p3.expts = p2_pts
-        self.config.EO_cfg.gates.p3.gen = self.hardware_config.channels[
+        self.config.eo_cfg.gates.p3.gate = p3_gate
+        self.config.eo_cfg.gates.p3.start = self.volts2dac(p3_start, p3_gate)
+        self.config.eo_cfg.gates.p3.stop = self.volts2dac(p3_stop, p3_gate)
+        self.config.eo_cfg.gates.p3.expts = p2_pts
+        self.config.eo_cfg.gates.p3.gen = self.hardware_config.channels[
             p3_gate
         ].qick_gen
-        self.config.EO_cfg.gates.x.gate = x_gate
-        self.config.EO_cfg.gates.x.start = self.volts2dac(x_start, x_gate)
-        self.config.EO_cfg.gates.x.stop = self.volts2dac(x_stop, x_gate)
-        self.config.EO_cfg.gates.x.pulse_time = self.soccfg.us2cycles(
+        self.config.eo_cfg.gates.x.gate = x_gate
+        self.config.eo_cfg.gates.x.start = self.volts2dac(x_start, x_gate)
+        self.config.eo_cfg.gates.x.stop = self.volts2dac(x_stop, x_gate)
+        self.config.eo_cfg.gates.x.pulse_time = self.soccfg.us2cycles(
             x_time
         )  # TODO upgrade this for more precise pulse length
-        self.config.EO_cfg.gates.x.expts = x_pts
-        self.config.EO_cfg.gates.x.gen = self.hardware_config.channels[x_gate].qick_gen
+        self.config.eo_cfg.gates.x.expts = x_pts
+        self.config.eo_cfg.gates.x.gen = self.hardware_config.channels[x_gate].qick_gen
         self.config.expts = point_avgs
         self.config.shots = point_avgs
         self.config.reps = point_avgs

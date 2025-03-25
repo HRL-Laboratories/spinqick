@@ -36,7 +36,7 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
                 gain=cfg.pat_gain,
                 stdysel=Stdysel.ZERO,
                 length=self.us2cycles(self.cfg.gvg_expt.measure_delay)
-                + self.cfg.DCS_cfg.length,
+                + self.cfg.dcs_cfg.length,
             )
 
         # Set the default pulse registers to be used in the body when calling the pulse
@@ -49,7 +49,7 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
             ch=cfg.gates.gy.gen,
             waveform="baseband",
             freq=self.freq2reg(
-                0, gen_ch=cfg.gates.gy.gen, ro_ch=self.cfg.DCS_cfg.ro_ch
+                0, gen_ch=cfg.gates.gy.gen, ro_ch=self.cfg.dcs_cfg.ro_ch
             ),
             phase=self.deg2reg(0, gen_ch=cfg.gates.gy.gen),
             style=Waveform.ARB,
@@ -67,7 +67,7 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
             ch=cfg.gates.gx.gen,
             waveform="baseband",
             freq=self.freq2reg(
-                0, gen_ch=cfg.gates.gx.gen, ro_ch=self.cfg.DCS_cfg.ro_ch
+                0, gen_ch=cfg.gates.gx.gen, ro_ch=self.cfg.dcs_cfg.ro_ch
             ),
             phase=self.deg2reg(0, gen_ch=cfg.gates.gx.gen),
             style=Waveform.ARB,
@@ -117,9 +117,9 @@ class BasebandPulseGvG(averager_program.NDAveragerProgram, readout.Readout):
 
         ### readout
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             pins=[self.cfg.gvg_expt.trig_pin],
             t=0,
             wait=True,
@@ -140,15 +140,15 @@ class GvG(averager_program.RAveragerProgram, readout.Readout):
     def body(self):
         # Plays our readout pulse at t = measure_delay, waits again for measure_delay after pulse. This is just creating a buffer around the readout window
         self.trigger(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
         )
-        self.pulse(ch=self.cfg.DCS_cfg.res_ch, t=0)
+        self.pulse(ch=self.cfg.dcs_cfg.res_ch, t=0)
 
         self.synci(
             self.soccfg.us2cycles(self.cfg.gvg_expt.measure_delay * 2)
-            + self.cfg.DCS_cfg.length
+            + self.cfg.dcs_cfg.length
         )
 
         self.wait_all()
