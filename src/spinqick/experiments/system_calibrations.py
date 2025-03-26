@@ -103,7 +103,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
 
         data = np.zeros((point_avgs, p_dc_npts, p_pulse_npts), dtype=complex)
@@ -337,7 +337,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
 
         self.config.gvg_expt.measure_delay = measure_buffer
@@ -454,7 +454,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         t_array = np.linspace(*times)
         amplitudes = np.zeros((len(t_array)))
         for i, t in enumerate(t_array):
-            self.config.DCS_cfg.adc_trig_offset = self.soccfg.us2cycles(t)
+            self.config.dcs_cfg.adc_trig_offset = self.soccfg.us2cycles(t)
             prog = system_calibrations_programs.PulseAndMeasure(
                 self.soccfg, self.config
             )

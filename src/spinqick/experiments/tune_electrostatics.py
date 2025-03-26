@@ -180,8 +180,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         if mode == "transdc":
             ### transconductance mode right now is in the 1.6K style assuming a DC offset on SD
-            res_ch = self.config.DCS_cfg.res_ch
-            self.config.DCS_cfg.res_ch = self.hardware_config.channels[
+            res_ch = self.config.dcs_cfg.res_ch
+            self.config.dcs_cfg.res_ch = self.hardware_config.channels[
                 str(twiddle_gate)
             ].qick_gen
 
@@ -229,7 +229,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
 
         # self.config.measure_delay = measure_buffer
@@ -287,7 +287,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         ### set config file res_ch back to SD channel
         if mode == "transdc":
-            self.config.DCS_cfg.res_ch = res_ch
+            self.config.dcs_cfg.res_ch = res_ch
 
         ### return to starting point
         for i, gx_gate in enumerate(gx_gates):
@@ -419,9 +419,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         vm_sweep = np.linspace(vm_start, vm_stop, n_vm)
 
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
-
 
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_vm
@@ -528,12 +527,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         n_v = num_points
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
         if slow_dac_step_len < 2.65:
-            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.DCS_cfg.length)
+            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.dcs_cfg.length)
             slow_dac_step_len = (
-                self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+                self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
             )
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_v
@@ -642,12 +641,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         n_v = num_points
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
         if slow_dac_step_len < 2.65:
-            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.DCS_cfg.length)
+            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.dcs_cfg.length)
             slow_dac_step_len = (
-                self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+                self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
             )
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_v
@@ -707,7 +706,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         return v_sweep, mag
 
     @dot_experiment.updater
-    def sweep_1D(
+    def sweep_1d(
         self,
         gates: list[str],
         g_range: tuple[float, float, int],
@@ -733,12 +732,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         g_start, g_stop, n_v = g_range
         # setup the slow_dac step length
         slow_dac_step_len = (
-            self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+            self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
         )
         if slow_dac_step_len < 2.65:
-            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.DCS_cfg.length)
+            measure_buffer = 2.65 - self.soccfg.cycles2us(self.config.dcs_cfg.length)
             slow_dac_step_len = (
-                self.soccfg.cycles2us(self.config.DCS_cfg.length) + 2 * measure_buffer
+                self.soccfg.cycles2us(self.config.dcs_cfg.length) + 2 * measure_buffer
             )
         self.config.gvg_expt.measure_delay = measure_buffer
         self.config.expts = n_v

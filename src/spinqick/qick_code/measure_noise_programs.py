@@ -16,10 +16,10 @@ def grab_noise(
     readout_tone: bool = True,
     continuous_tone: bool = False,
 ) -> asm_v1.QickProgram:
-    gain = config.DCS_cfg.pulse_gain_readout
-    gen_ch = config.DCS_cfg.res_ch
-    readout_ch = config.DCS_cfg.ro_ch
-    freq = config.DCS_cfg.dds_freq
+    gain = config.dcs_cfg.pulse_gain_readout
+    gen_ch = config.dcs_cfg.res_ch
+    readout_ch = config.dcs_cfg.ro_ch
+    freq = config.dcs_cfg.dds_freq
     freq_round = soccfg.adcfreq(freq, gen_ch, readout_ch)
     pulse_time = pulse_length
     if continuous_tone:

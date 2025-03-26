@@ -76,10 +76,10 @@ class PsbSetup(dot_experiment.DotExperiment):
             plt.figure()
             plt.plot(x[:-1], hist, ".")
 
-            def gauss(x, A1, sigma1, mu1, A2, sigma2, mu2):
-                return A1 / (np.sqrt(2 * np.pi) * sigma1) * np.exp(
+            def gauss(x, a1, sigma1, mu1, a2, sigma2, mu2):
+                return a1 / (np.sqrt(2 * np.pi) * sigma1) * np.exp(
                     -0.5 * (x - mu1) ** 2 / sigma1**2
-                ) + A2 / (np.sqrt(2 * np.pi) * sigma2) * np.exp(
+                ) + a2 / (np.sqrt(2 * np.pi) * sigma2) * np.exp(
                     -0.5 * (x - mu2) ** 2 / sigma2**2
                 )
 
@@ -127,7 +127,7 @@ class PsbSetup(dot_experiment.DotExperiment):
             psbraw[1, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("shots"))
             processed[:] = avgvals
-            #TODO: check the error handling below
+            # TODO: check the error handling below
             try:
                 popt_var = nc_file.createVariable("popt", np.float32, ("popt"))
                 nc_file.snr = snr
@@ -149,10 +149,10 @@ class PsbSetup(dot_experiment.DotExperiment):
             (-0.01, 0.01, 100),
             (-0.01, 0.01, 100),
         ),
-        add_RF: bool = False,
-        RF_gain: int = 1000,
-        RF_freq: float = 4500,
-        RF_gen: int = 6,
+        add_rf: bool = False,
+        rf_gain: int = 1000,
+        rf_freq: float = 4500,
+        rf_gen: int = 6,
         nqz: int = 1,
         point_avgs: int = 10,
         plot: bool = True,
@@ -170,31 +170,31 @@ class PsbSetup(dot_experiment.DotExperiment):
         :param save_data: saves data to netCDF and saves any figure generated as a png
         """
 
-        Px_gate, Py_gate = p_gates
+        px_gate, py_gate = p_gates
         px_start_voltage, px_stop_voltage, px_num_points = p_range[0]
         py_start_voltage, py_stop_voltage, py_num_points = p_range[1]
 
-        self.config.PSB_sweep_cfg.gates.Py.gate = Py_gate
-        self.config.PSB_sweep_cfg.gates.Py.start = self.volts2dac(
-            py_start_voltage, Py_gate
+        self.config.psb_sweep_cfg.gates.py.gate = py_gate
+        self.config.psb_sweep_cfg.gates.py.start = self.volts2dac(
+            py_start_voltage, py_gate
         )
-        self.config.PSB_sweep_cfg.gates.Py.stop = self.volts2dac(
-            py_stop_voltage, Py_gate
+        self.config.psb_sweep_cfg.gates.py.stop = self.volts2dac(
+            py_stop_voltage, py_gate
         )
-        self.config.PSB_sweep_cfg.gates.Py.expts = py_num_points
-        self.config.PSB_sweep_cfg.gates.Px.gate = Px_gate
-        self.config.PSB_sweep_cfg.gates.Px.start = self.volts2dac(
-            px_start_voltage, Px_gate
+        self.config.psb_sweep_cfg.gates.py.expts = py_num_points
+        self.config.psb_sweep_cfg.gates.px.gate = px_gate
+        self.config.psb_sweep_cfg.gates.px.start = self.volts2dac(
+            px_start_voltage, px_gate
         )
-        self.config.PSB_sweep_cfg.gates.Px.stop = self.volts2dac(
-            px_stop_voltage, Px_gate
+        self.config.psb_sweep_cfg.gates.px.stop = self.volts2dac(
+            px_stop_voltage, px_gate
         )
-        self.config.PSB_sweep_cfg.gates.Px.expts = px_num_points
-        self.config.PSB_sweep_cfg.RF_gain = RF_gain
-        self.config.PSB_sweep_cfg.RF_freq = RF_freq
-        self.config.PSB_sweep_cfg.RF_gen = RF_gen
-        self.config.PSB_sweep_cfg.add_RF = add_RF
-        self.config.PSB_sweep_cfg.nqz = nqz
+        self.config.psb_sweep_cfg.gates.px.expts = px_num_points
+        self.config.psb_sweep_cfg.rf_gain = rf_gain
+        self.config.psb_sweep_cfg.rf_freq = rf_freq
+        self.config.psb_sweep_cfg.rf_gen = rf_gen
+        self.config.psb_sweep_cfg.add_rf = add_rf
+        self.config.psb_sweep_cfg.nqz = nqz
         # requirements for the averager function
         self.config.expts = point_avgs
         self.config.reps = 1
@@ -212,29 +212,29 @@ class PsbSetup(dot_experiment.DotExperiment):
 
         # plot the data
         if plot:
-            if self.config.PSB_cfg.thresholding:
+            if self.config.psb_cfg.thresholding:
                 mag = plot_tools.interpret_data_PSB(
-                    avgi, avgq, thresh=self.config.PSB_cfg.thresh
+                    avgi, avgq, thresh=self.config.psb_cfg.thresh
                 )
             else:
                 mag = plot_tools.interpret_data_PSB(avgi, avgq)
             avged_mag = np.transpose(mag)
-            x_volts = self.dac2volts(expt_pts[1], Px_gate) * 1000
-            y_volts = self.dac2volts(expt_pts[0], Py_gate) * 1000
+            x_volts = self.dac2volts(expt_pts[1], px_gate) * 1000
+            y_volts = self.dac2volts(expt_pts[0], py_gate) * 1000
 
             plt.figure()
 
             plt.pcolormesh(
                 x_volts, y_volts, avged_mag, shading="nearest", cmap="binary_r"
             )
-            if self.config.PSB_cfg.thresholding:
+            if self.config.psb_cfg.thresholding:
                 plt.colorbar(label="singlet probability")
             else:
                 plt.colorbar(label="DCS conductance - reference measurement, arbs")
             plt.title("idle cell scan")
             plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
-            plt.xlabel("%s (dac units)" % Px_gate)
-            plt.ylabel("%s (dac units)" % Py_gate)
+            plt.xlabel("%s (dac units)" % px_gate)
+            plt.ylabel("%s (dac units)" % py_gate)
             plt.tight_layout()
 
         if save_data:
@@ -255,14 +255,14 @@ class PsbSetup(dot_experiment.DotExperiment):
                 "fulldata", np.float32, ("IQ", "triggers", "shots", "Px", "Py")
             )
             psbraw.units = "raw_adc"
-            Px = nc_file.createVariable("Px", np.float32, ("Px"))
-            Px.units = "dac_units"
-            Px.dac2volts = self.dac2volts(1, Px_gate)
-            Px[:] = x_pts
-            Py = nc_file.createVariable("Py", np.float32, ("Py"))
-            Py.units = "dac_units"
-            Py.dac2volts = self.dac2volts(1, Py_gate)
-            Py[:] = y_pts
+            px = nc_file.createVariable("Px", np.float32, ("Px"))
+            px.units = "dac_units"
+            px.dac2volts = self.dac2volts(1, px_gate)
+            px[:] = x_pts
+            py = nc_file.createVariable("Py", np.float32, ("Py"))
+            py.units = "dac_units"
+            py.dac2volts = self.dac2volts(1, py_gate)
+            py[:] = y_pts
             psbraw[0, :, :, :, :] = avgi[0]
             psbraw[1, :, :, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
@@ -302,30 +302,30 @@ class PsbSetup(dot_experiment.DotExperiment):
         :param save_data: saves data to netCDF and saves any figure generated as a png
         """
 
-        # I'm trying to write everything generally in terms of Px and Py to help make it more readable
-        self.config.PSB_sweep_cfg.scan_type = scan_type
-        self.config.PSB_sweep_cfg.x_init = x_init
-        Px_gate, Py_gate = p_gates
+        # I'm trying to write everything generally in terms of px and py to help make it more readable
+        self.config.psb_sweep_cfg.scan_type = scan_type
+        self.config.psb_sweep_cfg.x_init = x_init
+        px_gate, py_gate = p_gates
         px_start_voltage, px_stop_voltage, px_num_points = p_range[0]
         py_start_voltage, py_stop_voltage, py_num_points = p_range[1]
 
-        self.config.PSB_sweep_cfg.gates.Py.gate = Py_gate
-        self.config.PSB_sweep_cfg.gates.Py.start = self.volts2dac(
-            py_start_voltage, Py_gate
+        self.config.psb_sweep_cfg.gates.py.gate = py_gate
+        self.config.psb_sweep_cfg.gates.py.start = self.volts2dac(
+            py_start_voltage, py_gate
         )
-        self.config.PSB_sweep_cfg.gates.Py.stop = self.volts2dac(
-            py_stop_voltage, Py_gate
+        self.config.psb_sweep_cfg.gates.py.stop = self.volts2dac(
+            py_stop_voltage, py_gate
         )
-        self.config.PSB_sweep_cfg.gates.Py.expts = py_num_points
-        self.config.PSB_sweep_cfg.gates.Px.gate = Px_gate
-        self.config.PSB_sweep_cfg.gates.Px.start = self.volts2dac(
-            px_start_voltage, Px_gate
+        self.config.psb_sweep_cfg.gates.py.expts = py_num_points
+        self.config.psb_sweep_cfg.gates.px.gate = px_gate
+        self.config.psb_sweep_cfg.gates.px.start = self.volts2dac(
+            px_start_voltage, px_gate
         )
-        self.config.PSB_sweep_cfg.gates.Px.stop = self.volts2dac(
-            px_stop_voltage, Px_gate
+        self.config.psb_sweep_cfg.gates.px.stop = self.volts2dac(
+            px_stop_voltage, px_gate
         )
-        self.config.PSB_sweep_cfg.gates.Px.expts = px_num_points
-        self.config.PSB_sweep_cfg.gates.X.gate = x_gate
+        self.config.psb_sweep_cfg.gates.px.expts = px_num_points
+        self.config.psb_sweep_cfg.gates.x.gate = x_gate
         # requirements for the averager function
         self.config.expts = point_avgs
         self.config.reps = 1
@@ -336,8 +336,8 @@ class PsbSetup(dot_experiment.DotExperiment):
         meas = psb_setup_programs.PSBScanGeneral(self.soccfg, self.config)
         expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=True)
 
-        x_volts = self.dac2volts(expt_pts[1], Px_gate) * 1000
-        y_volts = self.dac2volts(expt_pts[0], Py_gate) * 1000
+        x_volts = self.dac2volts(expt_pts[1], px_gate) * 1000
+        y_volts = self.dac2volts(expt_pts[0], py_gate) * 1000
         self.soc.reset_gens()
         # make a directory for today's date and create a unique timestamp
         data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
@@ -357,8 +357,8 @@ class PsbSetup(dot_experiment.DotExperiment):
 
             plt.title("psb scantype = %s" % scan_type)
             plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
-            plt.xlabel("%s (mV)" % Px_gate)
-            plt.ylabel("%s (mV)" % Py_gate)
+            plt.xlabel("%s (mV)" % px_gate)
+            plt.ylabel("%s (mV)" % py_gate)
 
         if save_data:
             data_file = os.path.join(
@@ -383,14 +383,14 @@ class PsbSetup(dot_experiment.DotExperiment):
                 "fulldata", np.float32, ("IQ", "triggers", "shots", "Px", "Py")
             )
             psbraw.units = "raw_adc"
-            Px = nc_file.createVariable("Px", np.float32, ("Px"))
-            Px.units = "dac_units"
-            Px.dac2volts = self.dac2volts(1, Px_gate)
-            Px[:] = x_pts
-            Py = nc_file.createVariable("Py", np.float32, ("Py"))
-            Py.units = "dac_units"
-            Py.dac2volts = self.dac2volts(1, Py_gate)
-            Py[:] = y_pts
+            px = nc_file.createVariable("Px", np.float32, ("Px"))
+            px.units = "dac_units"
+            px.dac2volts = self.dac2volts(1, px_gate)
+            px[:] = x_pts
+            py = nc_file.createVariable("Py", np.float32, ("Py"))
+            py.units = "dac_units"
+            py.dac2volts = self.dac2volts(1, py_gate)
+            py[:] = y_pts
             psbraw[0, :, :, :, :] = avgi[0]
             psbraw[1, :, :, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
