@@ -1,3 +1,8 @@
+v0.0.2
+======
+- renamed variables that weren't in snake_case
+- renamed dict keys so they are in snake_case
+
 v0.0.1
 ======
 - Added a more comprehensive gateset for ALLXY phase control demo 
