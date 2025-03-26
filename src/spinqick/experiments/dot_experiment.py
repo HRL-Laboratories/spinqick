@@ -53,8 +53,8 @@ class DotExperiment:
     def update_yaml(self):
         """take just the PSB and DCS readout parameters and overwrite them in the yaml"""
         config = file_manager.load_config(self.config_path)
-        config["DCS_cfg"] = self.config["DCS_cfg"]
-        config["PSB_cfg"] = self.config["PSB_cfg"]
+        config["dcs_cfg"] = self.config["dcs_cfg"]
+        config["psb_cfg"] = self.config["psb_cfg"]
         if isinstance(config, addict.Dict):
             file_manager.save_config(config.to_dict(), self.config_path)
         else:
@@ -65,10 +65,10 @@ class DotExperiment:
         """update local config dict from readout and hardware yaml files"""
         config = addict.Dict(file_manager.load_config(self.config_path))
         self.hardware_config = addict.Dict(file_manager.load_config(self.hardware_path))
-        DCS = config["DCS_cfg"]
-        PSB = config["PSB_cfg"]
-        self.config["DCS_cfg"].update(DCS)
-        self.config["PSB_cfg"].update(PSB)
+        dcs = config["dcs_cfg"]
+        psb = config["psb_cfg"]
+        self.config["dcs_cfg"].update(dcs)
+        self.config["psb_cfg"].update(psb)
         self.config = file_manager.sync_configs(self.config, self.hardware_config)
         logger.info("updated local params")
 

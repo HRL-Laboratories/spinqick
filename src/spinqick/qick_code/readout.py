@@ -10,7 +10,7 @@ from spinqick.helper_functions import dac_pulses
 class Readout(asm_v1.QickProgram):
     def init_dcs(self):
         """Initialize DCS generator and readout channel."""
-        cfg = self.cfg.DCS_cfg
+        cfg = self.cfg.dcs_cfg
         self.declare_gen(
             ch=cfg.res_ch,
             nqz=1,
@@ -49,7 +49,7 @@ class Readout(asm_v1.QickProgram):
 
     def init_psb(self):
         """Initialize Pauli spin blockade experiment.  Right now we are using this for meashist()."""
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         self.init_dcs()
         for gate_label in cfg.active_gates:
             gatename = cfg.active_gates[str(gate_label)]
@@ -91,7 +91,7 @@ class Readout(asm_v1.QickProgram):
             self.default_pulse_registers(
                 ch=cfg.gates[str(gatename)].gen,
                 freq=self.freq2reg(
-                    0, gen_ch=cfg.gates[str(gatename)].gen, ro_ch=self.cfg.DCS_cfg.ro_ch
+                    0, gen_ch=cfg.gates[str(gatename)].gen, ro_ch=self.cfg.dcs_cfg.ro_ch
                 ),
                 phase=self.deg2reg(0, gen_ch=cfg.gates[str(gatename)].gen),
                 style=Waveform.ARB,
@@ -103,7 +103,7 @@ class Readout(asm_v1.QickProgram):
     def init_psb_expt(self):
         """Initialize a PSB readout for an experiment that involves ramping through measurement window."""
 
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         self.init_dcs()
         for gate_label in cfg.active_gates:
             gatename = cfg.active_gates[str(gate_label)]
@@ -116,7 +116,7 @@ class Readout(asm_v1.QickProgram):
             self.default_pulse_registers(
                 ch=cfg.gates[str(gatename)].gen,
                 freq=self.freq2reg(
-                    0, gen_ch=cfg.gates[str(gatename)].gen, ro_ch=self.cfg.DCS_cfg.ro_ch
+                    0, gen_ch=cfg.gates[str(gatename)].gen, ro_ch=self.cfg.dcs_cfg.ro_ch
                 ),
                 phase=self.deg2reg(0, gen_ch=cfg.gates[str(gatename)].gen),
                 style=Waveform.ARB,
@@ -154,7 +154,7 @@ class Readout(asm_v1.QickProgram):
 
     def readout_psb(self):
         """Simple readout for meashist"""
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         relax_delay = self.soccfg.us2cycles(cfg["relax_delay"])
         self.sync_all(relax_delay)
 
@@ -180,9 +180,9 @@ class Readout(asm_v1.QickProgram):
 
         # readout
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
             wait=True,
             syncdelay=100,
@@ -220,9 +220,9 @@ class Readout(asm_v1.QickProgram):
 
         # second readout
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
             wait=True,
             syncdelay=100,
@@ -233,7 +233,7 @@ class Readout(asm_v1.QickProgram):
     def readout_psb_pt1(self):
         """Initialize and perform a reference measurement"""
 
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         relax_delay = self.soccfg.us2cycles(cfg["relax_delay"])
         self.sync_all(relax_delay)
 
@@ -259,9 +259,9 @@ class Readout(asm_v1.QickProgram):
 
         # readout
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
             wait=True,
             syncdelay=100,
@@ -270,7 +270,7 @@ class Readout(asm_v1.QickProgram):
     def readout_psb_pt2(self):
         """Initialize, ramp through measurement window, go to idle point"""
 
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         relax_delay = self.soccfg.us2cycles(cfg["relax_delay"])
         self.sync_all(relax_delay)
 
@@ -314,7 +314,7 @@ class Readout(asm_v1.QickProgram):
 
     def readout_psb_pt3(self):
         """End of experiment.  Start at idle, ramp to measurement window, measure"""
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         relax_delay = self.soccfg.us2cycles(cfg["relax_delay"])
 
         # ramp back to measurement window
@@ -328,9 +328,9 @@ class Readout(asm_v1.QickProgram):
 
         # readout again
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
             wait=True,
             syncdelay=100,
@@ -341,7 +341,7 @@ class Readout(asm_v1.QickProgram):
     def readout_psb_pt2_a(self):
         """Initialize and ramp through measurement window, but stop at end of ramp"""
 
-        cfg = self.cfg.PSB_cfg
+        cfg = self.cfg.psb_cfg
         relax_delay = self.soccfg.us2cycles(cfg["relax_delay"])
         self.sync_all(relax_delay)
 

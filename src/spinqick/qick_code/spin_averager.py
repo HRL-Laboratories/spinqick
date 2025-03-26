@@ -229,9 +229,9 @@ class PSBAveragerProgram(QickRegisterManagerMixin, PSBAcquire):
             self.set_reads_per_shot(readouts_per_experiment)
 
         self._set_up_thresholding(
-            thresholding=self.cfg["PSB_cfg"]["thresholding"],
-            threshold_val=self.cfg["PSB_cfg"]["thresh"],
-            reference_meas=self.cfg["PSB_cfg"]["reference_meas"],
+            thresholding=self.cfg["psb_cfg"]["thresholding"],
+            threshold_val=self.cfg["psb_cfg"]["thresh"],
+            reference_meas=self.cfg["psb_cfg"]["reference_meas"],
         )
 
         avg_d = super().acquire(
@@ -287,9 +287,9 @@ class FlexyPSBAveragerProgram(PSBAcquire):
         self.inner_addrs = []
         self.outer_sweep = False
         self.inner_sweep = False
-        self.psb_thresholding = self.cfg["PSB_cfg"]["thresholding"]
-        self.psb_threshold = self.cfg["PSB_cfg"]["thresh"]
-        self.psb_reference = self.cfg["PSB_cfg"]["reference_meas"]
+        self.psb_thresholding = self.cfg["psb_cfg"]["thresholding"]
+        self.psb_threshold = self.cfg["psb_cfg"]["thresh"]
+        self.psb_reference = self.cfg["psb_cfg"]["reference_meas"]
         self.make_program()
         self.soft_avgs = 1
         if "rounds" in cfg:

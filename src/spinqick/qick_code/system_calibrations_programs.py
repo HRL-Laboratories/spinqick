@@ -20,13 +20,13 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
         )  # assuming SDAC sweep on p gate.  measure trans with x
 
         freq_ro = self.soccfg.adcfreq(
-            cfg.DCS_cfg.dds_freq / 2, cfg.calibrate_cfg.x_gate.gen, cfg.DCS_cfg.ro_ch
+            cfg.dcs_cfg.dds_freq / 2, cfg.calibrate_cfg.x_gate.gen, cfg.dcs_cfg.ro_ch
         )
 
         # set up x gate.  Hard coded to modulate at half the SD chop frequency
 
         freq_x = self.freq2reg(
-            freq_ro, cfg.calibrate_cfg.x_gate.gen, ro_ch=cfg.DCS_cfg.ro_ch
+            freq_ro, cfg.calibrate_cfg.x_gate.gen, ro_ch=cfg.dcs_cfg.ro_ch
         )
         self.set_pulse_registers(
             ch=cfg.calibrate_cfg.x_gate.gen,
@@ -34,31 +34,31 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
             freq=freq_x,
             gain=cfg.calibrate_cfg.x_gate.gain,
             phase=self.deg2reg(0, gen_ch=cfg.calibrate_cfg.x_gate.gen),
-            length=cfg.DCS_cfg.length,
+            length=cfg.dcs_cfg.length,
             mode=Mode.ONESHOT,
         )
 
         # Declare the ADC channel
         self.declare_readout(
-            ch=cfg.DCS_cfg.ro_ch,
-            length=cfg.DCS_cfg.readout_length,
+            ch=cfg.dcs_cfg.ro_ch,
+            length=cfg.dcs_cfg.readout_length,
             freq=freq_ro,
             gen_ch=cfg.calibrate_cfg.x_gate.gen,
             sel=Outsel.PRODUCT,
         )
 
         # set up SD channel
-        self.declare_gen(ch=cfg.DCS_cfg.res_ch, nqz=1)
-        freq_dac = self.soccfg.adcfreq(cfg.DCS_cfg.dds_freq, cfg.DCS_cfg.res_ch)
-        freq = self.freq2reg(freq_dac, gen_ch=cfg.DCS_cfg.res_ch)
+        self.declare_gen(ch=cfg.dcs_cfg.res_ch, nqz=1)
+        freq_dac = self.soccfg.adcfreq(cfg.dcs_cfg.dds_freq, cfg.dcs_cfg.res_ch)
+        freq = self.freq2reg(freq_dac, gen_ch=cfg.dcs_cfg.res_ch)
 
         self.set_pulse_registers(
-            ch=cfg.DCS_cfg.res_ch,
+            ch=cfg.dcs_cfg.res_ch,
             style=Waveform.CONSTANT,
             freq=freq,
-            gain=cfg.DCS_cfg.pulse_gain_readout,
-            phase=self.deg2reg(0, gen_ch=cfg.DCS_cfg.res_ch),
-            length=cfg.DCS_cfg.length,
+            gain=cfg.dcs_cfg.pulse_gain_readout,
+            phase=self.deg2reg(0, gen_ch=cfg.dcs_cfg.res_ch),
+            length=cfg.dcs_cfg.length,
             mode=Mode.ONESHOT,
         )
 
@@ -104,13 +104,13 @@ class BasebandVoltageCalibration(averager_program.RAveragerProgram, readout.Read
         self.pulse(self.cfg.calibrate_cfg.x_gate.gen, t=0)
         # start chopping P gate
         self.trigger(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
         )
-        self.pulse(ch=self.cfg.DCS_cfg.res_ch, t=0)
+        self.pulse(ch=self.cfg.dcs_cfg.res_ch, t=0)
         self.synci(
-            self.cfg.DCS_cfg.length
+            self.cfg.dcs_cfg.length
             + self.soccfg.us2cycles(self.cfg.calibrate_cfg.measure_delay * 2)
         )
         # wait for readout to stop before continuing
@@ -134,7 +134,7 @@ class HSATune(averager_program.RAveragerProgram, readout.Readout):
         self.default_pulse_registers(
             ch=cfg.calibrate_cfg.tune_gate.gen,
             freq=self.freq2reg(
-                0, gen_ch=cfg.calibrate_cfg.tune_gate.gen, ro_ch=cfg.DCS_cfg.ro_ch
+                0, gen_ch=cfg.calibrate_cfg.tune_gate.gen, ro_ch=cfg.dcs_cfg.ro_ch
             ),
             phase=self.deg2reg(0, gen_ch=cfg.calibrate_cfg.tune_gate.gen),
             style=Waveform.ARB,
@@ -156,9 +156,9 @@ class HSATune(averager_program.RAveragerProgram, readout.Readout):
         self.pulse(self.cfg.gates.P5.gen, t=0)
 
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=1,  # how long to wait after pulse before measuring! May want to change this
             wait=True,
             syncdelay=self.cfg.measure_delay,
@@ -169,12 +169,12 @@ class PulseAndMeasure(averager_program.AveragerProgram):
     """simple loopback program"""
 
     def initialize(self):
-        gain = self.cfg.DCS_cfg.pulse_gain_readout
-        gen_ch = self.cfg.DCS_cfg.res_ch
-        readout_ch = self.cfg.DCS_cfg.ro_ch
-        freq = self.soccfg.freq2reg(self.cfg.DCS_cfg.dds_freq)
-        pulse_time = self.cfg.DCS_cfg.length
-        readout_length = self.cfg.DCS_cfg.readout_length
+        gain = self.cfg.dcs_cfg.pulse_gain_readout
+        gen_ch = self.cfg.dcs_cfg.res_ch
+        readout_ch = self.cfg.dcs_cfg.ro_ch
+        freq = self.soccfg.freq2reg(self.cfg.dcs_cfg.dds_freq)
+        pulse_time = self.cfg.dcs_cfg.length
+        readout_length = self.cfg.dcs_cfg.readout_length
         pulse_mode = Mode.ONESHOT
 
         self.declare_gen(ch=gen_ch, nqz=1)
@@ -188,9 +188,9 @@ class PulseAndMeasure(averager_program.AveragerProgram):
             length=pulse_time,
         )
         freq_round = self.soccfg.adcfreq(
-            self.cfg.DCS_cfg.readout_freq,
-            self.cfg.DCS_cfg.res_ch,
-            self.cfg.DCS_cfg.ro_ch,
+            self.cfg.dcs_cfg.readout_freq,
+            self.cfg.dcs_cfg.res_ch,
+            self.cfg.dcs_cfg.ro_ch,
         )  # pick out a frequency that works for both the ADC and DAC
         self.declare_readout(
             ch=readout_ch,
@@ -203,10 +203,10 @@ class PulseAndMeasure(averager_program.AveragerProgram):
 
     def body(self):
         self.measure(
-            adcs=[self.cfg.DCS_cfg.ro_ch],
-            pulse_ch=self.cfg.DCS_cfg.res_ch,
+            adcs=[self.cfg.dcs_cfg.ro_ch],
+            pulse_ch=self.cfg.dcs_cfg.res_ch,
             pins=[0],  # trigger for debugging on a scope
-            adc_trig_offset=self.cfg.DCS_cfg.adc_trig_offset,
+            adc_trig_offset=self.cfg.dcs_cfg.adc_trig_offset,
             t=0,
             wait=True,
             syncdelay=100,

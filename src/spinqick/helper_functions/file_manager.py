@@ -136,8 +136,8 @@ def sync_configs(readout_cfg: Dict, hardware_cfg: Dict) -> Dict:
     :return: readout config dictionary
     """
     config = readout_cfg
-    config["DCS_cfg"]["ro_ch"] = hardware_cfg["SD_out"]["qick_adc"]
-    config["DCS_cfg"]["res_ch"] = hardware_cfg["SD_in"]["qick_gen"]
+    config["dcs_cfg"]["ro_ch"] = hardware_cfg["sd_out"]["qick_adc"]
+    config["dcs_cfg"]["res_ch"] = hardware_cfg["sd_in"]["qick_gen"]
     # add syncing of PSB_config channels here
     return config
 

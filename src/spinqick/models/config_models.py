@@ -25,9 +25,9 @@ class DcsConfig(pydantic.BaseModel):
 class ActivePsbGates(pydantic.BaseModel):
     """Specify which gates to use for PSB.  Gates here must have associated PsbGates in the config"""
 
-    Px: str
-    Py: str
-    X: str
+    px: str
+    py: str
+    x: str
 
 
 class PsbGains(pydantic.BaseModel):
@@ -54,14 +54,14 @@ class PsbTimes(pydantic.BaseModel):
 
 
 class PsbGate(pydantic.BaseModel):
-    """generalized template for each gate in PSB_cfg"""
+    """generalized template for each gate in psb_cfg"""
 
     gen: int  # baseband pulse channel corresponding to the gate in use
     gains: PsbGains
 
 
 class PsbConfig(pydantic.BaseModel):
-    """model for PSB_cfg"""
+    """model for psb_cfg"""
 
     active_gates: ActivePsbGates | None
     gates: Dict[str, PsbGate] | None
@@ -75,8 +75,8 @@ class PsbConfig(pydantic.BaseModel):
 class ReadoutConfig(pydantic.BaseModel):
     """model for a full config dictionary"""
 
-    DCS_cfg: DcsConfig
-    PSB_cfg: PsbConfig | None
+    dcs_cfg: DcsConfig
+    psb_cfg: PsbConfig | None
 
 
 class NDAveragerConfig(ReadoutConfig):

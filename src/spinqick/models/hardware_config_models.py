@@ -44,11 +44,11 @@ class SourceDrainOut(pydantic.BaseModel):
 
 
 class HardwareConfig(pydantic.BaseModel):
-    SD_in: SourceDrainIn
-    SD_out: SourceDrainOut
-    RF_gen: int | None = None
+    sd_in: SourceDrainIn
+    sd_out: SourceDrainOut
+    rf_gen: int | None = None
     slow_dac_trig_pin: int  # trigger on PMOD header for triggering dac sweeps
-    RF_trig_pin: int | None = None  # trigger pin for the RF switch
+    rf_trig_pin: int | None = None  # trigger pin for the RF switch
     channels: Dict[str, Union[FastGate, SlowGate, HemtGate]]
     voltage_source: VoltageSourceType = (
         VoltageSourceType.test  # specify the type of dc supply you're using for DCSource class
