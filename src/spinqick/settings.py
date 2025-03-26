@@ -1,3 +1,5 @@
+"""User specific settings"""
+
 import pydantic_settings
 
 

@@ -1,10 +1,11 @@
 """qick programs for setting up pauli spin blockade"""
 
+import numpy as np
+
 from qick import averager_program
 from spinqick.qick_code import readout
 from spinqick.qick_code.qick_utils import Outsel, Mode, Stdysel, Waveform, Defaults
 from spinqick.helper_functions import dac_pulses
-import numpy as np
 
 
 class PSBExperiment(averager_program.NDAveragerProgram, readout.Readout):
@@ -35,6 +36,8 @@ class PSBExperiment(averager_program.NDAveragerProgram, readout.Readout):
 
 
 class IdleScan(averager_program.NDAveragerProgram, readout.Readout):
+    """Perform a 2D sweep of the idle point"""
+
     def initialize(self):
         self.init_psb_expt()
         cfg = self.cfg
@@ -171,7 +174,6 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
         cfg = self.cfg
         sweep_cfg = cfg.psb_sweep_cfg
         scan_type = sweep_cfg.scan_type
-
         self.init_dcs()
         ### for the P and X gates in psb_cfg, loop through and setup each channel for ramping and baseband pulsing
         set_up_gates = [
@@ -187,7 +189,7 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
                 idata=dac_pulses.baseband(),
             )
 
-            if scan_type in ["flush", "flush_2", "idle"]:
+            if scan_type == "flush":
                 if gate_label in [
                     str(sweep_cfg.gates.px.gate),
                     str(sweep_cfg.gates.py.gate),
@@ -354,7 +356,7 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
             self.sync_all(self.cfg.psb_cfg.times.settle_time)
 
         ### ramp to measurement window if not sweeping meas window
-        if scan_type in ["flush", "flush_2", "idle"]:
+        if scan_type == "flush":
             for pgen in [px_gen, py_gen]:
                 self.set_pulse_registers(ch=pgen, waveform="ramp1", gain=Defaults.GAIN)
                 self.pulse(ch=pgen, t=0)
@@ -372,6 +374,7 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
             syncdelay=0,
         )
 
+        # TODO fix this part so that this will work for exchange only qubits as well
         ### pulse to 1,2 flush if x_init is false.  Initialize a random pair of electrons
         if self.cfg.psb_sweep_cfg.x_init is False:
             self.set_pulse_registers(
@@ -380,9 +383,6 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
             self.set_pulse_registers(
                 ch=py_gen, waveform="baseband", gain=py_cfg.gains.init2_gain
             )
-            if scan_type == "flush_2":
-                self.res_r_gain_px.set_to(self.res_r_gain_update_px)
-                self.res_r_gain_py.set_to(self.res_r_gain_update_py)
             self.pulse(ch=px_gen, t=0)
             self.pulse(ch=py_gen, t=0)
             self.sync_all(self.cfg.psb_cfg.times.init2_time)
@@ -461,7 +461,7 @@ class PSBScanGeneral(averager_program.NDAveragerProgram, readout.Readout):
             self.sync_all(self.cfg.psb_cfg.times.settle_time)
 
         ### ramp to measurement window
-        if scan_type in ["flush", "flush_2", "idle"]:
+        if scan_type == "flush":
             for p_gen in [px_gen, py_gen]:
                 self.set_pulse_registers(ch=p_gen, waveform="ramp2", gain=Defaults.GAIN)
                 self.pulse(ch=p_gen, t=0)

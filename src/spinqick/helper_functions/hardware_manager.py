@@ -3,9 +3,9 @@ these DACs to control steady-state operation of the devices.
 """
 
 from typing import Protocol
+import logging
 import yaml
 import numpy as np
-import logging
 
 from spinqick.helper_functions import file_manager
 from spinqick.models import hardware_config_models as hcm
@@ -100,12 +100,18 @@ class DCSource:
                 self.vsource.set_voltage(ch, vset)
                 self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test set %s" % volts)
+            logger.info("test set %s", volts)
 
     def calculate_compensated_voltage(
         self, delta_v: list[float], gates: list[str], iso_gates: list[str]
     ):
-        # generate crosscoupling matrix
+        """
+        Given crosscoupling parameters in hardware_config and desired voltages at gates, calculate voltages to apply.
+        :param delta_v: provide a list of desired potential differences at the gates
+        :param gates: list of gates
+        :param iso_gates: list of gates whose potential at the gate will be kept constant
+        """
+
         gate_list = gates + iso_gates
         g_dim = len(gate_list)
         g_array = np.eye(g_dim)
@@ -136,7 +142,8 @@ class DCSource:
         gates: str | list[str],
         iso_gates: str | list[str],
     ):
-        """set gate voltage while compensating m_gate
+        """
+        Set gate voltage while compensating on iso_gates.
 
         :param volts: Voltage in units of volts at the gate
         :param gates: Gate to set voltage on
@@ -168,7 +175,7 @@ class DCSource:
             for i, gate in enumerate(set_gates):
                 self.set_dc_voltage(set_delta_v[i] + v0_list[i], gate)
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test set %s" % volts)
+            logger.info("test set %s", volts)
 
     def program_ramp(
         self, vstart: float, vstop: float, tstep: float, nsteps: int, gate: str
@@ -207,7 +214,7 @@ class DCSource:
                 )
                 self.vsource.close()
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test ramp %s to %s" % (vstart, vstop))
+            logger.info("test ramp %s to %s", vstart, vstop)
 
     def program_ramp_compensate(
         self,
@@ -237,7 +244,7 @@ class DCSource:
             delta_vstart_list = []
             delta_vstop_list = []
             v0_list = []
-            for k, gate in enumerate(gates):
+            for gate in gates:
                 v0 = self.get_dc_voltage(gate)
                 v0_list.append(v0)
                 delta_v1 = vstart - v0
@@ -264,7 +271,7 @@ class DCSource:
                     gate,
                 )
         if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test ramp %s to %s" % (vstart, vstop))
+            logger.info("test ramp %s to %s", vstart, vstop)
 
     def digital_trigger(self, gate: str):
         """trigger the fast sweep on DCSource digitally.
@@ -308,7 +315,7 @@ class DCSource:
                 file_path = file_manager.get_new_filename(
                     "_dc_state.yaml", f_path, t_stamp
                 )
-            with open(file_path, "w") as file:
+            with open(file_path, "w", encoding="utf-8") as file:
                 yaml.dump(voltage_dict, file)
 
         elif self.cfg.voltage_source == hcm.VoltageSourceType.test:

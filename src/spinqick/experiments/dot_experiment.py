@@ -1,25 +1,13 @@
-import addict
+"""Module to hold the DotExperiment class and config updater function, which are used in all experiment files"""
+
 import logging
+import addict
 
 from spinqick.helper_functions import file_manager
 from spinqick.settings import file_settings
 from spinqick.models import hardware_config_models, config_models
 
 logger = logging.getLogger(__name__)
-
-
-def updater(func):
-    """Call this as a decorator to update config before and after a dot experiment"""
-
-    def wrapper(dot_expt: DotExperiment, *args, **kwargs):
-        # pull the parameters from the yaml file and assign to the local config object
-        dot_expt.update_local()
-        dot_expt.validate_hardware_config()
-        dot_expt.validate_readout_config()
-        result = func(dot_expt, *args, **kwargs)
-        return result
-
-    return wrapper
 
 
 class DotExperiment:
@@ -112,3 +100,17 @@ class DotExperiment:
         """
         conversion = self.hardware_config["channels"][gate]["dac_conversion_factor"]
         return dacunits / conversion
+
+
+def updater(func):
+    """Call this as a decorator to update config before and after a dot experiment"""
+
+    def wrapper(dot_expt: DotExperiment, *args, **kwargs):
+        # pull the parameters from the yaml file and assign to the local config object
+        dot_expt.update_local()
+        dot_expt.validate_hardware_config()
+        dot_expt.validate_readout_config()
+        result = func(dot_expt, *args, **kwargs)
+        return result
+
+    return wrapper

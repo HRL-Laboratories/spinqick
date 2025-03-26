@@ -101,9 +101,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
             ### Start a Vy sweep at a Vx increment and store the data
             meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-            expt_pts, avgi, avgq = meas.acquire(
-                self.soc, load_pulses=True, progress=False
-            )
+            _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
             mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
             data[:, step] = mag
             times[step] = time.time_ns() / 1e9
@@ -152,18 +150,18 @@ class MeasureNoise(dot_experiment.DotExperiment):
             freq, power = periodogram(center_data - np.mean(center_data), fs=samplerate)
             asd = np.sqrt(power)
 
-            def linfit(f, pow, A):
-                return A * np.power(f, pow)
+            def linfit(f, pwr, a):
+                return a * np.power(f, pwr)
 
             def linfit_log(logf, m, b):
                 return m * logf + b
 
-            popt, pcov = curve_fit(
+            # pylint: disable-next=unbalanced-tuple-unpacking
+            popt, _ = curve_fit(
                 linfit_log,
                 np.log10(freq[np.logical_and(freq > 0, freq < freq_cutoff)]),
                 np.log10(asd[np.logical_and(freq > 0, freq < freq_cutoff)]),
             )
-
             icept = np.power(10, popt[1])
 
         if save_data:
@@ -177,7 +175,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             file_manager.save_config(self.config, cfg_file)
             if plot:
                 plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("t", time_steps)
@@ -195,13 +193,13 @@ class MeasureNoise(dot_experiment.DotExperiment):
             processed = nc_file.createVariable("centerdata", np.float32, ("t"))
             processed[:] = center_data
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
         if np.logical_and(plot, frequency_fit):
             plt.figure()
             plt.loglog(freq, asd, "k.")
             plt.plot(freq, linfit(freq, popt[0], 10 ** popt[1]), "r-")
             print("pow equals %f" % popt[0])
-            print("intercept equals %f" % icept)
+            print("intercept equals %f" % icept)  # pylint: disable=possibly-used-before-assignment
             plt.ylabel("Vrms/RtHz")
             plt.xlabel("freq (Hz)")
             plt.title("DCS peak location noise")
@@ -238,9 +236,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 -averaged amplitude spectral density
         """
 
-        pulse_time = (
-            self.config.dcs_cfg.length
-        )  # not sure if we want to blast the device with a tone for the full period
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
             int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
@@ -249,7 +244,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
         qickprogram = measure_noise_programs.grab_noise(
             self.soccfg,
             self.config,
-            pulse_time,
             demodulate=False,
             readout_tone=add_tone,
             continuous_tone=add_tone,
@@ -311,7 +305,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 -averaged amplitude spectral density
         """
 
-        pulse_time = self.config.dcs_cfg.length  # check this
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
         n_transfers = (
             int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
@@ -319,7 +312,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
         qickprogram = measure_noise_programs.grab_noise(
             self.soccfg,
             self.config,
-            pulse_time,
             demodulate=True,
             readout_tone=True,
             continuous_tone=continuous_tone,
@@ -351,5 +343,6 @@ class MeasureNoise(dot_experiment.DotExperiment):
             plt.ylim(np.min(average_asd[1:]) / 2, np.max(average_asd) * 2)
 
         if save_data:
+            # TODO add data saving
             pass
         return freq, average_asd

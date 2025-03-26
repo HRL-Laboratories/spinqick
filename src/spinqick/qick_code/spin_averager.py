@@ -197,7 +197,6 @@ class PSBAveragerProgram(QickRegisterManagerMixin, PSBAcquire):
         angle: List | None = None,
         load_pulses=True,
         readouts_per_experiment=None,
-        save_experiments: List | None = None,
         start_src: str = "internal",
         progress=False,
         remove_offset=False,
@@ -259,7 +258,7 @@ class PSBAveragerProgram(QickRegisterManagerMixin, PSBAcquire):
             if i_ch == 0:
                 avg_d_final = avg_loops
             elif i_ch > 0:
-                avg_d_final = np.vstack(avg_d_final, avg_loops)  # type: ignore
+                avg_d_final = np.vstack((avg_d_final, avg_loops))  # type: ignore
 
         return expt_pts, avg_d_final
 
@@ -386,7 +385,7 @@ class FlexyPSBAveragerProgram(PSBAcquire):
 
         p.loopnz(0, rmm, "LOOP_M")
         # reset outer loop registers back to start value
-        # todo: modify this so you can reset sweeps that aren't linear!
+        # TODO: modify this so you can reset sweeps that aren't linear!
         if self.outer_sweep:
             for i, reg_addr in enumerate(self.outer_addrs):
                 p.mathi(
@@ -418,12 +417,13 @@ class FlexyPSBAveragerProgram(PSBAcquire):
         return expt_pts
 
     def add_outer_reg_sweep(self, ch_page, addr):
-        # this just stores info for the outer sweep
+        """store parameters for the outer sweep"""
         self.outer_sweep = True
         self.outer_pages.append(ch_page)
         self.outer_addrs.append(addr)
 
     def add_inner_reg_sweep(self, ch_page, addr):
+        """store parameters for the inner sweep"""
         self.inner_sweep = True
         self.inner_pages.append(ch_page)
         self.inner_addrs.append(addr)
