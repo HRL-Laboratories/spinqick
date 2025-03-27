@@ -108,11 +108,12 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             nc_file.save_config(self.config)
             nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return [p3_array, p2_array], mag
 
     def find_p3_detuning_axis(self, vp2):
+        """Calculate P3 voltage along detuning axis given P2 voltage and detuning axis points"""
         m = (self.detuning_axis[1, 1] - self.detuning_axis[0, 1]) / (
             self.detuning_axis[1, 0] - self.detuning_axis[0, 0]
         )
@@ -120,6 +121,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         return m * vp2 + b
 
     def find_x_symmetric_axis(self, vp2):
+        """Calculate X voltage along detuning axis given P2 voltage and detuning axis points"""
         m = (self.symmetric_axis[1, 2] - self.symmetric_axis[0, 2]) / (
             self.symmetric_axis[1, 0] - self.symmetric_axis[0, 0]
         )
@@ -135,7 +137,6 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         x_range: Tuple[float, float, int] = (-1, 1, 100),
         x_time: float = 0.010,
         point_avgs: int = 10,
-        full_avgs: int = 1,
         save_data: bool = True,
         plot: bool = True,
     ):
@@ -187,7 +188,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
 
         # run the scan
         meas = eo_single_qubit_programs.DoFingerprint(self.soccfg, self.config)
-        expt_pts, mag = meas.acquire(self.soc, load_pulses=True, progress=True)
+        _, mag = meas.acquire(self.soc, load_pulses=True, progress=True)
 
         p2_axis = np.linspace(p2_start, p2_stop, p2_pts)
         p3_axis = np.linspace(p3_start, p3_stop, p2_pts)
@@ -216,7 +217,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             nc_file.save_config(self.config)
             nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return [x_axis, p2_axis, p3_axis], mag
 

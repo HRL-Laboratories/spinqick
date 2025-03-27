@@ -1,3 +1,9 @@
+v0.0.3
+======
+- filled in more of the docstrings
+- fixing general formatting errors
+- removed some unused variables
+
 v0.0.2
 ======
 - renamed variables that weren't in snake_case

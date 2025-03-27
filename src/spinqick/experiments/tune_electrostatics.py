@@ -142,7 +142,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 nc_file.save_last_plot()
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, avgi, avgq, mag
 
@@ -340,7 +340,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 nc_file.save_last_plot()
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, avgi, avgq
 
@@ -376,7 +376,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         if tune_type == "diff":
             z_sweep_vector = [1, -1]
 
-        a = self.gvg_dc(
+        result = self.gvg_dc(
             g_gates=([m_dot], z_dots),
             g_range=(m_range, z_range),
             compensate=None,
@@ -386,7 +386,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             sweep_direction=([1], z_sweep_vector),
             plot=plot,
         )
-        return a
+        return result
 
     @dot_experiment.updater
     def retune_dcs(
@@ -434,11 +434,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # Start a Vy sweep at a Vx increment and store the data
         meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-        expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
+        _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
         mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
 
         # Ramp Vy voltage back down to the starting value
-        t_min_slow_dac = 2.65
+        t_min_slow_dac = 2.65  # TODO make minimum time step setting
         self.vdc.program_ramp(vm_stop, vm_start, t_min_slow_dac * 1e-6, n_vm, m_dot)
         self.vdc.digital_trigger(m_dot)
 
@@ -498,7 +498,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             if plot:
                 nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return vm_sweep, mag, out
 
@@ -560,9 +560,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
             # Start a Vy sweep at a Vx increment and store the data
             meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-            expt_pts, avgi, avgq = meas.acquire(
-                self.soc, load_pulses=True, progress=False
-            )
+            _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
             mag_up = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
 
             time.sleep(0.5)
@@ -575,9 +573,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 v_start, v_stop, slow_dac_step_len * 1e-6, n_v, gate_label
             )
             self.vdc.arm_sweep(gate_label)
-            expt_pts, avgi, avgq = meas.acquire(
-                self.soc, load_pulses=True, progress=False
-            )
+            _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
             mag_down = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
 
             mag = np.append(mag_up, mag_down)
@@ -612,7 +608,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             nc_file.save_config(self.config)
             nc_file.data_flavour = "gate_action_sweep"
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return v_sweep, mag
 
@@ -671,7 +667,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # Start a Vy sweep at a Vx increment and store the data
         meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-        expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
+        _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
         mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
 
         for i, gate_label in enumerate(gates):
@@ -701,7 +697,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             nc_file.save_config(self.config)
             nc_file.data_flavour = "global_gate_turn_on"
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return v_sweep, mag
 
@@ -777,7 +773,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # Start a Vy sweep
         meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-        expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
+        _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
         mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
 
         for i, gate_label in enumerate(gates):
@@ -817,6 +813,6 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             nc_file.save_config(self.config)
             nc_file.data_flavour = "1Dsweep"
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return v_sweep, mag
