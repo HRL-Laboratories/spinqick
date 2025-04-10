@@ -11,17 +11,24 @@ from spinqick.qick_code.qick_utils import Mode, Outsel, Waveform
 def grab_noise(
     soccfg,
     config: config_models.ReadoutConfig,
-    pulse_length: float,
-    demodulate: bool,
-    readout_tone: bool = True,
-    continuous_tone: bool = False,
+    demodulate: bool | None = None,
+    readout_tone: bool | None = None,
+    continuous_tone: bool | None = None,
 ) -> asm_v1.QickProgram:
+    """This function creates a simple qick program which utilizes the ddr4 buffer to be able to grab long time traces of data.
+    The user may apply a tone while grabbing this data or turn on demodulation.
+
+    :param demodulate: demodulate output at readout_freq frequency
+    :param readout_tone: optionally play a tone on the readout channel
+    :param continuous_tone: play readout tone continuously for the entire experiment
+    """
+
     gain = config.dcs_cfg.pulse_gain_readout
     gen_ch = config.dcs_cfg.res_ch
     readout_ch = config.dcs_cfg.ro_ch
-    freq = config.dcs_cfg.dds_freq
+    freq = config.dcs_cfg.readout_freq
     freq_round = soccfg.adcfreq(freq, gen_ch, readout_ch)
-    pulse_time = pulse_length
+    pulse_time = config.dcs_cfg.length
     if continuous_tone:
         pulse_mode = Mode.PERIODIC
     else:

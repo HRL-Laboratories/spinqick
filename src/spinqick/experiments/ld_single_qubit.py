@@ -1,6 +1,5 @@
 """
 Module to hold functions that run Loss Divincenzo single-qubit experiments
-
 """
 
 import logging
@@ -86,18 +85,18 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             expt_pts, temp_i, temp_q = meas.acquire(
                 self.soc, load_pulses=True, progress=False
             )
-            rel_mag = plot_tools.interpret_data_PSB(temp_i, temp_q)
+            rel_mag = plot_tools.interpret_data_psb(temp_i, temp_q)
             full_data = np.sqrt(temp_i[0] ** 2 + temp_q[0] ** 2)
             if avg == 0:
                 if self.config.psb_cfg.thresholding:
-                    mag = plot_tools.interpret_data_PSB(
+                    mag = plot_tools.interpret_data_psb(
                         temp_i, temp_q, thresh=self.config.psb_cfg.thresh
                     )
                 else:
                     mag = rel_mag
             else:
                 if self.config.psb_cfg.thresholding:
-                    mag += plot_tools.interpret_data_PSB(
+                    mag += plot_tools.interpret_data_psb(
                         temp_i, temp_q, thresh=self.config.psb_cfg.thresh
                     )
                 else:
@@ -140,7 +139,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 nc_file.save_last_plot()
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
         return expt_pts, mag
 
     @dot_experiment.updater
@@ -152,8 +151,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         rf_cooldown: float = 10,
         trig_offset: float = 0.1,
-        off_resonant_frequency: float = 0,
-        off_resonant_time: float = 2,
         nqz: int = 1,
         plot: bool = True,
         save_data: bool = True,
@@ -179,8 +176,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self.config.rf_expt.nqz = nqz
         self.config.rf_expt.rf_cooldown = self.soccfg.us2cycles(rf_cooldown)
         self.config.rf_expt.trig_offset = self.soccfg.us2cycles(trig_offset)
-        self.config.rf_expt.off_resonant_frequency = off_resonant_frequency
-        self.config.rf_expt.off_resonant_time = self.soccfg.us2cycles(off_resonant_time)
         self.config.expts = point_avgs
         # need these dummy parameters for our fake sweep
         self.config.start = 1
@@ -203,7 +198,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 thresh = self.config["psb_cfg"]["thresh"]
             else:
                 thresh = None
-            plot_tools.plot2_PSBdata(
+            plot_tools.plot2_psb_data(
                 [expt_pts[0], times], [data[0]], [data[1]], thresh=thresh
             )
             plt.xlabel("frequency (MHz)")
@@ -219,7 +214,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("frequency", freq_pts)
@@ -244,9 +239,9 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             processed = nc_file.createVariable(
                 "processed", np.float32, ("frequency", "time")
             )
-            processed[:] = plot_tools.interpret_data_PSB([data[0][0]], [data[0][1]])
+            processed[:] = plot_tools.interpret_data_psb([data[0][0]], [data[0][1]])
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return times, expt_pts, data
 
@@ -346,7 +341,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             nc_file.save_last_plot()
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, mag
 
@@ -404,7 +399,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         data_path, stamp = file_manager.get_new_timestamp()
         if plot:
             if self.config["psb_cfg"]["thresholding"]:
-                plot_tools.plot1_PSBdata(
+                plot_tools.plot1_psb_data(
                     [times],
                     [data[0]],
                     [data[1]],
@@ -413,7 +408,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
 
                 plt.ylabel("probability")
             else:
-                plot_tools.plot1_PSBdata(
+                plot_tools.plot1_psb_data(
                     [times], [data[0][0]], [data[0][1]], thresh=None
                 )
                 plt.ylabel("DCS conductance (arbs)")
@@ -432,7 +427,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             file_manager.save_config(self.config, cfg_file)
             if plot:
                 plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("time", time_pts)
@@ -452,10 +447,10 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             time[:] = time_pts
             psbraw[:, :, :, :] = data
             processed = nc_file.createVariable("processed", np.float32, ("time"))
-            processed[:] = plot_tools.interpret_data_PSB([data[0][0]], [data[0][1]])
+            processed[:] = plot_tools.interpret_data_psb([data[0][0]], [data[0][1]])
             nc_file.data_flavour = "time_rabi"
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return data, times, expt_pts
 
@@ -543,7 +538,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             if plot:
                 nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, mag
 
@@ -593,7 +588,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             expt_pts, avgi, avgq = meas.acquire(
                 self.soc, load_pulses=True, progress=False
             )
-            processed_data = plot_tools.interpret_data_PSB(
+            processed_data = plot_tools.interpret_data_psb(
                 avgi, avgq, data_dim="1D", thresh=thresh
             )
             full_data[avg, :] = processed_data
@@ -618,7 +613,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("gain", gain_range[2])
@@ -638,11 +633,11 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             psbraw[0, :, :] = avgi[0]
             psbraw[1, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("gain"))
-            processed[:] = plot_tools.interpret_data_PSB(avgi, avgq, data_dim="1D")
+            processed[:] = plot_tools.interpret_data_psb(avgi, avgq, data_dim="1D")
             if thresh is not None:
                 processed.thresh = thresh
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, avgi, avgq, full_data
 
@@ -744,7 +739,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             thresh = self.config.psb_cfg.thresh
         else:
             thresh = None
-        avged_data_1 = plot_tools.interpret_data_PSB(
+        avged_data_1 = plot_tools.interpret_data_psb(
             [data[0]], [data[1]], thresh=thresh
         )
         avged_data_2 = np.mean(avged_data_1, axis=1)
@@ -777,7 +772,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("gateset", len(allxy_seq))
@@ -800,7 +795,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             processed = nc_file.createVariable("processed", np.float32, ("gateset"))
             processed[:] = avged_data_2
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
         return expt_pts, data, avged_data_2, allxy_seq
 
     @dot_experiment.updater
@@ -859,11 +854,11 @@ class LDSingleQubit(dot_experiment.DotExperiment):
                 )
                 data[:, :, :, i, n] = [avgi[0], avgq[0]]
         if thresholding:
-            avged_data_1 = plot_tools.interpret_data_PSB(
+            avged_data_1 = plot_tools.interpret_data_psb(
                 [data[0]], [data[1]], thresh=thresh
             )
         else:
-            avged_data_1 = plot_tools.interpret_data_PSB([data[0]], [data[1]])
+            avged_data_1 = plot_tools.interpret_data_psb([data[0]], [data[1]])
         avged_data_2 = np.mean(avged_data_1, axis=1)
         data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
@@ -892,7 +887,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("phase", phase_steps)
@@ -914,7 +909,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             processed = nc_file.createVariable("processed", np.float32, ("phase"))
             processed[:] = avged_data_2
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
         return expt_pts, data
 
     @dot_experiment.updater
@@ -1006,7 +1001,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             if plot:
                 nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, data
 
@@ -1104,7 +1099,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             if plot:
                 nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, data
 
@@ -1193,6 +1188,6 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             if plot:
                 nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, data

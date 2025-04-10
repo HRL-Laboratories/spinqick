@@ -1,12 +1,12 @@
 """
-functions to help with plotting data output from averager functions
+Functions to help with plotting data output from averager functions
 """
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_decimated(iq_list, config, IQ=False):
+def plot_decimated(iq_list, config, plot_iq=False):
     """Plot output of acquire_decimated()."""
     fig = plt.figure()
     readout_length = config["readout_length"]
@@ -14,12 +14,12 @@ def plot_decimated(iq_list, config, IQ=False):
         0, readout_length / config["adc_sr"], int(readout_length)
     )  # [us]
 
-    for ii, iq in enumerate(iq_list):
+    for iq in iq_list:
         iq = np.transpose(iq)  # RAveragerProgram
         plt.plot(
             time, np.abs(iq[0] + 1j * iq[1]), label="mag, ADC %d" % (config["ro_ch"])
         )
-        if IQ:
+        if plot_iq:
             plt.plot(time, iq[0], label="I value, ADC %d" % (config["ro_ch"]))
             plt.plot(time, iq[1], label="Q value, ADC %d" % (config["ro_ch"]))
 
@@ -29,7 +29,7 @@ def plot_decimated(iq_list, config, IQ=False):
     return fig
 
 
-def interpret_data_DCS(avgi, avgq, data_dim="2D"):
+def interpret_data_dcs(avgi, avgq, data_dim="2D"):
     """Helper for evaluating NDAverager data."""
 
     # magnitude using i and q signals, use difference between reference (singlet) and second measurement
@@ -46,7 +46,7 @@ def interpret_data_DCS(avgi, avgq, data_dim="2D"):
     return avged_mag
 
 
-def interpret_data_PSB(avgi, avgq, data_dim="2D", thresh=None):
+def interpret_data_psb(avgi, avgq, data_dim="2D", thresh=None):
     """Helper for evaluating NDAverager data from experiments that use a reference measurement."""
 
     # magnitude using i and q signals, use difference between reference (singlet) and second measurement
@@ -68,13 +68,13 @@ def interpret_data_PSB(avgi, avgq, data_dim="2D", thresh=None):
     return avged_mag
 
 
-def plot2_PSBdata(pnts, avgi, avgq, PSB=True, thresh=None, transpose=True):
+def plot2_psb_data(pnts, avgi, avgq, psb=True, thresh=None, transpose=True):
     """Helper for plotting NDAverager data."""
 
-    if PSB:
-        mag = interpret_data_PSB(avgi, avgq, thresh=thresh)
+    if psb:
+        mag = interpret_data_psb(avgi, avgq, thresh=thresh)
     else:
-        mag = interpret_data_DCS(avgi, avgq)
+        mag = interpret_data_dcs(avgi, avgq)
 
     if transpose:
         mag = np.transpose(mag)
@@ -83,19 +83,19 @@ def plot2_PSBdata(pnts, avgi, avgq, PSB=True, thresh=None, transpose=True):
     y_pts = pnts[1]
     data_grid = mag
     fig = plt.figure()
-    # plt.pcolormesh(dac2volts(x_pts)*1000, dac2volts(y_pts)*1000, data_grid, shading='nearest', cmap = 'binary_r')
+
     plt.pcolormesh(x_pts, y_pts, data_grid, shading="nearest", cmap="binary_r")
-    if PSB:
+    if psb:
         plt.colorbar(label="DCS conductance - reference measurement, arbs")
     else:
         plt.colorbar(label="DCS conductance, arbs")
     return fig
 
 
-def plot1_PSBdata(pnts, avgi, avgq, thresh=None):
+def plot1_psb_data(pnts, avgi, avgq, thresh=None):
     """Helper for plotting NDAverager data."""
 
-    mag = interpret_data_PSB(avgi, avgq, data_dim="1D", thresh=thresh)
+    mag = interpret_data_psb(avgi, avgq, data_dim="1D", thresh=thresh)
 
     fig = plt.figure()
     plt.plot(pnts[0], mag, ".-")
@@ -105,6 +105,7 @@ def plot1_PSBdata(pnts, avgi, avgq, thresh=None):
 def plot2_simple(
     xarray, yarray, data, mode="sdchop", cbar_label="DCS conductance, arbs"
 ):
+    """Basic 2D plot"""
     fig = plt.figure()
     if mode == "sdchop":
         data = np.abs(data)

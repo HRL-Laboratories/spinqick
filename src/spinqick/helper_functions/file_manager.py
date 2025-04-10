@@ -50,13 +50,13 @@ def check_configs_exist():
     """Check if readout and hardware configs exist."""
     ro_cfg_path = file_settings.readout_config
     if os.path.isfile(ro_cfg_path):
-        logger.info("readout config exists, using this file: %s" % ro_cfg_path)
+        logger.info("readout config exists, using this file: %s", ro_cfg_path)
     else:
         logger.error("no readout config found")
 
     hw_cfg_path = file_settings.hardware_config
     if os.path.isfile(hw_cfg_path):
-        logger.info("harwdare config exists, using this file: %s" % hw_cfg_path)
+        logger.info("harwdare config exists, using this file: %s", hw_cfg_path)
     else:
         logger.error("no hardware config found")
 
@@ -93,9 +93,9 @@ def load_config(filename: str) -> dict:
     :return: config dictionary
     """
     try:
-        with open(filename, "r") as cfg_file:
+        with open(filename, "r", encoding="utf-8") as cfg_file:
             yaml_cfg = yaml.safe_load(cfg_file)
-        logger.info("Loaded config file", filename)
+        logger.info("Loaded config file %s", filename)
         return yaml_cfg
     except Exception:
         logger.exception("unable to load config")
@@ -113,9 +113,9 @@ def save_config(config: dict, filename: str):
         cfg_dict = config.to_dict()
     else:
         cfg_dict = config
-    with open(filename, "w") as file:
+    with open(filename, "w", encoding="utf-8") as file:
         yaml.dump(cfg_dict, file)
-    logger.info("saved config file", filename)
+    logger.info("saved config file as %s", filename)
 
 
 def load_hardware_config() -> dict:
@@ -142,14 +142,12 @@ def sync_configs(readout_cfg: Dict, hardware_cfg: Dict) -> Dict:
     return config
 
 
+# pylint: disable = no-member
 class SaveData(netCDF4.Dataset):
     """Save data in netcdf4 format. Check out their documentation for information at
     https://unidata.github.io/netcdf4-python/.  Don't forget to run .close()
     on the Dataset object after you've finished adding data.
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def add_axis(
         self,
@@ -221,7 +219,7 @@ class SaveData(netCDF4.Dataset):
             except Exception:
                 ii = 0
             plotname = filename_stripped[0] + "_" + str(ii) + ".png"
-        logger.info("saved plot at %s" % plotname)
+        logger.info("saved plot at %s", plotname)
         plt.gcf()
         plt.savefig(plotname)
 
@@ -229,12 +227,11 @@ class SaveData(netCDF4.Dataset):
         """saves your config dictionary as a yaml"""
 
         filename = Path(self.filepath())
-        # end = filename.suffix
         filename_stripped = str(filename).split(".")
         config_file = filename_stripped[0] + ".yaml"
         if isinstance(full_config, addict.Dict):
             save_config(full_config.to_dict(), config_file)
         else:
             save_config(full_config, config_file)
-        logger.info("saved config at %s" % config_file)
-        logger.info("saved config at %s" % config_file)
+        logger.info("saved config at %s", config_file)
+        logger.info("saved config at %s", config_file)

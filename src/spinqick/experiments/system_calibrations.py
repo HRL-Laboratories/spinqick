@@ -65,7 +65,8 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         save_data: bool = True,
     ):
         """Calibrate baseband voltage based off of low speed dacs.
-        Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs"""
+        Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs
+        """
 
         p_dc_start, p_dc_stop, p_dc_npts = p_dc_range
         p_pulse_start, p_pulse_stop, p_pulse_npts = p_pulse_range
@@ -89,8 +90,6 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         self.config.step = (p_pulse_stop - p_pulse_start) / p_pulse_npts
         self.config.reps = 1
         self.config.calibrate_cfg.measure_delay = measure_buffer
-
-        t_min_slow_dac = 2.65  # microseconds
 
         # DC P Sweep
         p_bias = self.vdc.get_dc_voltage(p_gate)
@@ -119,9 +118,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
                 meas = system_calibrations_programs.BasebandVoltageCalibration(
                     self.soccfg, self.config
                 )
-                expt_pts, avgi, avgq = meas.acquire(
-                    self.soc, load_pulses=True, progress=False
-                )
+                _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
                 trans_data = avgi[0][:] + 1j * avgq[0][:]
 
                 data[avg, :, i] = trans_data
@@ -154,7 +151,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             file_manager.save_config(self.config, cfg_file)
             if plot:
                 plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("V_baseband", p_pulse_range[2])
@@ -187,7 +184,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             )
             processed[:] = data_mean
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return vp_sweep, baseband_sweep, data, data_rot
 
@@ -196,8 +193,8 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         self,
         tune_gate: str,
         gate_pulse_gain: int,
-        gate_dc_range: Tuple[float, float, int] = (-0.1, 0.1, 100),
-        pulse_times: Sequence[float] = [0.1, 100],
+        gate_dc_range: Tuple[float, float, int],
+        pulse_times: Sequence[float],
         loop_avgs: int = 10,
         measure_buffer: float = 10,
         plot: bool = True,
@@ -241,7 +238,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
                     meas = system_calibrations_programs.HSATune(
                         self.soccfg, self.config
                     )
-                    expt_pts, avgi, avgq = meas.acquire(
+                    _, avgi, avgq = meas.acquire(
                         self.soc, load_pulses=True, progress=False
                     )
                     data[n, i, k] = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
@@ -268,7 +265,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("time", len(pulse_times))
@@ -299,7 +296,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             processed = nc_file.createVariable("processed", np.float32, ("Vdc", "time"))
             processed[:, :] = data_avg
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return vg_sweep, data_raw, data_avg
 
@@ -358,9 +355,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
 
             # Start a Vy sweep at a Vx increment and store the data
             meas = tune_electrostatics_programs.GvG(self.soccfg, self.config)
-            expt_pts, avgi, avgq = meas.acquire(
-                self.soc, load_pulses=True, progress=False
-            )
+            _, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=False)
             mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2)
             self.vdc.program_ramp(vm_stop, vm_start, t_min_slow_dac * 1e-6, n_vm, m_dot)
             self.vdc.digital_trigger(m_dot)
@@ -389,10 +384,10 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         try:
             out = line.fit(data, pars, x=vg_sweep)
             slope = out.params["slope"].value
-            logger.info("slope is %f" % slope)
+            logger.info("slope is %f", slope)
         except Exception as exc:
             slope = np.nan
-            logger.error(" line fit failed, %s", exc, exc_info=True)
+            logger.error("line fit failed, %s", exc, exc_info=True)
 
         data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
@@ -414,7 +409,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             # save the config and the plot
             file_manager.save_config(self.config, cfg_file)
             plt.savefig(fig_file)
-            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")
+            nc_file = netCDF4.Dataset(data_file, "a", format="NETCDF4")  # pylint: disable=no-member
 
             # create dimensions for all data
             nc_file.createDimension("vm", n_vm)
@@ -438,7 +433,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
             gy[:] = vm_sweep
             crosscaps[:, :] = data
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
         return data, mdata, slope
 
     @dot_experiment.updater

@@ -46,14 +46,15 @@ class PsbSetup(dot_experiment.DotExperiment):
         num_measurements: int,
         flush_2: bool = False,
         plot: bool = True,
+        fit: bool = True,
         save_data: bool = True,
     ):
         """Produce a measurement histogram to show relative prevalance of measured singlets and triplets.  Fits the data to two Gaussians if plot==True.
-        TODO utilize PSBAverager
 
         :param num_measurements: Total number of measurements
         :param flush_2: Add a second flush, to obtain a random mixture of singlets and triplets for LD qubits.  If false, this program runs a typical EO psb sequence
         :param plot: plot results
+        :param fit: fit results to a pair of gaussians
         :param save_data: save data and plot
 
         """
@@ -68,13 +69,15 @@ class PsbSetup(dot_experiment.DotExperiment):
         meas = psb_setup_programs.PSBExperiment(self.soccfg, self.config)
         expt_pts, avgi, avgq = meas.acquire(self.soc, load_pulses=True, progress=True)
 
-        avgvals = plot_tools.interpret_data_PSB(avgi, avgq, data_dim="1D")
+        avgvals = plot_tools.interpret_data_psb(avgi, avgq, data_dim="1D")
         data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
         if plot:
             hist, bins = np.histogram(avgvals, bins=100, range=None, weights=None)
             x = bins + (bins[1] - bins[0]) / 2
             plt.figure()
             plt.plot(x[:-1], hist, ".")
+        if fit:
+            fit_exception = False
 
             def gauss(x, a1, sigma1, mu1, a2, sigma2, mu2):
                 return a1 / (np.sqrt(2 * np.pi) * sigma1) * np.exp(
@@ -92,23 +95,24 @@ class PsbSetup(dot_experiment.DotExperiment):
                 np.max(x) * 0.9,
             ]  # make this more robust, maybe use lmfit
             try:
-                popt, pcov = optimize.curve_fit(gauss, x[:-1], hist, p0=guess)
-                plt.plot(x[:-1], gauss(x[:-1], *popt))
-                plt.title("meas hist, %d shots" % num_measurements)
-                plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
-                plt.xlabel("DCS conductance (arbs)")
+                # pylint: disable-next=unbalanced-tuple-unpacking
+                popt, _ = optimize.curve_fit(gauss, x[:-1], hist, p0=guess)
+                if plot:
+                    plt.plot(x[:-1], gauss(x[:-1], *popt))
+                    plt.title("meas hist, %d shots" % num_measurements)
+                    plt.title("t: %d" % stamp, loc="right", fontdict={"fontsize": 6})
+                    plt.xlabel("DCS conductance (arbs)")
                 print("sigma1: %f, sigma2: %f" % (popt[1], popt[4]))
                 print("fwhm1: %f, fwhm2: %f" % (popt[1] * 2.355, popt[4] * 2.355))
                 print("mu1: %f, mu2: %f" % (popt[2], popt[5]))
                 print("A1: %f, A2: %f" % (popt[0], popt[3]))
                 snr = 2 * np.abs(popt[2] - popt[5]) / (popt[1] + popt[4])
                 print("SNR: %f" % snr)
-            except Exception as exc:
-                logger.error("fit failed: %s", exc, exc_info=True)
+            except RuntimeError:
+                fit_exception = True
+                logger.error("fit failed")
 
         if save_data:
-            # make a directory for today's date and create a unique timestamp
-            # data_path, stamp = file_manager.get_new_timestamp(datadir=self.datadir)
             data_file = os.path.join(data_path, str(stamp) + "_meashist.nc")
             nc_file = file_manager.SaveData(data_file, "a", format="NETCDF4")
 
@@ -127,17 +131,15 @@ class PsbSetup(dot_experiment.DotExperiment):
             psbraw[1, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("shots"))
             processed[:] = avgvals
-            # TODO: check the error handling below
-            try:
+            # pylint: disable-next=possibly-used-before-assignment
+            if fit and not fit_exception:
                 popt_var = nc_file.createVariable("popt", np.float32, ("popt"))
                 nc_file.snr = snr
                 popt_var[:] = popt
-            except Exception as exc:
-                logger.warning("couldn't save the fit: %s", exc, exc_info=True)
             nc_file.save_config(self.config)
             nc_file.save_last_plot()
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return avgvals, expt_pts, popt, snr, stamp
 
@@ -150,21 +152,20 @@ class PsbSetup(dot_experiment.DotExperiment):
             (-0.01, 0.01, 100),
         ),
         add_rf: bool = False,
-        rf_gain: int = 1000,
-        rf_freq: float = 4500,
-        rf_gen: int = 6,
-        nqz: int = 1,
+        rf_gain: int | None = None,
+        rf_freq: float | None = None,
         point_avgs: int = 10,
         plot: bool = True,
         save_data: bool = True,
     ):
         """
-        WIP
-        2D sweep of idle coordinate.  Intended for LD qubit setup
+        2D sweep of idle coordinate.
 
-        :param scan_type: Choose the coordinate that you want to scan.
         :param p_gates: specify the two plunger gates being used
         :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
+        :param add_rf: add an RF pulse at the idle point
+        :param rf_freq: frequency of RF pulse
+        :param rf_gain: gain of RF pulse
         :param point_avgs: number of averages per point
         :param plot: whether to plot data
         :param save_data: saves data to netCDF and saves any figure generated as a png
@@ -192,9 +193,15 @@ class PsbSetup(dot_experiment.DotExperiment):
         self.config.psb_sweep_cfg.gates.px.expts = px_num_points
         self.config.psb_sweep_cfg.rf_gain = rf_gain
         self.config.psb_sweep_cfg.rf_freq = rf_freq
-        self.config.psb_sweep_cfg.rf_gen = rf_gen
+        self.config.psb_sweep_cfg.rf_gen = self.config.rf_expt.rf_gen
         self.config.psb_sweep_cfg.add_rf = add_rf
-        self.config.psb_sweep_cfg.nqz = nqz
+        if add_rf:
+            # TODO this check should be functionalized here and elsewhere
+            if rf_freq is not None:
+                if rf_freq > 3000:
+                    self.config.psb_sweep_cfg.nqz = 2
+                else:
+                    self.config.psb_sweep_cfg.nqz = 1
         # requirements for the averager function
         self.config.expts = point_avgs
         self.config.reps = 1
@@ -213,11 +220,11 @@ class PsbSetup(dot_experiment.DotExperiment):
         # plot the data
         if plot:
             if self.config.psb_cfg.thresholding:
-                mag = plot_tools.interpret_data_PSB(
+                mag = plot_tools.interpret_data_psb(
                     avgi, avgq, thresh=self.config.psb_cfg.thresh
                 )
             else:
-                mag = plot_tools.interpret_data_PSB(avgi, avgq)
+                mag = plot_tools.interpret_data_psb(avgi, avgq)
             avged_mag = np.transpose(mag)
             x_volts = self.dac2volts(expt_pts[1], px_gate) * 1000
             y_volts = self.dac2volts(expt_pts[0], py_gate) * 1000
@@ -266,17 +273,17 @@ class PsbSetup(dot_experiment.DotExperiment):
             psbraw[0, :, :, :, :] = avgi[0]
             psbraw[1, :, :, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
-            processed[:] = plot_tools.interpret_data_PSB(avgi, avgq)
+            processed[:] = plot_tools.interpret_data_psb(avgi, avgq)
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, avgi, avgq, stamp
 
     @dot_experiment.updater
     def meas_window_scan(
         self,
-        scan_type: Literal["flush", "flush_2", "meas"],
+        scan_type: Literal["flush", "meas"],
         p_gates: Tuple[str, str],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]] = (
             (-0.01, 0.01, 100),
@@ -347,7 +354,7 @@ class PsbSetup(dot_experiment.DotExperiment):
 
         # plot the data
         if plot:
-            mag = plot_tools.interpret_data_PSB(avgi, avgq)
+            mag = plot_tools.interpret_data_psb(avgi, avgq)
             avged_mag = np.transpose(mag)
             plt.figure()
             plt.pcolormesh(
@@ -394,9 +401,9 @@ class PsbSetup(dot_experiment.DotExperiment):
             psbraw[0, :, :, :, :] = avgi[0]
             psbraw[1, :, :, :, :] = avgq[0]
             processed = nc_file.createVariable("processed", np.float32, ("Px", "Py"))
-            processed[:] = plot_tools.interpret_data_PSB(avgi, avgq)
+            processed[:] = plot_tools.interpret_data_psb(avgi, avgq)
             nc_file.save_config(self.config)
             nc_file.close()
-            logger.info("data saved at %s" % data_file)
+            logger.info("data saved at %s", data_file)
 
         return expt_pts, avgi, avgq, stamp

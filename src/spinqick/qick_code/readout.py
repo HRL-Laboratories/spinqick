@@ -78,7 +78,7 @@ class Readout(asm_v1.QickProgram):
                     stopv=cfg.gates[str(gatename)].gains.window1_gain,
                 ),
             )
-            if str(gate_label) == "X":
+            if str(gate_label) == "x":
                 self.add_pulse(
                     ch=cfg.gates[str(gatename)].gen,
                     name="rampx",
@@ -200,7 +200,7 @@ class Readout(asm_v1.QickProgram):
         self.sync_all(cfg.times.init_time)
 
         # ramp x gate from init2 to 0
-        gatename = cfg.active_gates["X"]
+        gatename = cfg.active_gates["x"]
         self.set_pulse_registers(
             ch=cfg.gates[str(gatename)].gen,
             waveform="rampx",

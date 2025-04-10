@@ -58,7 +58,7 @@ def ramp(
     samps_per_clk: int = DAC_SAMPLES_PER_CLOCK,
 ):
     """Ramp to and from measurement window
-    :param ramp_length: length of ramp in cycles
+    :param ramp_length: length of ramp in fabric cycles
     """
 
     length = ramp_length * samps_per_clk
