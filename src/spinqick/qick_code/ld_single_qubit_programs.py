@@ -523,6 +523,7 @@ class AllXY(averager_program.NDAveragerProgram, readout.Readout):
         self.sync_all(self.cfg.rf_expt.pulse_delay)
 
     def pulse_id(self):
+        """Identity gate pulse.  Delays pulse by one pi/2 pulse length"""
         self.trigger(
             adcs=None,
             pins=[self.cfg.rf_expt.rf_trig_pin],
@@ -532,6 +533,7 @@ class AllXY(averager_program.NDAveragerProgram, readout.Readout):
         self.sync_all(self.cfg.rf_expt.rf_time + self.cfg.rf_expt.pulse_delay)
 
     def pulse_xy(self, phi, xy):
+        """Play the actual x or y pulse for the correct amount of time"""
         self.sync_all()
         if phi == 90:
             if xy == "X":
@@ -574,6 +576,7 @@ class AllXY(averager_program.NDAveragerProgram, readout.Readout):
             self.sync_all(self.cfg.rf_expt.pulse_delay + self.cfg.rf_expt.trig_offset)
 
     def xy_parser(self, m):
+        """Determine which pulse to play based on the string which defines the gate sequence"""
         gates = m.split(",")
         for gate in gates:
             if gate[0] == "X":

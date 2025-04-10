@@ -1,3 +1,6 @@
+"""enums for commonly used key word arguements within qick functions"""
+
+
 class Outsel:
     """
     Output select, see:
