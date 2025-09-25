@@ -1,10 +1,11 @@
-v1.0.0
+v2.0.0
 ======
 - utilizes tprocv2 firmware and API from qick
 - new experiment config file structure and parameter management using pydantic models
 - code reorganization - core and models modules
 - SpinqickData objects implemented for data handling and saving in most experiments
 - new exchange-only experiment including calibration routines, nosc and free induction decay experiments
+- changed version to v2, to avoid confusion
 
 v0.0.3
 ======
