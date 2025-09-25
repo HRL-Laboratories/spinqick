@@ -1,7 +1,5 @@
 """
-Helper functions for managing config dictionaries and file saving structure
-We use a library called addict that
-TODO: update the default hardware and readout configs in the file folder
+Helper functions for managing configs and file saving
 """
 
 import datetime
@@ -10,15 +8,19 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict
-
-import addict
+from typing import Any
+import json
 import matplotlib.pyplot as plt
 import netCDF4
 import numpy as np
 import yaml
+import pydantic
 
+from qick.qick_asm import AbsQickProgram
+from qick import helpers, asm_v2, QickConfig
 from spinqick.settings import file_settings
+from spinqick.models import hardware_config_models
+
 
 logger = logging.getLogger(__name__)
 DATA_DIRECTORY = file_settings.data_directory
@@ -48,11 +50,12 @@ def get_data_dir(datadir: str = DATA_DIRECTORY) -> str:
 
 def check_configs_exist():
     """Check if readout and hardware configs exist."""
-    ro_cfg_path = file_settings.readout_config
+    # ro_cfg_path = file_settings.dcs_config
+    ro_cfg_path = file_settings.dot_experiment_config
     if os.path.isfile(ro_cfg_path):
-        logger.info("readout config exists, using this file: %s", ro_cfg_path)
+        logger.info("experiment config exists, using this file: %s", ro_cfg_path)
     else:
-        logger.error("no readout config found")
+        logger.error("no experiment config found")
 
     hw_cfg_path = file_settings.hardware_config
     if os.path.isfile(hw_cfg_path):
@@ -86,7 +89,7 @@ def get_new_filename(suffix: str, data_path: str, timestamp: int) -> str:
     return fname
 
 
-def load_config(filename: str) -> dict:
+def load_config_yaml(filename: str) -> dict:
     """load a config from yaml file format
 
     :param filename: config file name
@@ -103,43 +106,60 @@ def load_config(filename: str) -> dict:
         return cfg
 
 
-def save_config(config: dict, filename: str):
+def load_config_json(filename: str, config_model):
+    """load config from json"""
+    json_string = Path(filename).read_text()
+    config = config_model.model_validate_json(json_string)
+    return config
+
+
+def save_config_yaml(config: dict, filename: str):
     """save a config to a yaml file
 
     :param config: dictionary
     :param filename: config file name
     """
-    if isinstance(config, addict.Dict):
-        cfg_dict = config.to_dict()
-    else:
-        cfg_dict = config
+    cfg_dict = config
     with open(filename, "w", encoding="utf-8") as file:
         yaml.dump(cfg_dict, file)
     logger.info("saved config file as %s", filename)
 
 
-def load_hardware_config() -> dict:
+def save_config_json(config: pydantic.BaseModel, filename: str):
+    """save pydantic model object to json file"""
+    json_string = config.model_dump(mode="json")
+    with open(filename, "w", encoding="utf8") as f:
+        json.dump(json_string, f, ensure_ascii=False, indent=4)
+
+
+def load_hardware_config() -> hardware_config_models.HardwareConfig:
     """load hardware config file
 
     :param datadir: general data directory where you want to store
         data from your experiments.  Also where you store the config files for spinqick.
     :return: hardware config dictionary
     """
-    return load_config(file_settings.hardware_config)
+    return load_config_json(
+        file_settings.hardware_config, hardware_config_models.HardwareConfig
+    )
 
 
-def sync_configs(readout_cfg: Dict, hardware_cfg: Dict) -> Dict:
-    """pulls readout config parameters from the hardware cfg, update and return readout config.
+def save_prog(prog: AbsQickProgram, filename: str):
+    """save a qickprogram to json"""
+    prog_dict = prog.dump_prog()
+    prog_json = helpers.progs2json(prog_dict)
+    with open(filename, "w", encoding="utf8") as f:
+        json.dump(prog_json, f, ensure_ascii=False, indent=4)
 
-    :param readout_cfg: readout config dictionary
-    :param hardware_cfg: hardware config dictionary
-    :return: readout config dictionary
-    """
-    config = readout_cfg
-    config["dcs_cfg"]["ro_ch"] = hardware_cfg["sd_out"]["qick_adc"]
-    config["dcs_cfg"]["res_ch"] = hardware_cfg["sd_in"]["qick_gen"]
-    # add syncing of PSB_config channels here
-    return config
+
+def load_qickprogram(fname: str, soccfg: QickConfig):
+    """loads a qickprogram from json.  Requires the soccfg used to run the program"""
+    with open(fname, "r", encoding="utf8") as f:
+        prog_json_string = json.load(f)
+    prog_dict = helpers.json2progs(prog_json_string)
+    prog = asm_v2.QickProgramV2(soccfg)
+    prog.load_prog(prog_dict)
+    return prog
 
 
 # pylint: disable = no-member
@@ -148,6 +168,16 @@ class SaveData(netCDF4.Dataset):
     https://unidata.github.io/netcdf4-python/.  Don't forget to run .close()
     on the Dataset object after you've finished adding data.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filename_prefix = self.get_filename_prefix()
+
+    def get_filename_prefix(self):
+        """returns the filename prefix for the given netcdf object"""
+        filename = Path(self.filepath())
+        filename_stripped = str(filename).split(".")
+        return filename_stripped[0]
 
     def add_axis(
         self,
@@ -176,12 +206,35 @@ class SaveData(netCDF4.Dataset):
         else:
             self.createDimension(label + "_dim", None)
 
+    def add_multivariable_axis(
+        self,
+        dim_label: str,
+        sweep_dict: dict,
+        group_path: str | None = None,
+        dtype=np.float32,
+    ):
+        """adds a dimension to netCDF object which corresponds to multiple swept variables"""
+        dim = dim_label + "_dim"
+        if dim not in self.dimensions:
+            self.createDimension(dim, sweep_dict["size"])
+        swept_vars = sweep_dict["sweeps"]
+        for sweep_var in list(swept_vars.keys()):
+            if group_path is None:
+                var_obj = self.createVariable(sweep_var, dtype, (dim))
+            else:
+                group_obj: netCDF4.Group = self[group_path]
+                var_obj = group_obj.createVariable(sweep_var, dtype, (dim))
+            var_obj[:] = swept_vars[sweep_var]["data"]
+            if swept_vars[sweep_var]["units"] is not None:
+                var_obj.units = swept_vars[sweep_var]["units"]
+
     def add_dataset(
         self,
         label: str,
         axes: list[str],
         data: np.ndarray,
         units: str | None = None,
+        group_path: str | None = None,
         dtype=np.float32,
     ):
         """add your data array.  Axes needs the be a list of the values
@@ -195,43 +248,43 @@ class SaveData(netCDF4.Dataset):
         """
 
         ax_labels = (axis + "_dim" for axis in axes)
-        dataset = self.createVariable(label, dtype, ax_labels)
-        dataset[:] = data
+        if group_path is None:
+            variable = self.createVariable(label, dtype, ax_labels)
+        else:
+            group_obj: netCDF4.Group = self[group_path]
+            variable = group_obj.createVariable(label, dtype, ax_labels)
+        variable[:] = data
         if units is not None:
-            dataset.units = units
+            variable.units = units
 
-    def save_last_plot(self):
-        """saves your figure as a .png with the same timestamp
-        and name as the data"""
-
-        filename = Path(self.filepath())
-        # end = filename.suffix
-        filename_stripped = str(filename).split(".")
-        plotname = filename_stripped[0] + ".png"
+    def save_last_plot(self, fignum=None):
+        """saves your figure as a .png with the same filename as the data"""
+        if fignum is None:
+            plt.gcf()
+        else:
+            plt.figure(fignum)
+        plotname = self.filename_prefix + ".png"
         if Path(plotname).is_file():
-            prefix = str(filename.stem).split("_")[0]
             location = os.path.dirname(plotname)
-            base = os.path.join(location, prefix)
+            base = os.path.join(location, self.filename_prefix)
             dirlist = glob.glob(str(base) + "*.png")
             dirlist.sort()
             try:
                 ii = int(str(dirlist[-1]).split("_")[-1].strip(".png")) + 1
             except Exception:
-                ii = 0
-            plotname = filename_stripped[0] + "_" + str(ii) + ".png"
+                ii = 2
+            plotname = self.filename_prefix + "_" + str(ii) + ".png"
         logger.info("saved plot at %s", plotname)
-        plt.gcf()
         plt.savefig(plotname)
 
-    def save_config(self, full_config):
-        """saves your config dictionary as a yaml"""
+    def save_config_json(self, full_config: pydantic.BaseModel):
+        """saves your pydantic model as a json file"""
+        config_file = self.filename_prefix + "_cfg.json"
+        save_config_json(full_config, config_file)
+        logger.info("saved config at %s", config_file)
 
-        filename = Path(self.filepath())
-        filename_stripped = str(filename).split(".")
-        config_file = filename_stripped[0] + ".yaml"
-        if isinstance(full_config, addict.Dict):
-            save_config(full_config.to_dict(), config_file)
-        else:
-            save_config(full_config, config_file)
-        logger.info("saved config at %s", config_file)
-        logger.info("saved config at %s", config_file)
+    def save_prog_json(self, prog: AbsQickProgram):
+        """save qick program to a json file"""
+        prog_file = self.filename_prefix + "_prog.json"
+        save_prog(prog, prog_file)
+        logger.info("saved program at %s", prog_file)

@@ -19,17 +19,15 @@ setup(
     # pip install not supported, only conda
     # dependencies should be specified in dev_environment.yml and conda/meta.yaml
     install_requires=[
-        "addict",
         "lmfit",
         "matplotlib",
         "netcdf4",
         "numpy<=1.26.0",
-        "pydantic-settings",
         "pydantic",
-        "pyyaml",
-        "qick>=0.2.261",
+        "pydantic-settings",
         "scipy",
         "Pyro4",
+        "scikit-learn",
     ],
     python_requires=">=3.10",
 )
