@@ -19,7 +19,6 @@ requirements:
         - pip
         - setuptools
     run:
-        - addict
         - lmfit
         - matplotlib-core
         - netcdf4
@@ -27,10 +26,10 @@ requirements:
         - pydantic
         - pydantic-settings
         - python>=3.10
-        - pyyaml
-        - qick>=0.2.261
+        - qick>=0.2.360
         - scipy
-
+        - scikit-learn
+        - memspectrum
 test:
     requires:
         - pytest

@@ -1,21 +1,24 @@
 """pydantic templates for hardware config dictionary"""
 
-import enum
-from typing import Dict, Union
-
+from typing import Dict, Union, Literal, List
 import pydantic
+from spinqick import settings
 
 
-class VoltageSourceType(str, enum.Enum):
+class VoltageSourceType:
     slow_dac = "slow_dac"
     test = "test"
 
 
-class HemtGate(pydantic.BaseModel):
+class AuxGate(pydantic.BaseModel):
     slow_dac_address: str
     slow_dac_channel: int
+
+
+class HemtGate(AuxGate):
     dc_conversion_factor: float
     max_v: float
+    sd_out: int  # specify index of SourceDrainOut list
 
 
 class SlowGate(pydantic.BaseModel):
@@ -24,32 +27,40 @@ class SlowGate(pydantic.BaseModel):
     slow_dac_address: str
     slow_dac_channel: int
     max_v: float
+    gate_type: settings.GateTypes
     # crosscoupling between gates
-    crosscoupling: Dict[str, float] | None = None
+    crosscoupling: Dict[settings.GateNames, float] | None = None
 
 
 class FastGate(SlowGate):
     # dac units to volts conversion
-    dac_conversion_factor: float | None
+    dac_conversion_factor: float
     # qick channel associated with gate
-    qick_gen: int | None
+    qick_gen: int
 
 
 class SourceDrainIn(pydantic.BaseModel):
     qick_gen: int  # readout pulse channel
+    unit_conversion: float
+    sd_units: str
 
 
 class SourceDrainOut(pydantic.BaseModel):
     qick_adc: int  # adc channel
+    unit_conversion: float
+    adc_units: str
 
 
 class HardwareConfig(pydantic.BaseModel):
     sd_in: SourceDrainIn
-    sd_out: SourceDrainOut
+    m1_readout: List[SourceDrainOut]
+    m2_readout: List[SourceDrainOut]
     rf_gen: int | None = None
-    slow_dac_trig_pin: int  # trigger on PMOD header for triggering dac sweeps
     rf_trig_pin: int | None = None  # trigger pin for the RF switch
-    channels: Dict[str, Union[FastGate, SlowGate, HemtGate]]
-    voltage_source: VoltageSourceType = (
-        VoltageSourceType.test  # specify the type of dc supply you're using for DCSource class
+    ac_gate: SourceDrainIn | None = (
+        None  # gate used to apply ac signal for transconductance
+    )
+    channels: Dict[settings.GateNames, Union[FastGate, SlowGate, HemtGate, AuxGate]]
+    voltage_source: Literal["test", "slow_dac"] = (
+        "test"  # specify the type of dc supply you're using for DCSource class
     )

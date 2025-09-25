@@ -1,6 +1,5 @@
 name: spinqick
 dependencies:
-    - addict
     - lmfit
     - matplotlib
     - netcdf4
@@ -8,10 +7,9 @@ dependencies:
     - pydantic
     - pydantic-settings
     - python>=3.10
-    - pyyaml
-    #- qick>=0.2.261
     - scipy
     - Pyro4
+    - scikit-learn
 
     # Addtional dev dependencies
     - black
@@ -24,4 +22,3 @@ dependencies:
     - pylint
     - pytest
     - ruff
-    - types-pyyaml
