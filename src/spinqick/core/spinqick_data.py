@@ -1,20 +1,19 @@
-"""
-data handling and saving for spinqick experiments
-"""
+"""Data handling and saving for spinqick experiments."""
 
+import json
 import logging
 import os
-from typing import List, Dict, Sequence
 import time
-import json
-import pydantic
-import netCDF4
+from typing import Dict, List, Sequence
+
 import importlib_metadata
-from qick import qick_asm, helpers, asm_v2
+import netCDF4
 import numpy as np
-from spinqick.helper_functions import file_manager
+import pydantic
+from qick import asm_v2, helpers, qick_asm
+
+from spinqick.helper_functions import file_manager, spinqick_enums
 from spinqick.models import experiment_models
-from spinqick.core import spinqick_utils
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ logger = logging.getLogger(__name__)
 def load_analysis_data(
     nc_file: netCDF4.Dataset, data_desc: str, attr_name: str | None = None
 ):
-    """load data stored in the 'analyzed_data' folder of the netcdf file"""
+    """Load data stored in the 'analyzed_data' folder of the netcdf file."""
     processed = []
     attrs = []
     ana = nc_file["analyzed_data"]
@@ -55,7 +54,7 @@ def _get_filename(timestamp, experiment_name):
 
 
 class SpinqickData:
-    """Self describing data object to handle data from a QICK AcquireProgramv2 output"""
+    """Self describing data object to handle data from a QICK AcquireProgramv2 output."""
 
     def __init__(
         self,
@@ -73,7 +72,7 @@ class SpinqickData:
         self.raw_data = raw_data
         self.analyzed_data = analyzed_data
         self.analysis_type = ""
-        self.analysis_averaged: spinqick_utils.AverageLevel | None = None
+        self.analysis_averaged: spinqick_enums.AverageLevel | None = None
         self.prog = prog
         self.cfg = cfg
         self.timestamp = _assign_timestamp() if timestamp is None else timestamp
@@ -95,11 +94,14 @@ class SpinqickData:
         self.voltage_state = voltage_state
 
     def add_full_average(self, avgs: int):
-        """data contains an outer loop for averaging"""
+        """Data contains an outer loop for averaging."""
         self.axes["full_avgs"] = {"size": avgs, "loop_no": 0}
 
     def add_point_average(self, avgs: int, loop_no: int):
-        """data contains a point average loop. User supplies the loop number, where outermost loop is zero"""
+        """Data contains a point average loop.
+
+        User supplies the loop number, where outermost loop is zero
+        """
         self.axes["point_avgs"] = {"size": avgs, "loop_no": loop_no}
 
     def add_axis(
@@ -111,7 +113,7 @@ class SpinqickData:
         loop_no: int = 0,
         units: List[str] | None = None,
     ):
-        """Add information describing a swept variable/ set of variables in your dataset"""
+        """Add information describing a swept variable/ set of variables in your dataset."""
         ax_dict = {}
         for i, sweep in enumerate(sweep_names):
             if units is None:
@@ -123,13 +125,13 @@ class SpinqickData:
         # TODO add a check that all sweeps added are the correct size
 
     def add_fit_params(self, param_dict: dict, best_fit: np.ndarray, fit_axis: str):
-        """add fit parameter attributes to the spinqick data object"""
+        """Add fit parameter attributes to the spinqick data object."""
         self.fit_param_dict = param_dict
         self.best_fit = best_fit
         self.fit_axis = fit_axis
 
     def json_to_qickprog(self, soccfg):
-        """load json string program into qick program using a known soccfg"""
+        """Load json string program into qick program using a known soccfg."""
         try:
             prog_dict = helpers.json2progs(self.prog)
             qick_prog = asm_v2.QickProgramV2(soccfg)
@@ -141,7 +143,7 @@ class SpinqickData:
             print("An unexpected error occurred: %s", exc)
 
     def save_fit_params(self, nc_file: file_manager.SaveData):
-        """save parameters from a fit into a dict"""
+        """Save parameters from a fit into a dict."""
         fit_grp = nc_file.createGroup("fits")
         if self.fit_param_dict is not None:
             nc_file.groups["fits"].setncatts(self.fit_param_dict)
@@ -157,7 +159,7 @@ class SpinqickData:
         nc_file: file_manager.SaveData,
         nest_in_group: None | str = None,
     ):
-        """saves the all_voltages output from the hardware manager as json string"""
+        """Saves the all_voltages output from the hardware manager as json string."""
         vstate_json = json.dumps(self.voltage_state)
         if nest_in_group is not None:
             nc_file[nest_in_group].voltage_state = vstate_json
@@ -166,7 +168,7 @@ class SpinqickData:
         return nc_file
 
     def save_data(self):
-        """save all information to a netcdf file"""
+        """Save all information to a netcdf file."""
         nc_file = file_manager.SaveData(self.data_file, "a", format="NETCDF4")
         ncdf = self.basic_save(nc_file)
         logger.info("data saved at %s", self.data_file)
@@ -175,7 +177,7 @@ class SpinqickData:
     def basic_save(
         self, nc_file: file_manager.SaveData, nest_in_group: None | str = None
     ):
-        """Save data from an instantiated SpinqickData object"""
+        """Save data from an instantiated SpinqickData object."""
 
         if nest_in_group is None:
             nc_group: netCDF4.Group | file_manager.SaveData = nc_file
@@ -276,15 +278,30 @@ class SpinqickData:
             nc_file = self.save_voltage_data(nc_file, nest_in_group=nest_in_group)
         return nc_file
 
+    def load_to_fake_config(self, json_cfg):
+        DynamicFakeConfig = pydantic.create_model("DynamicFakeConfig", cfg=dict)
+        python_dict = json.loads(json_cfg)
+        return DynamicFakeConfig(cfg=python_dict)
+
     @classmethod
     def load_spinqick_data(cls, nc_file: netCDF4.Dataset, **kwargs):
-        """load data from netcdf dataset to spinqickdata"""
+        """Load data from netcdf dataset to spinqickdata."""
         cfg_type = nc_file.cfg_type
-        cfg_model = getattr(experiment_models, cfg_type)
         try:
+            cfg_model = getattr(experiment_models, cfg_type)
             cfg = cfg_model.model_validate_json(nc_file.cfg)
+        except AttributeError:
+            logger.warning(
+                "no experiment model named %s, loading dict as a fake model" % cfg_type
+            )
+            DynamicFakeConfig = pydantic.create_model("DynamicFakeConfig", cfg=dict)
+            python_dict = json.loads(nc_file.cfg)
+            cfg = DynamicFakeConfig(cfg=python_dict)
         except pydantic.ValidationError:
             logger.warning("unable to load config into pydantic model")
+            InvalidConfig = pydantic.create_model("InvalidConfig", cfg=dict)
+            python_dict = json.loads(nc_file.cfg)
+            cfg = InvalidConfig(cfg=python_dict)
         data_keys = list(nc_file.variables.keys())
         raw = []
         analysis_type = ""
@@ -332,7 +349,7 @@ class SpinqickData:
         )
         data_obj.analysis_type = analysis_type
         if ana_avg is not None:
-            data_obj.analysis_averaged = ana_avg
+            data_obj.analysis_averaged = ana_avg[0]
         data_obj.spinqick_version = nc_file.spinqick_version
         data_obj.axes = axes
         if hasattr(nc_file, "voltage_state"):
@@ -355,13 +372,13 @@ class PsbData(SpinqickData):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.difference_data: List[np.ndarray] | None = None
-        self.difference_avged: spinqick_utils.AverageLevel | None = None
-        self.thresh_avged: spinqick_utils.AverageLevel | None = None
+        self.difference_avged: spinqick_enums.AverageLevel | None = None
+        self.thresh_avged: spinqick_enums.AverageLevel | None = None
         self.threshed_data: List[np.ndarray] | None = None
         self.threshold: List[float] | None
 
     def save_difference_data(self, ncdf: file_manager.SaveData):
-        """save data from measurements with a reference measurement"""
+        """Save data from measurements with a reference measurement."""
         adc_ind = 0
         ana_group = ncdf["analyzed_data"]
         if self.difference_avged is not None:
@@ -391,7 +408,7 @@ class PsbData(SpinqickData):
                 adc_ind += 1
 
     def save_threshed_data(self, ncdf: file_manager.SaveData):
-        """save thresholded data"""
+        """Save thresholded data."""
         adc_ind = 0
         ana_group = ncdf["analyzed_data"]
         if self.thresh_avged is not None:
@@ -460,8 +477,10 @@ class PsbData(SpinqickData):
 
 
 class CompositeSpinqickData:
-    """Stores a list of SpinqickData objects.  This is designed for datasets which include
-    sweeps"""
+    """Stores a list of SpinqickData objects.
+
+    This is designed for datasets which include sweeps
+    """
 
     def __init__(
         self,
@@ -515,7 +534,7 @@ class CompositeSpinqickData:
         load_psb: bool = False,
         **kwargs,
     ):
-        """create a composite data object from a netcdf file"""
+        """Create a composite data object from a netcdf file."""
         sqd_instances = []
         dset_labels = []
         for grp in nc_file.groups:
@@ -540,9 +559,9 @@ class CompositeSpinqickData:
             qdata_array=sqd_instances,
             dset_labels=dset_labels,
             experiment_name=nc_file.experiment_name,
-            dset_coordinates=coordinates,
+            dset_coordinates=np.asarray(coordinates),
             dset_coordinate_units=units,
-            analyzed_data=analyzed,
+            analyzed_data=np.asarray(analyzed),
             filename=nc_file.filepath(),
             timestamp=nc_file.timestamp,
         )

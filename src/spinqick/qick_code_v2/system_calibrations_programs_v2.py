@@ -1,18 +1,15 @@
-"""
-Storing the actual qick class code for the experiments in this file
-"""
+"""Storing the actual qick class code for the experiments in this file."""
 
 from qick import asm_v2
+
 from spinqick.core import readout_v2
-from spinqick.core import qick_utils
-from spinqick.helper_functions import dac_pulses
+from spinqick.helper_functions import dac_pulses, qick_enums
 from spinqick.models import experiment_models
 
 
 class BasebandVoltageCalibration(asm_v2.AveragerProgramV2):
-    """Use a loading line to calibrate baseband pulse voltages at the device,
-    given known DC bias voltage.
-    """
+    """Use a loading line to calibrate baseband pulse voltages at the device, given known DC bias
+    voltage."""
 
     def _initialize(self, cfg: experiment_models.LineSplitting):
         readout_v2.init_dcs(self, cfg.dcs_cfg, "sd_chop")
@@ -77,7 +74,7 @@ class BasebandVoltageCalibration(asm_v2.AveragerProgramV2):
 
 
 class HSATune(asm_v2.AveragerProgramV2):
-    """baseband pulse for a given amount of time, and measure after the pulse ends."""
+    """Baseband pulse for a given amount of time, and measure after the pulse ends."""
 
     def _initialize(self, cfg: experiment_models.HsaTune):
         readout_v2.init_dcs(self, cfg.dcs_cfg)
@@ -85,7 +82,7 @@ class HSATune(asm_v2.AveragerProgramV2):
         self.add_envelope(
             ch=cfg.tune_gate_gen,
             name="baseband",
-            idata=dac_pulses.baseband(maxv=qick_utils.Defaults.MAX_GAIN_BITS),
+            idata=dac_pulses.baseband(maxv=qick_enums.Defaults.MAX_GAIN_BITS),
         )
         self.add_pulse(
             cfg.tune_gate_gen,
@@ -95,6 +92,8 @@ class HSATune(asm_v2.AveragerProgramV2):
             gain=cfg.pulse_gain,
             stdysel="last",
             envelope="baseband",
+            phase=0,
+            outsel=qick_enums.Outsel.INPUT,
         )
         self.add_pulse(
             cfg.tune_gate_gen,
@@ -104,20 +103,23 @@ class HSATune(asm_v2.AveragerProgramV2):
             gain=0,
             stdysel="last",
             envelope="baseband",
+            phase=0,
+            outsel=qick_enums.Outsel.INPUT,
         )
         self.add_loop("point_avgs", cfg.point_avgs)
+        self.trigger(pins=[0], width=0.2)
 
     def _body(self, cfg: experiment_models.HsaTune):
         self.pulse(cfg.tune_gate_gen, "baseband_pulse", t=0)
-        self.delay_auto(t=cfg.pulse_time)  # type: ignore
+        self.delay(t=cfg.pulse_time)  # type: ignore
         self.pulse(cfg.tune_gate_gen, "zero_pulse")
-        self.delay_auto(cfg.meas_time)  # type: ignore
+        self.delay_auto()  # type: ignore
         readout_v2.readout_dcs(self, cfg.dcs_cfg)
-        self.wait_auto()
+        self.delay_auto(cfg.measure_buffer)  # type: ignore
 
 
 class PulseAndMeasure(asm_v2.AveragerProgramV2):
-    """simple loopback program"""
+    """Simple loopback program."""
 
     def _initialize(self, cfg: experiment_models.AvgedReadout):
         readout_v2.init_dcs(self, cfg.dcs_cfg)
@@ -130,7 +132,7 @@ class PulseAndMeasure(asm_v2.AveragerProgramV2):
 
 
 class SweepAdcDelay(asm_v2.AveragerProgramV2):
-    """simple loopback program"""
+    """Simple loopback program."""
 
     def _initialize(self, cfg: experiment_models.SweepDelay):
         readout_v2.init_dcs(self, cfg.dcs_cfg)

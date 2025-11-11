@@ -1,10 +1,12 @@
-from spinqick.models import dcs_model, spam_models, qubit_models, ld_qubit_models
+from typing import Literal, Mapping, Union
+
 import pydantic
-from typing import Union, Literal, Mapping
+
+from spinqick.models import dcs_model, ld_qubit_models, qubit_models, spam_models
 
 
 class ReadoutParams(pydantic.BaseModel):
-    """psb-related parameters"""
+    """Psb-related parameters."""
 
     psb_cfg: spam_models.DefaultSpam
     measure_dot: Literal["M1", "M2"]  # specify which readout to use
@@ -14,7 +16,7 @@ class ReadoutParams(pydantic.BaseModel):
 
 
 class QubitParams(pydantic.BaseModel):
-    """spam settings and qubit parameters for one qubit"""
+    """Spam settings and qubit parameters for one qubit."""
 
     ro_cfg: ReadoutParams
     qubit_params: Union[
@@ -23,7 +25,7 @@ class QubitParams(pydantic.BaseModel):
 
 
 class ExperimentConfig(pydantic.BaseModel):
-    """full experiment config model for up to two qubits"""
+    """Full experiment config model for up to two qubits."""
 
     m1_readout: dcs_model.DcsConfigParams
     m2_readout: dcs_model.DcsConfigParams
@@ -31,13 +33,13 @@ class ExperimentConfig(pydantic.BaseModel):
 
 
 class Ro1Qubit(pydantic.BaseModel):
-    """Just readout, in rfsoc units"""
+    """Just spam config, in rfsoc units."""
 
     ro_cfg: spam_models.ReadoutConfig
 
 
 class ExperimentConfigRfsoc(pydantic.BaseModel):
-    """full experiment config in rfsoc units"""
+    """Full experiment config in rfsoc units."""
 
     m1_readout: dcs_model.DcsConfig
     m2_readout: dcs_model.DcsConfig
