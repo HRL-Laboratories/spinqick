@@ -1,29 +1,27 @@
-"""
-Perform charge stability measurements.  Converted to tprocv2 compatibility.
+"""Perform charge stability measurements.
 
+Converted to tprocv2 compatibility.
 """
 
-import time
 import logging
-from typing import Literal, Tuple, List
-from lmfit import models
+import time
+from typing import List, Literal, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
-from spinqick.core import dot_experiment
-from spinqick.core import spinqick_data
-from spinqick.helper_functions import (
-    hardware_manager,
-    plot_tools,
-    analysis,
-)
-from spinqick.qick_code_v2 import (
-    tune_electrostatics_programs_v2,
-    system_calibrations_programs_v2,
-)
-from spinqick.settings import file_settings, dac_settings
-from spinqick import settings
-from spinqick.models import experiment_models, hardware_config_models
+import pydantic
+from lmfit import models
+from qick.asm_v2 import QickProgramV2
 
+from spinqick import settings
+from spinqick.core import dot_experiment, spinqick_data
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools
+from spinqick.models import experiment_models, hardware_config_models
+from spinqick.qick_code_v2 import (
+    system_calibrations_programs_v2,
+    tune_electrostatics_programs_v2,
+)
+from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def plot_gvg_2d(
     y_label: str,
     adc_units: str | List[str] = "arbs",
 ):
-    """plotting function for 2D electrostatics type sweeps"""
+    """Plotting function for 2D electrostatics type sweeps."""
     if data.analyzed_data is not None:
         fignums = []
         if isinstance(adc_units, str):
@@ -79,7 +77,7 @@ def plot_g_1d(
     y_label: str,
     dset_label: str | None = None,
 ):
-    """generate a plot of a 1D sweep of a gate voltage"""
+    """Generate a plot of a 1D sweep of a gate voltage."""
     if data.analyzed_data is not None:
         fignums = []
         for i, adc_data in enumerate(data.analyzed_data):
@@ -103,7 +101,7 @@ def add_g_1d(
     fignums: list,
     dset_label: str | None = None,
 ):
-    """add a 1d trace to a plot generated with plot_g_1d"""
+    """Add a 1d trace to a plot generated with plot_g_1d."""
     if data.analyzed_data is not None:
         for i, adc_data in enumerate(data.analyzed_data):
             plt.figure(fignums[i])
@@ -126,7 +124,7 @@ def analyze_cross_caps(
     adc: int = 0,
     fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
 ):
-    """analysis routine for the cross capacitance experiment"""
+    """Analysis routine for the cross capacitance experiment."""
     slow_gate_dict = list(data_obj.axes["x"]["sweeps"])[0]
     fast_gate_dict = list(data_obj.axes["y"]["sweeps"])[0]
     n_vx = data_obj.axes["x"]["size"]
@@ -174,31 +172,22 @@ def analyze_cross_caps(
 
 class TuneElectrostatics(dot_experiment.DotExperiment):
     """This class holds functions that wrap the QICK experiments for charge stability measurements.
-    In general each function sets the necessary config parameters for you and then runs the qick program.
-    They then optionally plot and save the data.
+    In general each function sets the necessary config parameters for you and then runs the qick
+    program. They then optionally plot and save the data.Initialize with information about your
+    rfsoc and your experimental setup.
+
+    :param soccfg: QickConfig object
+    :param soc: QickSoc object
+    :param voltage_source: Initialized DC voltage source object. This is used here for saving the DC
+        voltage state each time data is saved.
     """
 
     def __init__(
-        self,
-        soccfg,
-        soc,
-        voltage_source: hardware_manager.VoltageSource,
-        datadir: str = file_settings.data_directory,
-        save_data: bool = True,
-        plot: bool = True,
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
     ):
-        """initialize with information about your rfsoc and your experimental setup
-
-        :param soccfg: QickConfig object
-        :param soc: Qick object
-        :param voltage_source: instantiated dc VoltageSource object
-        :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        """
-        super().__init__(datadir=datadir)
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.save_data = save_data
-        self.plot = plot
         self.vdc = hardware_manager.DCSource(voltage_source=voltage_source)
 
     @dot_experiment.updater
@@ -208,14 +197,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
     ) -> spinqick_data.SpinqickData:
-        """perform a basic PvP or PvT by baseband pulsing with the RFSoC.
+        """Perform a basic PvP or PvT by baseband pulsing with the RFSoC.
 
         :param g_gates: gates to sweep on y and x axes. i.e. ('P1','P2')
         :param g_range: range to sweep gate x and gate y, and number of points for each
-        :param measure_buffer: pause time between measurements
-        :param add_pat: apply RF during measurement
-        :param pat_gain: gain of RF signal in range [-1, 1]
-        :param pat_gen: qick generator for RF signal
+        :param measure_buffer: sets the delay time between measurements. The actual measurement is
+            sandwiched between two measure_buffer delays
         :return: SpinqickData object
         """
 
@@ -289,9 +276,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
     def gvg_arb_prog(
         self,
-        prog,
-        expt_name,
-        cfg,
+        prog: QickProgramV2,
+        expt_name: str,
+        cfg: pydantic.BaseModel,
         g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
@@ -300,7 +287,28 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         save_data: bool = False,
     ) -> spinqick_data.SpinqickData:
-        """python outer loop for 2 dimensional gate sweep-type experiments.  Currently user can only compensate on one gate"""
+        """Python outer loop for 2 dimensional gate sweep-type experiments which sweep DC voltages.
+        This method runs the 2D sweep and returns a spinqick data object.
+
+        :param prog: QickProgram to run at each sweep
+        :param expt_name: experiment name string to pass to SpinqickData object
+        :param cfg: pydantic config model to pass in to the QickProgram when it is run
+        :param g_gates: specify the gates to sweep on the x and y axes. The fast sweep runs along
+            the y axis, which is the second list in the tuple. An outer python loop steps through
+            and sets the x-axis values one by one.
+        :param g_range: voltage range to sweep gate x and gate y, and number of points for each in
+            this format ((x start, x end, number of points), (x start, x end, number of points) )
+        :param measure_buffer: time in microseconds at each voltage point before and after the
+            readout pulse.
+        :param compensate: whether to apply compensation on another gate.  Typically an M gate.
+        :param sweep_direction: specify direction of sweep. This arguement takes a tuple of lists
+            the same size as g_gates. The values of the inputs must be +/-1, with +1 corresponding
+            to sweeping from start to end voltage values, and -1 sweeping from end voltage to start
+            voltage.
+        :param mode: toggles the readout mode between source-drain chop and transconductance. In
+            transconductance mode, an AC signal is applied to a gate and a DC bias is applied to the
+            device, while current is read out the normal way.
+        """
 
         gx_gates, gy_gates = g_gates
         gx_start, gx_stop, n_vx = g_range[0]
@@ -535,17 +543,18 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
-        """GvG script which sweeps an external DC voltage source and reads out a DCS
+        """GvG script which sweeps an external DC voltage source and reads out a DCS.
 
-        :param g_gates: gates to sweep on y and x axes. i.e. (['P1'],['P2']).  Option to provide a list of gates
-            to sweep on each axis.
+        :param g_gates: gates to sweep on y and x axes. i.e. (['P1'],['P2']). Option to provide a
+            list of gates to sweep on each axis.
         :param g_range: voltage range to sweep gate x and gate y, and number of points for each.
         :param compensate: gate to compensate while changing other voltages. i.e. 'M1'
-        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a
-            list of positive or negative ones corresponding to each gate in g_gates i.e. ([1,-1], [1]).
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for transcoductance mode
-        :return: expt pts, avgi, avgq -- raw data from 'acquire'
+        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a list of
+            positive or negative ones corresponding to each gate in g_gates i.e. ([1,-1], [1]).
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
         """
         _, g_range_y = g_range
         gvg_cfg = experiment_models.GvgDcConfig(
@@ -590,20 +599,21 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
-        """GvG script which applies an RF tone to probe photon assisted tunneling
+        """GvG script which applies an RF tone to probe photon assisted tunneling.
 
-        :param g_gates: gates to sweep on y and x axes. i.e. (['P1'],['P2']).  Option to provide a list of gates
-            to sweep on each axis.
+        :param g_gates: gates to sweep on y and x axes. i.e. (['P1'],['P2']). Option to provide a
+            list of gates to sweep on each axis.
         :param g_range: voltage range to sweep gate x and gate y, and number of points for each.
         :param compensate: gate to compensate while changing other voltages. i.e. 'M1'
-        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a
-            list of positive or negative ones corresponding to each gate in g_gates i.e. ([1,-1], [1]).
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
+        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a list of
+            positive or negative ones corresponding to each gate in g_gates i.e. ([1,-1], [1]).
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
         :param pat_freq: frequency of microwave tone
         :param pat_gain: gain of pat signal in QICK units (-1, 1)
         :param pat_gen: generator used for pat signal
-        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for transcoductance mode
-        :return: expt pts, avgi, avgq -- raw data from 'acquire'
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
         """
         _, gy_range = g_range
 
@@ -654,13 +664,20 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
     ) -> spinqick_data.SpinqickData:
-        """Measure cross-capacitance between gates
+        """Measure cross-capacitance between gates.  This is set to fit a gaussian to a feature as
+        it is scanned on the y-axis.
+
         :param x_gate: gate to step in python outer loop
         :param y_gate: either an M gate, or the gate that compensation will be applied to
         :param x_range: voltage range to sweep x gate over
         :param y_range: voltage range to sweep y (fast sweep) gate over
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :param compensate: the m-gate to compensate with for the y-gate.  If y-gate is an m-gate, leave as None
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param compensate: the m-gate to compensate with for the y-gate. If y-gate is an m-gate,
+            leave as None
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
+        :param fit_type:
         """
         _, _, n_vy = y_range
 
@@ -728,16 +745,15 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         measure_buffer: float,
         tune_type: Literal["common", "diff"] = "common",
     ) -> spinqick_data.SpinqickData:
-        """Tune MZ using sleeperdac or other external DC voltage bias. This wraps the function gvg_dc.
+        """Tune MZ using sleeperdac or other external DC voltage bias. This wraps the function
+        gvg_dc.
 
         :param m_dot: M dot you're tuning, i.e. 'M1'
         :param m_range: voltage range to sweep m gate, and number of points.
         :param z_range: voltage range to sweep z gate, and number of points.
         :param tune_type: sweep z gates in same direction or opposite directions
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :param save_data: whether or not to autosave the results
-        :param plot: whether or not to plot in ipython
-        :return: Electrostatics data object
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
         """
 
         if m_dot == "M1":
@@ -769,14 +785,17 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         set_v=False,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
-        """automated retune DCS script. Scan m-gate voltage, fit to conductance peak, extract an
-        optimal m-gate voltage from peak
+        """Automated retune DCS script. Scan m-gate voltage, fit to conductance peak, extract an
+        optimal m-gate voltage from peak.
 
         :param m_dot: Dot to retune
-        :param m_range: List of start voltage, stop voltage and number of points.  Voltages are relative
-            to the current setpoint
-        :param measure_buffer: time in microseconds between when the slow dac steps in voltage and the QICK starts a DCS measurement.
-        :param set_v: after retuning, set the voltage to the optimal point
+        :param m_range: List of start voltage, stop voltage and number of points. Voltages are
+            relative to the current setpoint
+        :param measure_buffer: time in microseconds between when the slow dac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param set_v: after retuning, automatically set the voltage to the optimal point
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
         """
 
         # M Sweep
@@ -846,7 +865,14 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                     self.vdc.set_dc_voltage(best_v, m_dot)
                 else:
                     self.vdc.set_dc_voltage(m_bias, m_dot)
-            fit_dict = {"center": center, "fwhm": fwhm, "best_voltage": halfmax}
+            fit_dict = {
+                "center": center,
+                "fwhm": fwhm,
+                "best_voltage": halfmax,
+                "amplitude": out.params["amplitude"].value,
+                "c": out.params["c"].value,
+                "sigma": out.params["sigma"].value,
+            }
             data_obj.add_fit_params(fit_dict, out.best_fit, "x")
         except Exception as exc:
             if set_v:
@@ -883,13 +909,15 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         num_points: int,
         measure_buffer: float,
     ) -> spinqick_data.CompositeSpinqickData:
-        """gate action sweep script.  Sweep gates individually up and back down to look for
-        turn on voltages.
+        """Performs a voltage sweep of a list of gates down to zero and back to a max voltage.  Each
+        gate is swept individually.  This function holds other gates at the voltages they were set
+        to when it was called.
 
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
         """
 
         # setup the slow_dac step length
@@ -1020,15 +1048,19 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         sweep_direction: list[int] | None = None,
         filename_tag: str | None = None,
         mode: Literal["sd_chop", "trans"] = "sd_chop",
-    ):
-        """
-        Sweep gates over desired range. No averaging built in currently.  Can be used for electron temperature measurements. Work in progress.
+    ) -> spinqick_data.SpinqickData:
+        """Sweep gates over desired range. No averaging built in currently.
 
         :param gates: list of gates to sweep
         :param g_range: (start voltage, stop voltage, number of steps)
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param compensate: specify a gate to compensate on while the sweep is running
+        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a list of
+            values equal to +/-1 to specify backwards sweeps.
         :param filename_tag: add a string to the filename, for example 'electron_temperature'
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
         """
 
         g_start, g_stop, num_points = g_range
@@ -1132,15 +1164,15 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         num_points: int,
         measure_buffer: float,
     ) -> spinqick_data.SpinqickData:
-        """
-        Global gate turn on script.  Sweep several gates simultaneously to look for global
-        turn on of the device.
+        """Global gate turn on script.  Sweep several gates simultaneously to look for current
+        through the device.
 
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :return: vm_sweep, mag"""
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        """
 
         sqd_obj = self.sweep_1d(
             gates,
@@ -1160,9 +1192,23 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         gate_step: float,
         gate_freq: float,
         measure_buffer: float,
-    ):
-        """Calibrate baseband voltage based off of low speed dacs.
-        Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs
+    ) -> spinqick_data.CompositeSpinqickData:
+        """Calibrate baseband voltage based off of low speed dacs. Scans a loading line with low
+        speed dacs while sweeping pulse gain of high speed dacs.  The pulse is a high frequency AC
+        signal.  We perform two measurements at each point, each with a slightly different DC offset
+        on the sine wave output by the rfsoc.
+
+        :param gate: name of gate to calibrate
+        :param gate_dc_range: range of DC source voltages (start voltage, end voltage, number of
+            points)
+        :param gate_pulse_range: range of qick pulse gains
+        :param gate_step: pulse gain value used to get a differential measurement. The Rfsoc pulses
+            to a value, takes a measurement, then pulses to the value minus the gate_step parameter.
+            Then we take a difference between the two conductance values. This gives us a
+            differential measurement so that we can see the calibration lines more clearly.
+        :param gate_freq: pulse frequency applied by rfsoc.
+        :param measure_buffer: time in microseconds between when the slow dac steps in voltage and
+            the QICK starts a DCS measurement.
         """
 
         p_dc_start, p_dc_stop, p_dc_npts = gate_dc_range
@@ -1235,7 +1281,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             )
             analysis.calculate_difference(qd)
             data_list.append(qd)
-            data_array[i, :] = qd.difference_data[0]
+            diff = qd.difference_data
+            assert diff is not None
+            data_array[i, :] = diff[0]
         self.vdc.set_dc_voltage(v_p0, gate)
         dset_labels = [str(pulse_gain_sweep[i]) for i in range(p_pulse_npts)]
         full_dataset = spinqick_data.CompositeSpinqickData(
@@ -1270,9 +1318,24 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         gate_step: float,
         pulse_gain: float,
         measure_buffer: float,
-    ):
-        """Scan frequency of qick generator to see rolloff of circuit.
-        Scans a loading line with low speed dacs while sweeping pulse freq of high speed dacs
+    ) -> spinqick_data.CompositeSpinqickData:
+        """Performs a frequency sweep of an AC signal generated by qick in order to look for a roll-
+        off. Scans a loading line with low speed dacs while sweeping pulse gain of high speed dacs.
+        The pulse is a high frequency AC signal.  We perform two measurements at each point, each
+        with a slightly different DC offset on the sine wave output by the rfsoc.
+
+        :param gate: name of gate to calibrate
+        :param gate_dc_range: range of DC source voltages (start voltage, end voltage, number of
+            points)
+        :param gate_freq_range: range of qick pulse frequency values (start frequency, end
+            frequency, number of points)
+        :param gate_step: pulse gain value used to get a differential measurement. The Rfsoc pulses
+            to a value, takes a measurement, then pulses to the value minus the gate_step parameter.
+            Then we take a difference between the two conductance values. This gives us a
+            differential measurement so that we can see the calibration lines more clearly.
+        :param pulse_gain: RFSoC pulse gain.
+        :param measure_buffer: time in microseconds between when the slow dac steps in voltage and
+            the QICK starts a DCS measurement.
         """
 
         p_dc_start, p_dc_stop, p_dc_npts = gate_dc_range
@@ -1374,3 +1437,82 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             nc_file.close()
             logger.info("data saved at %s", full_dataset.data_file)
         return full_dataset
+
+    @dot_experiment.updater
+    def tune_hsa(
+        self,
+        gate: settings.GateNames,
+        gate_dc_range: Tuple[float, float, int],
+        pulse_time: float,
+        pulse_gain: float,
+        measure_buffer: float,
+    ) -> spinqick_data.SpinqickData:
+        """Performs a scan of voltage and plays a baseband pulse followed immediately with a measurement.  This is intended for tuning the high speed adder circuit described in https://doi.org/10.1103/PRXQuantum.3.010352 .
+
+        :param gate: name of gate to calibrate
+        :param gate_dc_range: range of DC source voltages (start voltage, end voltage, number of points)
+        :param pulse_time: duration of pulse in microseconds
+        :param pulse_gain: pulse gain in RFSoC units (between -1, and 1)
+        :param measure_buffer: time in microseconds between when the slow dac steps in voltage and
+            the QICK starts a DCS measurement.
+        """
+
+        p_dc_start, p_dc_stop, p_dc_npts = gate_dc_range
+        v_p0 = self.vdc.get_dc_voltage(gate)
+        dc_sweep = np.linspace(p_dc_start + v_p0, p_dc_stop + v_p0, p_dc_npts)
+        gate_cfg = self.hardware_config.channels[gate]
+        if isinstance(gate_cfg, hardware_config_models.FastGate):
+            gate_gen = gate_cfg.qick_gen
+        else:
+            raise KeyError(" specified gate does not have an associated qick channel ")
+        pgain_dac = pulse_gain * gate_cfg.dac_conversion_factor
+        cal_config = experiment_models.HsaTune(
+            dcs_cfg=self.dcs_config,
+            point_avgs=p_dc_npts,
+            tune_gate=gate,
+            tune_gate_gen=gate_gen,
+            pulse_time=pulse_time,
+            pulse_gain=pgain_dac,
+            measure_buffer=measure_buffer,
+        )
+
+        step_time = self.dcs_config.length + measure_buffer + pulse_time
+
+        self.vdc.program_ramp(
+            dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate
+        )
+        self.vdc.arm_sweep(gate)
+
+        meas = system_calibrations_programs_v2.HSATune(
+            self.soccfg, reps=1, final_delay=0, cfg=cal_config
+        )
+        data = meas.acquire(self.soc, progress=False)
+        assert data
+
+        self.soc.reset_gens()
+
+        qd = spinqick_data.PsbData(
+            data,
+            cal_config,
+            2,
+            1,
+            "_bb_cal",
+            voltage_state=self.vdc.all_voltages,
+            prog=meas,
+        )
+        qd.add_axis([dc_sweep], "x", [gate], p_dc_npts, units=["V"])
+        analysis.calculate_conductance(
+            qd,
+            self.adc_unit_conversions,
+        )
+        self.vdc.set_dc_voltage(v_p0, gate)
+        if self.plot:
+            plot_g_1d(qd, gate, " %s voltage (V)" % gate, "conductance")
+
+        if self.save_data:
+            nc_file = qd.save_data()
+            if self.plot:
+                nc_file.save_last_plot()
+            nc_file.close()
+            logger.info("data saved at %s", qd.data_file)
+        return qd

@@ -1,4 +1,7 @@
-"""All experiment code is found here.  These are the user-facing methods which actually trigger QICK to run and return data."""
+"""All experiment code is found here.
+
+These are the user-facing methods which actually trigger QICK to run and return data.
+"""
 
 # from spinqick.experiments.psb_setup import PsbSetup
 # from spinqick.experiments.ld_single_qubit import LDSingleQubit

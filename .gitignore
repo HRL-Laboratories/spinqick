@@ -10,8 +10,7 @@ build
 htmlcov/
 
 # Sphinx documentation
-doc/*build*/
-doc/_autosummary
+docs/_build/
 
 # IDE Files
 .idea

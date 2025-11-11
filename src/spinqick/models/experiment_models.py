@@ -1,9 +1,12 @@
-"""Pydantic models for passing in to qick_code classes"""
+"""Pydantic models for passing in to qick_code classes."""
 
-from typing import Literal, List
+from typing import List, Literal
+
 import pydantic
-from spinqick.models import dcs_model, spam_models, qubit_models, ld_qubit_models
+
 from spinqick import settings
+from spinqick.helper_functions import spinqick_enums
+from spinqick.models import dcs_model, ld_qubit_models, qubit_models, spam_models
 
 
 class SweepTwoConfig(pydantic.BaseModel):
@@ -74,8 +77,8 @@ class HsaTune(pydantic.BaseModel):
     tune_gate: str
     tune_gate_gen: int
     pulse_time: float
-    meas_time: float
     pulse_gain: float
+    measure_buffer: float
 
 
 class MeashistConfig(spam_models.ReadoutConfig):
@@ -92,6 +95,8 @@ class T2StarConfig(AvgedExperiment):
     start: float
     stop: float
     expts: int
+    axis: spinqick_enums.ExchangeAxis
+    qubit: qubit_models.Eo1Qubit
 
 
 class MeasScanConfig(PsbScanConfig):
@@ -107,9 +112,8 @@ class IdleScanConfig(PsbScanConfig):
 
 
 class FingerprintConfig(SweepTwoConfig, AvgedExperiment):
-    # t_evol: float
     qubit: qubit_models.Eo1Qubit
-    axis: Literal["n", "z", "m"]
+    axis: spinqick_enums.ExchangeAxis
     n_pulses: int = 1
 
 
@@ -126,7 +130,7 @@ class SweepOneConfig(pydantic.BaseModel):
 
 class NoscConfig(AvgedExperiment):
     qubit: qubit_models.Eo1Qubit
-    axis: Literal["n", "z", "m"]
+    axis: spinqick_enums.ExchangeAxis
     start: float
     stop: float
     expts: int
@@ -140,7 +144,7 @@ class FineCalConfig(pydantic.BaseModel):
     qubit: qubit_models.Eo1Qubit
     n_pulses: int
     point_avgs: int
-    axis: Literal["n", "z", "m"]
+    axis: spinqick_enums.ExchangeAxis
     exchange_gain: float
     t_res: Literal["fs", "fabric"]
 
