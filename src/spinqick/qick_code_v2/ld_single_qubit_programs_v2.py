@@ -370,9 +370,7 @@ def play_xy(soccfg, cfg: experiment_models.PlayXY):
     ld_pulses.setup_1_ld_qubit(prog, cfg.qubit)
     ro_class_1 = asm_v2.QickProgramV2(soccfg)
     if cfg.qubit.ro_cfg.reference:
-        readout_v2.psb_fm(
-            ro_class_1, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg
-        )
+        readout_v2.psb_fm(ro_class_1, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
     readout_v2.psb_fe(ro_class_1, cfg.qubit.ro_cfg.psb_cfg)
     asm_1 = ro_class_1.asm()
     prog.label("readout_1")

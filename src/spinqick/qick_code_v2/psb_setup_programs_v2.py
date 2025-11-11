@@ -163,12 +163,8 @@ class MeasureScanStepRamp(asm_v2.AveragerProgramV2):
                 x_gains = asm_v2.QickSweep1D("x_sweep", cfg.gx_start, cfg.gx_stop)
                 y_gains = asm_v2.QickSweep1D("y_sweep", cfg.gy_start, cfg.gy_stop)
             else:
-                x_gains = asm_v2.QickSweep1D(
-                    "x_sweep", cfg.gx_start - x_amp, cfg.gx_stop - x_amp
-                )
-                y_gains = asm_v2.QickSweep1D(
-                    "y_sweep", cfg.gy_start - y_amp, cfg.gy_stop - y_amp
-                )
+                x_gains = asm_v2.QickSweep1D("x_sweep", cfg.gx_start - x_amp, cfg.gx_stop - x_amp)
+                y_gains = asm_v2.QickSweep1D("y_sweep", cfg.gy_start - y_amp, cfg.gy_stop - y_amp)
             readout_v2.init_point_multisweep(
                 self,
                 cfg.psb_cfg,

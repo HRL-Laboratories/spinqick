@@ -18,9 +18,7 @@ from spinqick.models import experiment_models
 logger = logging.getLogger(__name__)
 
 
-def load_analysis_data(
-    nc_file: netCDF4.Dataset, data_desc: str, attr_name: str | None = None
-):
+def load_analysis_data(nc_file: netCDF4.Dataset, data_desc: str, attr_name: str | None = None):
     """Load data stored in the 'analyzed_data' folder of the netcdf file."""
     processed = []
     attrs = []
@@ -79,9 +77,7 @@ class SpinqickData:
         self.axes: dict = {}
         self.experiment_name = experiment_name
         self.data_file = (
-            _get_filename(self.timestamp, self.experiment_name)
-            if filename is None
-            else filename
+            _get_filename(self.timestamp, self.experiment_name) if filename is None else filename
         )
         self.triggers = triggers
         self.reps = reps
@@ -174,9 +170,7 @@ class SpinqickData:
         logger.info("data saved at %s", self.data_file)
         return ncdf
 
-    def basic_save(
-        self, nc_file: file_manager.SaveData, nest_in_group: None | str = None
-    ):
+    def basic_save(self, nc_file: file_manager.SaveData, nest_in_group: None | str = None):
         """Save data from an instantiated SpinqickData object."""
 
         if nest_in_group is None:
@@ -205,9 +199,7 @@ class SpinqickData:
                     elif axis == "point_avgs":
                         nc_group.createDimension("point_avgs_dim", axis_dict["size"])
                     else:
-                        nc_file.add_multivariable_axis(
-                            axis, axis_dict, group_path=ax_grp.path
-                        )
+                        nc_file.add_multivariable_axis(axis, axis_dict, group_path=ax_grp.path)
         nc_group.createDimension("reps_dim", self.reps)
         nc_group.createDimension("triggers_dim", self.triggers)
         nc_group.createDimension("IQ_dim", 2)
@@ -291,9 +283,7 @@ class SpinqickData:
             cfg_model = getattr(experiment_models, cfg_type)
             cfg = cfg_model.model_validate_json(nc_file.cfg)
         except AttributeError:
-            logger.warning(
-                "no experiment model named %s, loading dict as a fake model" % cfg_type
-            )
+            logger.warning("no experiment model named %s, loading dict as a fake model" % cfg_type)
             DynamicFakeConfig = pydantic.create_model("DynamicFakeConfig", cfg=dict)
             python_dict = json.loads(nc_file.cfg)
             cfg = DynamicFakeConfig(cfg=python_dict)
@@ -462,9 +452,7 @@ class PsbData(SpinqickData):
                     if hasattr(nc_file["analyzed_data"], "difference_avged")
                     else None
                 )
-            threshed, _, thresholds = load_analysis_data(
-                nc_file, "threshed", "threshold"
-            )
+            threshed, _, thresholds = load_analysis_data(nc_file, "threshed", "threshold")
             if threshed:
                 sqd.threshed_data = threshed
                 sqd.threshold = thresholds
@@ -502,9 +490,7 @@ class CompositeSpinqickData:
         self.dset_coordinate_units = dset_coordinate_units
         self.timestamp = _assign_timestamp() if timestamp is None else timestamp
         self.data_file = (
-            _get_filename(self.timestamp, self.experiment_name)
-            if filename is None
-            else filename
+            _get_filename(self.timestamp, self.experiment_name) if filename is None else filename
         )
         self.fit_param_dict: dict = {}
         self.best_fit: np.ndarray = np.array([])
@@ -517,9 +503,7 @@ class CompositeSpinqickData:
         for i, d in enumerate(self.qdata_array):
             d.basic_save(nc_file, self.dset_labels[i])
         if self.dset_coordinates is not None:
-            nc_file.add_axis(
-                "outer_sweep", self.dset_coordinates, units=self.dset_coordinate_units
-            )
+            nc_file.add_axis("outer_sweep", self.dset_coordinates, units=self.dset_coordinate_units)
         if self.analyzed_data is not None:
             nc_file.add_dataset("analyzed_data", ["outer_sweep"], self.analyzed_data)
         nc_file.experiment_name = self.experiment_name

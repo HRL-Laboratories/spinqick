@@ -13,10 +13,7 @@ from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import analysis, hardware_manager, plot_tools
 from spinqick.models import experiment_models
-from spinqick.qick_code_v2 import (
-    measure_noise_programs_v2,
-    tune_electrostatics_programs_v2,
-)
+from spinqick.qick_code_v2 import measure_noise_programs_v2, tune_electrostatics_programs_v2
 from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
@@ -33,9 +30,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         voltage state each time data is saved.
     """
 
-    def __init__(
-        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
-    ):
+    def __init__(self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs):
         super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
@@ -120,9 +115,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         full_dataset.dset_coordinate_units = "Hz"
 
         if self.plot:
-            fig = plot_tools.plot1_simple(
-                freq, asd_tot, full_dataset.timestamp, marker="."
-            )
+            fig = plot_tools.plot1_simple(freq, asd_tot, full_dataset.timestamp, marker=".")
             plt.xscale("log")
             plt.yscale("log")
             plt.ylabel("ADCrms/RtHz")
@@ -192,9 +185,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         times = np.zeros((time_steps))
         data_array = np.zeros((len(times), n_vm))
         for step in range(time_steps):
-            self.vdc.program_ramp(
-                vm_start, vm_stop, slow_dac_step_len * 1e-6, n_vm, m_dot
-            )
+            self.vdc.program_ramp(vm_start, vm_stop, slow_dac_step_len * 1e-6, n_vm, m_dot)
             self.vdc.arm_sweep(m_dot)
             meas = tune_electrostatics_programs_v2.GvG(
                 self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
@@ -291,7 +282,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 fit_params = {"power": popt[0], "intercept": popt[1]}
                 full_dataset.fit_param_dict = fit_params
                 print("pow equals %f" % popt[0])
-                print("intercept equals %f" % icept)  # pylint: disable=possibly-used-before-assignment
+                print(
+                    "intercept equals %f" % icept
+                )  # pylint: disable=possibly-used-before-assignment
                 freq_fit = linfit(freq, popt[0], 10 ** popt[1])
             except ValueError:
                 print("PSD fit failed")
@@ -345,9 +338,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         """
 
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
-        n_transfers = (
-            int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
-        )
+        n_transfers = int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
 
         qickprogram = measure_noise_programs_v2.grab_noise(
             self.soccfg,
@@ -371,9 +362,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power
             else:
-                freq, power_fft_single = periodogram(
-                    np.abs(complex_iq), fs=1 / clock_tick
-                )
+                freq, power_fft_single = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft += power_fft_single
 
         average_asd = np.sqrt(power_fft / n_averages)
@@ -410,9 +399,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         """
 
         clock_tick = 1 / self.soc.get_cfg()["readouts"][0]["f_fabric"] * 1e-6
-        n_transfers = (
-            int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
-        )
+        n_transfers = int(readout_time / clock_tick / 128) + self.soccfg["ddr4_buf"]["junk_len"]
         qickprogram = measure_noise_programs_v2.grab_noise(
             self.soccfg,
             self.dcs_config,
@@ -433,9 +420,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power
             else:
-                freq, power_fft_single = periodogram(
-                    np.abs(complex_iq), fs=1 / clock_tick
-                )
+                freq, power_fft_single = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft += power_fft_single
 
         average_asd = np.sqrt(power_fft / n_averages)
