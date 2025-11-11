@@ -38,9 +38,7 @@ def define_fingerprint_vectors(
     return detuning, symmetric
 
 
-def calculate_fingerprint_gate_vals(
-    detuning, x, detuning_vector, symmetric_vector, idle_point
-):
+def calculate_fingerprint_gate_vals(detuning, x, detuning_vector, symmetric_vector, idle_point):
     """Calculate individual gate voltages given detuning, x-gate gain, and detuning and symmetric
     vectors."""
     vector_out = np.zeros(3)
@@ -97,17 +95,13 @@ def process_fine_cal(
     mesa.solve(data_array, method="standard", optimisation_method="FPE")
     extension_length = 5000
     n_sim = 200
-    m1 = mesa.forecast(
-        data_array[::-1], length=extension_length, number_of_simulations=n_sim
-    )
+    m1 = mesa.forecast(data_array[::-1], length=extension_length, number_of_simulations=n_sim)
     m2 = mesa.forecast(data_array, length=extension_length, number_of_simulations=n_sim)
     extended_data = np.concatenate(
         [sum([m[::-1] for m in m1]) / n_sim, data_array, sum(m2) / n_sim]
     )
     signal_freq = theta_array[-1] / len(data_array) / np.pi / 2 * n_pulses
-    sos_filt = signal.butter(
-        1, [signal_freq / 2, signal_freq * 4], "bandpass", output="sos"
-    )
+    sos_filt = signal.butter(1, [signal_freq / 2, signal_freq * 4], "bandpass", output="sos")
     filtered_extended = signal.sosfiltfilt(sos_filt, extended_data)
     fignums = []
     if plot:
@@ -129,9 +123,7 @@ def process_fine_cal(
     filtered_transformed = signal.hilbert(filtered_extended)
     theta_fit = (
         np.unwrap(
-            np.angle(filtered_transformed)[
-                extension_length : extension_length + len(data_array)
-            ]
+            np.angle(filtered_transformed)[extension_length : extension_length + len(data_array)]
         )
         / n_pulses
     )

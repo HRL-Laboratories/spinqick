@@ -137,9 +137,7 @@ def load_hardware_config() -> hardware_config_models.HardwareConfig:
         where you store the config files for spinqick.
     :return: hardware config dictionary
     """
-    return load_config_json(
-        file_settings.hardware_config, hardware_config_models.HardwareConfig
-    )
+    return load_config_json(file_settings.hardware_config, hardware_config_models.HardwareConfig)
 
 
 def save_prog(prog: AbsQickProgram, filename: str):

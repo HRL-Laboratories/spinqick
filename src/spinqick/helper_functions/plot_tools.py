@@ -10,15 +10,11 @@ def plot_decimated(iq_list, config, plot_iq=False):
     """Plot output of acquire_decimated()."""
     fig = plt.figure()
     readout_length = config["readout_length"]
-    time = np.linspace(
-        0, readout_length / config["adc_sr"], int(readout_length)
-    )  # [us]
+    time = np.linspace(0, readout_length / config["adc_sr"], int(readout_length))  # [us]
 
     for iq in iq_list:
         iq = np.transpose(iq)
-        plt.plot(
-            time, np.abs(iq[0] + 1j * iq[1]), label="mag, ADC %d" % (config["ro_ch"])
-        )
+        plt.plot(time, np.abs(iq[0] + 1j * iq[1]), label="mag, ADC %d" % (config["ro_ch"]))
         if plot_iq:
             plt.plot(time, iq[0], label="I value, ADC %d" % (config["ro_ch"]))
             plt.plot(time, iq[1], label="Q value, ADC %d" % (config["ro_ch"]))
@@ -50,9 +46,7 @@ def interpret_data_psb(avgi, avgq, data_dim="2D", thresh=None):
     """Helper for evaluating NDAverager data from experiments that use a reference measurement."""
 
     # magnitude using i and q signals, use difference between reference (singlet) and second measurement
-    mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2) - np.sqrt(
-        avgi[0][1] ** 2 + avgq[0][1] ** 2
-    )
+    mag = np.sqrt(avgi[0][0] ** 2 + avgq[0][0] ** 2) - np.sqrt(avgi[0][1] ** 2 + avgq[0][1] ** 2)
 
     if thresh is not None:
         mag = np.where(np.abs(mag) > thresh, 0, 1)
@@ -169,9 +163,7 @@ def plot2_psb(sqd: spinqick_data.PsbData, x_gate: str, y_gate: str):
             plot_data_adj = np.transpose(adc_data)
         else:
             plot_data_adj = adc_data
-        fig = plot2_simple(
-            xarray, yarray, plot_data_adj, sqd.timestamp, cbar_label=plt_type
-        )
+        fig = plot2_simple(xarray, yarray, plot_data_adj, sqd.timestamp, cbar_label=plt_type)
 
     return fig
 

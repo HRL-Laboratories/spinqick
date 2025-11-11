@@ -1,3 +1,8 @@
+v2.0.2
+======
+- readthedocs.yaml added
+- docs/requirements.txt added
+
 v2.0.1
 ======
 - docs added

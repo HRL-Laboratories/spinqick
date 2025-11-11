@@ -9,12 +9,7 @@ import pylab as plt
 
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.experiments import eo_analysis
-from spinqick.helper_functions import (
-    analysis,
-    hardware_manager,
-    plot_tools,
-    spinqick_enums,
-)
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, qubit_models
 from spinqick.qick_code_v2 import eo_single_qubit_programs_v2
 
@@ -31,9 +26,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         voltage state each time data is saved.
     """
 
-    def __init__(
-        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
-    ):
+    def __init__(self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs):
         super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
@@ -84,9 +77,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         return detuning, exchange
 
     @dot_experiment.updater
-    def calculate_exchange_gate_vals(
-        self, qubit: str, axis: str, detuning: float, x_throw: float
-    ):
+    def calculate_exchange_gate_vals(self, qubit: str, axis: str, detuning: float, x_throw: float):
         """Calculate exchange gain at gates in rfsoc units, given detuning and x_throw in volts."""
 
         eo1qubit = self.experiment_config.qubit_configs[qubit]
@@ -111,9 +102,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         return gate_vals
 
     @dot_experiment.updater
-    def calc_symmetric_vector(
-        self, qubit: str, axis: str, detuning_volts: float, x_volts: float
-    ):
+    def calc_symmetric_vector(self, qubit: str, axis: str, detuning_volts: float, x_volts: float):
         """Calculates the symmetric vector, assuming the vector starts at the idle point and ends at
         the point specified here. Returns the vectors after dac unit conversion.
 
@@ -133,9 +122,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             gates.py.gains.idle_gain,
             gates.x.gains.idle_gain,
         ]
-        x_gain = self.volts2dac(
-            (x_volts - gates.x.gains.idle_gain), axis_cfg.gates.x.name
-        )
+        x_gain = self.volts2dac((x_volts - gates.x.gains.idle_gain), axis_cfg.gates.x.name)
         gate_vals = eo_analysis.calculate_fingerprint_gate_vals(
             detuning_convert,
             x_gain,
@@ -148,9 +135,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         return symmetric
 
     @dot_experiment.updater
-    def calculate_exchange_volts(
-        self, qubit: str, axis: str, detuning: float, x_throw: float
-    ):
+    def calculate_exchange_volts(self, qubit: str, axis: str, detuning: float, x_throw: float):
         """Calculates the exchange gain at gates in voltage units."""
 
         eo1qubit = self.experiment_config.qubit_configs[qubit]
@@ -654,15 +639,13 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                 average_level=spinqick_enums.AverageLevel.BOTH,
             )
         if fit:
-            angle_array, d_filt, best_fit, _, v_array, p0_array = (
-                eo_analysis.course_cal_fit(sq_data, n_pulses, x_cfg.name)
+            angle_array, d_filt, best_fit, _, v_array, p0_array = eo_analysis.course_cal_fit(
+                sq_data, n_pulses, x_cfg.name
             )
         if self.plot:
             fig = plot_tools.plot1_psb(sq_data, x_cfg.name)
             if fit:
-                plt.plot(
-                    np.linspace(start, stop, points), d_filt, label="filtered data"
-                )
+                plt.plot(np.linspace(start, stop, points), d_filt, label="filtered data")
                 plt.plot(v_array, p0_array, "*", label="extrema")
                 plt.legend()
             plt.xlabel(x_cfg.name + "(V)")
@@ -762,9 +745,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                     else:
                         assert sqd.analyzed_data
                         combined_data[avg, i] = sqd.analyzed_data[0]
-            dset_labels = [
-                str(round(theta, ndigits=2)) + "_" + str(avg) for theta in theta_array
-            ]
+            dset_labels = [str(round(theta, ndigits=2)) + "_" + str(avg) for theta in theta_array]
             labels += dset_labels
         finecal_composite = spinqick_data.CompositeSpinqickData(
             sqd_list,
