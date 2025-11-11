@@ -1,15 +1,18 @@
-"""The DCSource class is designed to add a layer of abstraction between spinqick and whichever low speed DACs you are using. We use
-these DACs to control steady-state operation of the devices.
+"""The DCSource class is designed to add a layer of abstraction between spinqick and whichever low
+speed DACs you are using.
+
+We use these DACs to control steady-state operation of the devices.
 """
 
-from typing import Protocol, List
 import logging
-import yaml
-import numpy as np
+from typing import List, Protocol
 
+import numpy as np
+import yaml
+
+from spinqick import settings
 from spinqick.helper_functions import file_manager
 from spinqick.models import hardware_config_models as hcm
-from spinqick import settings
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +42,39 @@ class VoltageSource(Protocol):
         pass
 
 
+class DummyDCSource:
+    def open(self, address: str):
+        pass
+
+    def close(self):
+        pass
+
+    def get_voltage(self, ch: int) -> float:
+        return 0.001
+
+    def set_voltage(self, ch: int, volts: float):
+        pass
+
+    def set_sweep(
+        self, ch: int, start: float, stop: float, length: float, num_steps: int
+    ):
+        pass
+
+    def trigger(self, ch: int):
+        pass
+
+    def arm_sweep(self, ch: int):
+        pass
+
+
 class DCSource:
-    """wraps low speed DAC control functions. User supplies a hardware config file with channel to gate mapping and voltage conversion factors"""
+    """Wraps low speed DAC control functions.
+
+    User supplies a hardware config file with channel to gate mapping and voltage conversion factors
+    """
 
     def __init__(self, voltage_source: VoltageSource):
-        """initializes the DCSource class based on the voltage source of choice
+        """Initializes the DCSource class based on the voltage source of choice.
 
         :param voltage_source: specify the type of voltage source
         """
@@ -52,64 +83,51 @@ class DCSource:
         self.vsource = voltage_source
         self.source_type = self.cfg.voltage_source
 
-        if self.source_type == hcm.VoltageSourceType.test:
-            # use a fake voltage source to test code that calls a dc source
-            logger.info("instantiating... nothing! voltage_source=test.")
-
     @property
     def all_voltages(self):
-        """get all slow dac voltages"""
+        """Get all slow dac voltages."""
         voltage_dict = {}
         for gate in self.cfg.channels:
             voltage_dict[gate] = self.get_dc_voltage(gate)
         return voltage_dict
 
     def get_dc_voltage(self, gate: settings.GateNames) -> float:
-        """get voltage at gate.  Values are converted via the dc_conversion_factor parameter which is stored in the hardware config
+        """Get voltage at gate.  Values are converted via the dc_conversion_factor parameter which
+        is stored in the hardware config.
 
         :param gate: Gate to read voltage from
-
         :returns: Voltage in units of volts at the gate.
         """
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            address = self.cfg.channels[gate].slow_dac_address
-            self.vsource.open(address=address)
-            ch = self.cfg.channels[gate].slow_dac_channel
-            channel_cfg = self.cfg.channels[gate]
-            assert not isinstance(channel_cfg, hcm.AuxGate)
-            conversion = channel_cfg.dc_conversion_factor
-            vreturn = self.vsource.get_voltage(ch) / conversion
-            assert isinstance(vreturn, float)
-            self.vsource.close()
-            return vreturn
-        elif self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            return 0.0
-        else:
-            raise KeyError("Unknown voltage_source key")
+
+        address = self.cfg.channels[gate].slow_dac_address
+        self.vsource.open(address=address)
+        ch = self.cfg.channels[gate].slow_dac_channel
+        channel_cfg = self.cfg.channels[gate]
+        assert not isinstance(channel_cfg, hcm.AuxGate)
+        conversion = channel_cfg.dc_conversion_factor
+        vreturn = self.vsource.get_voltage(ch) / conversion
+        assert isinstance(vreturn, float)
+        self.vsource.close()
+        return vreturn
 
     def set_dc_voltage(self, volts: float, gate: settings.GateNames):
-        """Sets gate voltage
+        """Sets gate voltage.
 
         :param volts: Voltage in units of volts at the gate
         :param gate: Gate to set voltage on
         """
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            address = self.cfg.channels[gate].slow_dac_address
-            self.vsource.open(address=address)
-            ch = self.cfg.channels[gate].slow_dac_channel
-            channel_cfg = self.cfg.channels[gate]
-            assert not isinstance(channel_cfg, hcm.AuxGate)
-            conversion = channel_cfg.dc_conversion_factor
-            vset = volts * conversion
-            if volts > channel_cfg.max_v:
-                raise Exception(
-                    "requested voltage would exceed max_v on gate %s" % gate
-                )
-            else:
-                self.vsource.set_voltage(ch, vset)
-                self.vsource.close()
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test set %s", volts)
+        address = self.cfg.channels[gate].slow_dac_address
+        self.vsource.open(address=address)
+        ch = self.cfg.channels[gate].slow_dac_channel
+        channel_cfg = self.cfg.channels[gate]
+        assert not isinstance(channel_cfg, hcm.AuxGate)
+        conversion = channel_cfg.dc_conversion_factor
+        vset = volts * conversion
+        if volts > channel_cfg.max_v:
+            raise Exception("requested voltage would exceed max_v on gate %s" % gate)
+        else:
+            self.vsource.set_voltage(ch, vset)
+            self.vsource.close()
 
     def calculate_compensated_voltage(
         self,
@@ -117,8 +135,9 @@ class DCSource:
         gates: list[settings.GateNames],
         iso_gates: List[settings.GateNames],
     ):
-        """
-        Given crosscoupling parameters in hardware_config and desired voltages at gates, calculate voltages to apply.
+        """Given crosscoupling parameters in hardware_config and desired voltages at gates,
+        calculate voltages to apply.
+
         :param delta_v: provide a list of desired potential differences at the gates
         :param gates: list of gates
         :param iso_gates: list of gates whose potential at the gate will be kept constant
@@ -152,13 +171,11 @@ class DCSource:
         gates: settings.GateNames | List[settings.GateNames],
         iso_gates: settings.GateNames | List[settings.GateNames],
     ):
-        """
-        Set gate voltage while compensating on iso_gates.
+        """Set gate voltage while compensating on iso_gates.
 
         :param volts: Voltage in units of volts at the gate
         :param gates: Gate to set voltage on
         :param iso_gates: charge sensor gate to compensate with
-
         """
 
         if not isinstance(volts, list):
@@ -168,24 +185,21 @@ class DCSource:
         if not isinstance(iso_gates, list):
             iso_gates = [iso_gates]
 
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            delta_v_list = []
-            v0_list = []
-            for k, gate in enumerate(gates):
-                v0 = self.get_dc_voltage(gate)
-                v0_list.append(v0)
-                delta_v = volts[k] - v0
-                delta_v_list.append(delta_v)
-            for iso_gate in iso_gates:
-                v0 = self.get_dc_voltage(iso_gate)
-                v0_list.append(v0)
-            set_gates, set_delta_v, _ = self.calculate_compensated_voltage(
-                delta_v_list, gates, iso_gates
-            )
-            for i, gate in enumerate(set_gates):
-                self.set_dc_voltage(set_delta_v[i] + v0_list[i], gate)
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test set %s", volts)
+        delta_v_list = []
+        v0_list = []
+        for k, gate in enumerate(gates):
+            v0 = self.get_dc_voltage(gate)
+            v0_list.append(v0)
+            delta_v = volts[k] - v0
+            delta_v_list.append(delta_v)
+        for iso_gate in iso_gates:
+            v0 = self.get_dc_voltage(iso_gate)
+            v0_list.append(v0)
+        set_gates, set_delta_v, _ = self.calculate_compensated_voltage(
+            delta_v_list, gates, iso_gates
+        )
+        for i, gate in enumerate(set_gates):
+            self.set_dc_voltage(set_delta_v[i] + v0_list[i], gate)
 
     def program_ramp(
         self,
@@ -195,43 +209,40 @@ class DCSource:
         nsteps: int,
         gate: settings.GateNames,
     ):
-        """program a fast sweep on DCSource.  Needs to be followed with arm and trigger
+        """Program a fast sweep on DCSource.  Needs to be followed with arm and trigger.
 
         :param vstart: Ramp start voltage in units of volts at the gate
         :param vstop: Ramp end voltage in units of volts at the gate
         :param tstep: time per step in seconds
         :param nsteps: number of steps
         :param gate: Gate to set voltage on
-
         """
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            address = self.cfg.channels[gate].slow_dac_address
-            self.vsource.open(address=address)
-            ch = self.cfg.channels[gate].slow_dac_channel
-            channel_cfg = self.cfg.channels[gate]
-            assert not isinstance(channel_cfg, hcm.AuxGate)
-            conversion = channel_cfg.dc_conversion_factor
-            vstart_converted = vstart * conversion
-            if vstart > channel_cfg.max_v:
-                raise Exception(
-                    "requested ramp start voltage would exceed max_v on gate %s" % gate
-                )
-            vstop_converted = vstop * conversion
-            if vstart > channel_cfg.max_v:
-                raise Exception(
-                    "requested ramp end voltage would exceed max_v on gate %s" % gate
-                )
-            else:
-                self.vsource.set_sweep(
-                    ch=ch,
-                    start=vstart_converted,
-                    stop=vstop_converted,
-                    length=tstep * nsteps,
-                    num_steps=nsteps,
-                )
-                self.vsource.close()
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test ramp %s to %s", vstart, vstop)
+
+        address = self.cfg.channels[gate].slow_dac_address
+        self.vsource.open(address=address)
+        ch = self.cfg.channels[gate].slow_dac_channel
+        channel_cfg = self.cfg.channels[gate]
+        assert not isinstance(channel_cfg, hcm.AuxGate)
+        conversion = channel_cfg.dc_conversion_factor
+        vstart_converted = vstart * conversion
+        if vstart > channel_cfg.max_v:
+            raise Exception(
+                "requested ramp start voltage would exceed max_v on gate %s" % gate
+            )
+        vstop_converted = vstop * conversion
+        if vstart > channel_cfg.max_v:
+            raise Exception(
+                "requested ramp end voltage would exceed max_v on gate %s" % gate
+            )
+        else:
+            self.vsource.set_sweep(
+                ch=ch,
+                start=vstart_converted,
+                stop=vstop_converted,
+                length=tstep * nsteps,
+                num_steps=nsteps,
+            )
+            self.vsource.close()
 
     def program_ramp_compensate(
         self,
@@ -242,7 +253,8 @@ class DCSource:
         gates: settings.GateNames | List[settings.GateNames],
         iso_gates: settings.GateNames | List[settings.GateNames],
     ):
-        """program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be followed with arm and trigger
+        """Program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be
+        followed with arm and trigger.
 
         :param vstart: Ramp start voltage in units of volts at the gate
         :param vstop: Ramp end voltage in units of volts at the gate
@@ -267,74 +279,66 @@ class DCSource:
             else:
                 vstop = [vstop]
 
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            delta_vstart_list = []
-            delta_vstop_list = []
-            v0_list = []
-            for i, gate in enumerate(gates):
-                v0 = self.get_dc_voltage(gate)
-                v0_list.append(v0)
-                delta_v1 = vstart[i] - v0
-                delta_vstart_list.append(delta_v1)
-                delta_v2 = vstop[i] - v0
-                delta_vstop_list.append(delta_v2)
-            for iso_gate in iso_gates:
-                v0_i = self.get_dc_voltage(iso_gate)
-                v0_list.append(v0_i)
-            set_gates, set_delta_vstart, _ = self.calculate_compensated_voltage(
-                delta_vstart_list, gates, iso_gates
-            )
-            set_gates, set_delta_vstop, _ = self.calculate_compensated_voltage(
-                delta_vstop_list, gates, iso_gates
-            )
+        delta_vstart_list = []
+        delta_vstop_list = []
+        v0_list = []
+        for i, gate in enumerate(gates):
+            v0 = self.get_dc_voltage(gate)
+            v0_list.append(v0)
+            delta_v1 = vstart[i] - v0
+            delta_vstart_list.append(delta_v1)
+            delta_v2 = vstop[i] - v0
+            delta_vstop_list.append(delta_v2)
+        for iso_gate in iso_gates:
+            v0_i = self.get_dc_voltage(iso_gate)
+            v0_list.append(v0_i)
+        set_gates, set_delta_vstart, _ = self.calculate_compensated_voltage(
+            delta_vstart_list, gates, iso_gates
+        )
+        set_gates, set_delta_vstop, _ = self.calculate_compensated_voltage(
+            delta_vstop_list, gates, iso_gates
+        )
 
-            # program gate voltages
-            for i, gate in enumerate(set_gates):
-                self.program_ramp(
-                    set_delta_vstart[i] + v0_list[i],
-                    set_delta_vstop[i] + v0_list[i],
-                    tstep,
-                    nsteps,
-                    gate,
-                )
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("test ramp %s to %s", vstart, vstop)
+        # program gate voltages
+        for i, gate in enumerate(set_gates):
+            self.program_ramp(
+                set_delta_vstart[i] + v0_list[i],
+                set_delta_vstop[i] + v0_list[i],
+                tstep,
+                nsteps,
+                gate,
+            )
 
     def digital_trigger(self, gate: settings.GateNames):
-        """trigger the fast sweep on DCSource digitally.
+        """Trigger the fast sweep on DCSource digitally.
 
         :param gate: Gate to trigger
         """
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            address = self.cfg.channels[gate].slow_dac_address
-            self.vsource.open(address=address)
-            ch = self.cfg.channels[gate].slow_dac_channel
-            self.vsource.trigger(ch=ch)
-            self.vsource.close()
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("fake trigger")
+
+        address = self.cfg.channels[gate].slow_dac_address
+        self.vsource.open(address=address)
+        ch = self.cfg.channels[gate].slow_dac_channel
+        self.vsource.trigger(ch=ch)
+        self.vsource.close()
 
     def arm_sweep(self, gate: settings.GateNames):
-        """arm sleeperdac sweep
+        """Arm sleeperdac sweep.
 
         :param gate: Gate to arm sweep on
         """
-        if self.cfg.voltage_source == hcm.VoltageSourceType.slow_dac:
-            address = self.cfg.channels[gate].slow_dac_address
-            self.vsource.open(address=address)
-            ch = self.cfg.channels[gate].slow_dac_channel
-            self.vsource.arm_sweep(ch=ch)
-            self.vsource.close()
-        if self.cfg.voltage_source == hcm.VoltageSourceType.test:
-            logger.info("fake arm sweep")
+        address = self.cfg.channels[gate].slow_dac_address
+        self.vsource.open(address=address)
+        ch = self.cfg.channels[gate].slow_dac_channel
+        self.vsource.arm_sweep(ch=ch)
+        self.vsource.close()
 
     def set_voltage_from_dict(self, v_dict: dict):
-        """set voltage from a dict of gate, voltage pairs"""
+        """Set voltage from a dict of gate, voltage pairs."""
         for gate in list(v_dict.keys()):
             self.set_dc_voltage(v_dict[gate], gate)
 
     def save_voltage_state(self, file_path: str | None = None):
-        """save voltage state of all gates
+        """Save voltage state of all gates.
 
         :param file_path: Path to save voltage data to. Defaults to the default data directory.
         """

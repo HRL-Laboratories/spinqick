@@ -1,0 +1,12 @@
+name: spinqick
+dependencies:
+    - lmfit
+    - matplotlib
+    - netcdf4
+    - numpy<2.0
+    - pydantic
+    - pydantic-settings
+    - python>=3.10
+    - scipy
+    - Pyro4
+    - scikit-learn

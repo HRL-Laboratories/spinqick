@@ -1,16 +1,13 @@
-"""
-Single LD qubit setup and control experiments
-"""
+"""Single LD qubit setup and control experiments."""
 
 from qick import asm_v2
-from spinqick.core import readout_v2
+
+from spinqick.core import ld_pulses, readout_v2, utils
 from spinqick.models import experiment_models
-from spinqick.core import qick_utils
-from spinqick.core import ld_pulses
 
 
 class IdleScanWithRf(asm_v2.AveragerProgramV2):
-    """Perform a 2D sweep of the idle point with Rf turned on"""
+    """Perform a 2D sweep of the idle point with Rf turned on."""
 
     def _initialize(self, cfg: experiment_models.IdleScanConfig):
         idle_x_gains = asm_v2.QickSweep1D("x_sweep", cfg.gx_start, cfg.gx_stop)
@@ -28,7 +25,7 @@ class IdleScanWithRf(asm_v2.AveragerProgramV2):
         )
         self.declare_gen(
             ch=cfg.rf_gen,
-            nqz=qick_utils.check_nyquist(cfg.rf_freq, cfg.rf_gen, self.soccfg),
+            nqz=utils.check_nyquist(cfg.rf_freq, cfg.rf_gen, self.soccfg),
         )
         self.add_pulse(
             ch=cfg.rf_gen,
@@ -56,12 +53,12 @@ class IdleScanWithRf(asm_v2.AveragerProgramV2):
 
 
 class ScanRfFrequency(asm_v2.AveragerProgramV2):
-    """Scan RF frequency to look for EDSR signal"""
+    """Scan RF frequency to look for EDSR signal."""
 
     def _initialize(self, cfg: experiment_models.RfSweep):
         readout_v2.init_dcs(self, cfg.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.start, cfg.gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.start, cfg.gen, self.soccfg)
         self.declare_gen(cfg.gen, nqz=nqz)
         freq_sweep = asm_v2.QickSweep1D("freq", cfg.start, cfg.stop)
         self.add_pulse(
@@ -88,14 +85,15 @@ class ScanRfFrequency(asm_v2.AveragerProgramV2):
         readout_v2.psb_em(self, cfg.ro_cfg.psb_cfg, cfg.ro_cfg.dcs_cfg)
         self.wait_auto(gens=True, ros=True)
 
-#replaces RabiChevronV2 from spinQICK V1
+
+# replaces RabiChevronV2 from spinQICK V1
 class RabiChevron(asm_v2.AveragerProgramV2):
-    """perform a 2D sweep of frequency and time"""
+    """Perform a 2D sweep of frequency and time."""
 
     def _initialize(self, cfg: experiment_models.RfSweepTwo):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.gx_start, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.gx_start, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         pulse_time_sweep = asm_v2.QickSweep1D("time", cfg.gy_start, cfg.gy_stop)
         pulse_freq_sweep = asm_v2.QickSweep1D("freq", cfg.gx_start, cfg.gx_stop)
@@ -126,12 +124,12 @@ class RabiChevron(asm_v2.AveragerProgramV2):
 
 
 class TimeRabi(asm_v2.AveragerProgramV2):
-    """perform an rf pulse time sweep"""
+    """Perform an rf pulse time sweep."""
 
     def _initialize(self, cfg: experiment_models.TimeRabi):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         pulse_time_sweep = asm_v2.QickSweep1D("time", cfg.start, cfg.stop)
         self.add_pulse(
@@ -160,12 +158,12 @@ class TimeRabi(asm_v2.AveragerProgramV2):
 
 
 class AmplitudeRabi(asm_v2.AveragerProgramV2):
-    """perform a rf pulse gain sweep"""
+    """Perform a rf pulse gain sweep."""
 
     def _initialize(self, cfg: experiment_models.AmplitudeRabi):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         pulse_gain_sweep = asm_v2.QickSweep1D("gain", cfg.start, cfg.stop)
         self.add_pulse(
@@ -194,14 +192,12 @@ class AmplitudeRabi(asm_v2.AveragerProgramV2):
 
 
 class RamseyFringe(asm_v2.AveragerProgramV2):
-    """Play pi/2 pulse, wait for a time tau,
-    play another pi/2 pulse, measure.
-    """
+    """Play pi/2 pulse, wait for a time tau, play another pi/2 pulse, measure."""
 
     def _initialize(self, cfg: experiment_models.LdSweepOne):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         self.add_pulse(
             cfg.qubit.rf_gen,
@@ -231,12 +227,15 @@ class RamseyFringe(asm_v2.AveragerProgramV2):
 
 
 class Ramsey2D(asm_v2.AveragerProgramV2):
-    """Play pi/2 pulse, wait for a time tau and play another pi/2 pulse, measure. Sweeps tau and frequency"""
+    """Play pi/2 pulse, wait for a time tau and play another pi/2 pulse, measure.
+
+    Sweeps tau and frequency
+    """
 
     def _initialize(self, cfg: experiment_models.LdSweepTwo):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         freq_sweep = asm_v2.QickSweep1D(
             "freq", cfg.gx_start + cfg.qubit.f0, cfg.gx_stop + cfg.qubit.f0
@@ -270,14 +269,16 @@ class Ramsey2D(asm_v2.AveragerProgramV2):
 
 
 class SpinEcho(asm_v2.AveragerProgramV2):
-    """CPMG pulse sequence for measuring T2.  Pi/2 pulse followed by a variable delay and a train
-    of pi pulses, each with time 2tau between them.  Follow up with another Pi/2 pulse and measure.
+    """CPMG pulse sequence for measuring T2.
+
+    Pi/2 pulse followed by a variable delay and a train of pi pulses, each with time 2tau between
+    them.  Follow up with another Pi/2 pulse and measure.
     """
 
     def _initialize(self, cfg: experiment_models.SpinEcho):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         self.add_pulse(
             cfg.qubit.rf_gen,
@@ -314,12 +315,13 @@ class SpinEcho(asm_v2.AveragerProgramV2):
 
 
 class SweepPhase(asm_v2.AveragerProgramV2):
-    """demonstrate phase control by applying two pi/2 pulses, sweep relative phase of the RF tone of the second pulse"""
+    """Demonstrate phase control by applying two pi/2 pulses, sweep relative phase of the RF tone of
+    the second pulse."""
 
     def _initialize(self, cfg: experiment_models.LdSweepOne):
         readout_v2.init_dcs(self, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
-        nqz = qick_utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
+        nqz = utils.check_nyquist(cfg.qubit.f0, cfg.qubit.rf_gen, self.soccfg)
         phase_sweep = asm_v2.QickSweep1D("phase", cfg.start, cfg.stop)
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         self.add_pulse(
@@ -356,9 +358,10 @@ class SweepPhase(asm_v2.AveragerProgramV2):
         readout_v2.psb_em(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         self.wait_auto(gens=True, ros=True)
 
-#replaces AllXY
+
+# replaces AllXY
 def play_xy(soccfg, cfg: experiment_models.PlayXY):
-    """QICK code to perform an AllXY experiment or a series of x, y and z gates on a single spin"""
+    """QICK code to perform an AllXY experiment or a series of x, y and z gates on a single spin."""
     gate_set_len = len(cfg.gate_set)
     prog = asm_v2.AcquireProgramV2(soccfg)
     prog.set_ext_counter(addr=1, val=0)

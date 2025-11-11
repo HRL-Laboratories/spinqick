@@ -1,27 +1,23 @@
-"""
-Perform noise measurements with QICK
-
-"""
+"""Defines the MeasureNoise class used to perform general noise measurements with QICK."""
 
 import logging
 import time
-from typing import Tuple, Literal
+from typing import Literal, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.signal import periodogram
 
-from spinqick.core import dot_experiment
-from spinqick.core import spinqick_data
-from spinqick.helper_functions import hardware_manager, analysis, plot_tools
+from spinqick import settings
+from spinqick.core import dot_experiment, spinqick_data
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools
+from spinqick.models import experiment_models
 from spinqick.qick_code_v2 import (
     measure_noise_programs_v2,
     tune_electrostatics_programs_v2,
 )
-from spinqick.settings import file_settings, dac_settings
-from spinqick import settings
-from spinqick.models import experiment_models
+from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,27 +25,21 @@ logger = logging.getLogger(__name__)
 
 
 class MeasureNoise(dot_experiment.DotExperiment):
-    """This class holds functions that help the user characterize their system's noise."""
+    """This class holds functions that help the user characterize their system's noise.
+
+    :param soccfg: QickConfig object
+    :param soc: Qick object
+    :param voltage_source: Initialized DC voltage source object. This is used here for saving the DC
+        voltage state each time data is saved.
+    """
 
     def __init__(
-        self,
-        soccfg,
-        soc,
-        voltage_source: hardware_manager.VoltageSource,
-        datadir: str = file_settings.data_directory,
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
     ):
-        """
-        :param soccfg: QickConfig object
-        :param soc: Qick object
-        :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        """
-        super().__init__(datadir=datadir)
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.datadir = datadir
         self.vdc = hardware_manager.DCSource(voltage_source=voltage_source)
-        self.save_data: bool = True
-        self.plot: bool = True
 
     @dot_experiment.updater
     def readout_noise_at_bias(
@@ -58,10 +48,10 @@ class MeasureNoise(dot_experiment.DotExperiment):
         m_bias: float,
         measure_buffer: float,
         time_steps: int = 1000,
-        frequency_fit: bool = True,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
+        num_avgs: int = 1,
     ) -> spinqick_data.SpinqickData:
-        """Measure noise spectrum at a specific bias configuration of the device"""
+        """Measure noise spectrum at a specific bias configuration of the device."""
 
         current_m_bias = self.vdc.get_dc_voltage(m_dot)
         times = (
@@ -82,68 +72,73 @@ class MeasureNoise(dot_experiment.DotExperiment):
         meas = tune_electrostatics_programs_v2.Static(
             self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
         )
-        data = meas.acquire(self.soc, progress=False)
-        assert data
-        qd = spinqick_data.SpinqickData(
-            data,
-            gvg_cfg,
-            1,
-            1,
-            "_noise",
-            voltage_state=self.vdc.all_voltages,
-            prog=meas,
-        )
-        qd.add_axis([times], "x", [m_dot], time_steps, units=["us"])
-        if mode == "sd_chop":
-            analysis.calculate_conductance(
-                qd,
-                self.adc_unit_conversions,
+        data_list = []
+        for n in range(num_avgs):
+            data = meas.acquire(self.soc, progress=False)
+            assert data
+            qd = spinqick_data.SpinqickData(
+                data,
+                gvg_cfg,
+                1,
+                1,
+                "_noise",
+                voltage_state=self.vdc.all_voltages,
+                prog=meas,
             )
-        else:
-            analysis.calculate_transconductance(
-                qd,
-                self.adc_unit_conversions,
-            )
-        self.vdc.set_dc_voltage(current_m_bias, m_dot)
-        assert qd.analyzed_data
-        centered_data = qd.analyzed_data[0][0] - qd.analyzed_data[0].mean()
-
-        if frequency_fit:
+            qd.add_axis([times], "x", [m_dot], time_steps, units=["us"])
+            if mode == "sd_chop":
+                analysis.calculate_conductance(
+                    qd,
+                    self.adc_unit_conversions,
+                )
+            else:
+                analysis.calculate_transconductance(
+                    qd,
+                    self.adc_unit_conversions,
+                )
+            assert qd.analyzed_data
+            centered_data = qd.analyzed_data[0][0] - qd.analyzed_data[0].mean()
             samplerate = len(times) / (times[-1] - times[0])
             freq, power = periodogram(centered_data, fs=samplerate)
             asd = np.sqrt(power)
+            data_list.append(qd)
+            if n == 0:
+                asd_sum = asd
+            else:
+                asd_sum += asd
+        dset_labels = [str(freq[i]) for i in range(len(freq))]
+        asd_tot = asd_sum / num_avgs
+        assert isinstance(asd_tot, np.ndarray)
+        full_dataset = spinqick_data.CompositeSpinqickData(
+            data_list,
+            dset_labels,
+            "_charge_noise",
+            dset_coordinates=freq,
+            analyzed_data=asd_tot,
+            dset_coordinate_units="Hz",
+        )
+        full_dataset.dset_coordinate_units = "Hz"
 
-            def linfit(f, pwr, a):
-                return a * np.power(f, pwr)
-
-            def linfit_log(logf, m, b):
-                return m * logf + b
-
-            freq_fit = None
-            try:
-                # pylint: disable-next=unbalanced-tuple-unpacking
-                popt, _ = curve_fit(
-                    linfit_log,
-                    np.log10(freq[np.logical_and(freq > 0, freq < 100e6)]),
-                    np.log10(asd[np.logical_and(freq > 0, freq < 100e6)]),
-                )
-                icept = np.power(10, popt[1])
-                fit_params = {"power": popt[0], "intercept": popt[1]}
-                qd.fit_param_dict = fit_params
-                print("pow equals %f" % popt[0])
-                print("intercept equals %f" % icept)  # pylint: disable=possibly-used-before-assignment
-                freq_fit = linfit(freq, popt[0], 10 ** popt[1])
-            except ValueError:
-                print("PSD fit failed")
-            if self.plot:
-                plt.figure()
-                plt.loglog(freq, asd, "k.")
-                if freq_fit is not None:
-                    plt.plot(freq, freq_fit, "r-")
-                plt.ylabel("Vrms/RtHz")
-                plt.xlabel("freq (Hz)")
-                plt.ylim(1e-5, np.max(asd) * 1.1)
+        if self.plot:
+            fig = plot_tools.plot1_simple(
+                freq, asd_tot, full_dataset.timestamp, marker="."
+            )
+            plt.xscale("log")
+            plt.yscale("log")
+            plt.ylabel("ADCrms/RtHz")
+            plt.xlabel("freq (Hz)")
+            plt.ylim(1e-4, 1)
+            plt.title("mbias = %.4f" % m_bias)
+            full_plot_num = fig.number
         # TODO implement data and plot saving
+
+        self.vdc.set_dc_voltage(current_m_bias, m_dot)
+        if self.save_data:
+            nc_file = full_dataset.basic_composite_save()
+            if self.plot:
+                nc_file.save_last_plot(fignum=full_plot_num)
+            nc_file.close()
+            logger.info("data saved at %s", full_dataset.data_file)
         return qd
 
     @dot_experiment.updater
@@ -158,16 +153,19 @@ class MeasureNoise(dot_experiment.DotExperiment):
         frequency_fit: bool = True,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.CompositeSpinqickData:
-        """Track DCS peak for longer timescale (minutes) and look for drift and noise.  Right now this is coded to work
-        with only one adc readout.
+        """Track DCS peak for longer timescale (minutes) and look for drift and noise.  Right now
+        this is coded to work with only one adc readout.
 
         :param m_dot: M dot to track
-        :param m_range: List of start voltage, stop voltage and number of points.  Voltages are relative
-            to the current setpoint
+        :param m_range: List of start voltage, stop voltage and number of points. Voltages are
+            relative to the current setpoint
         :param time_steps: number of times to run the sweep
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and the QICK starts a DCS measurement.
-        :param wait_time: delay time in seconds between m-gate measurements, measure longer timescale drift
-        :param frequency_fit: fit frequencies below this value to a power law
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param wait_time: delay time in seconds between m-gate measurements, to measure longer
+            timescale drift
+        :param frequency_fit: if true, fits frequency spectrum
+        :param freq_cutoff: fit frequencies below this value to a power law
         """
 
         ### M Sweep
@@ -227,7 +225,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             times[step] = time.time_ns() / 1e9
             assert qd.analyzed_data is not None
             data_array[step, :] = qd.analyzed_data[0][0]
-            time.sleep(0.2)
+            # time.sleep(0.001)
             if wait_time:
                 time.sleep(wait_time)
 
@@ -235,7 +233,11 @@ class MeasureNoise(dot_experiment.DotExperiment):
         dset_labels = [str(times[i]) for i in range(time_steps)]
         self.vdc.set_dc_voltage(m_bias, m_dot)
         full_dataset = spinqick_data.CompositeSpinqickData(
-            data_list, dset_labels, "_m_tracking", dset_coordinates=times
+            data_list,
+            dset_labels,
+            "_m_tracking",
+            dset_coordinates=times,
+            dset_coordinate_units="s",
         )
 
         ### now fit the data
@@ -331,8 +333,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
         n_averages: int = 2,
         add_tone: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Grab raw time traces from one ADC and fft them.  Using DDR4 buffer
-        we are able to get up to ~3 seconds of raw data.
+        """Grab raw time traces from one ADC and fft them.  Using DDR4 buffer we are able to get up
+        to ~3 seconds of raw data.
 
         :param readout_time: time (in seconds) to collect data on ddr4 buffer
         :param n_averages: number of times to repeat data capture, averaging the psd every time
@@ -397,7 +399,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         continuous_tone: bool = False,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Grab raw time traces from one ADC and fft them. Play a tone and turn on demodulation.
-        Using DDR4 buffer we are able to capture up to ~3 seconds of raw data
+        Using DDR4 buffer we are able to capture up to ~3 seconds of raw data.
 
         :param readout_time: time in seconds to collect data on ddr4 buffer
         :param n_averages: number of times to repeat data capture, averaging the psd every time

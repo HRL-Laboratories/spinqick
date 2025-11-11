@@ -1,53 +1,43 @@
-"""
-Module to hold functions that run Loss Divincenzo single-qubit experiments
-"""
+"""Defines the LDSingleQubit class, which contains methods for basic single- qubit."""
 
 import logging
 from typing import Tuple
+
 import numpy as np
 from matplotlib import pyplot as plt
 
-from spinqick.core import dot_experiment
-from spinqick.qick_code_v2 import ld_single_qubit_programs_v2, psb_setup_programs_v2
-from spinqick.core import spinqick_data, spinqick_utils
+from spinqick import settings
+from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import (
-    plot_tools,
     analysis,
     hardware_manager,
+    plot_tools,
+    spinqick_enums,
 )
-from spinqick.settings import file_settings
-from spinqick import settings
-from spinqick.models import experiment_models, ld_qubit_models, hardware_config_models
+from spinqick.models import experiment_models, hardware_config_models, ld_qubit_models
+from spinqick.qick_code_v2 import ld_single_qubit_programs_v2, psb_setup_programs_v2
 
 logger = logging.getLogger(__name__)
 
 
 class LDSingleQubit(dot_experiment.DotExperiment):
-    """This class holds functions that wrap the QICK code classes for single LD qubit experiments.
-    These involve a microwave drive. These scripts are set up to generate a trigger which goes high during the RF pulse,
-    so if the user is mixing their signal with an LO they can trigger an RF switch.
+    """Contains methods that wrap the QICK code classes for single LD qubit experiments. These
+    involve a microwave drive. These scripts are set up to generate a trigger which goes high during
+    the RF pulse, so if the user is mixing their signal with an LO they can trigger an RF switch.
+    Initialize with information about your rfsoc and your experimental setup.
 
+    :param soccfg : QickConfig object
+    :param soc : initialized QickSoc object
+    :param voltage_source: Initialized DC voltage source object. This is used here for saving the DC
+        voltage state each time data is saved.
     """
 
     def __init__(
-        self,
-        soccfg,
-        soc,
-        voltage_source: hardware_manager.VoltageSource,
-        datadir: str = file_settings.data_directory,
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
     ):
-        """initialize with information about your rfsoc and your experimental setup
-
-        :param soccfg: qick config object
-        :param soc: QickConfig
-        :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        """
-        super().__init__(datadir=datadir)
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.datadir = datadir
-        self.plot = True
-        self.save_data = True
         self.vdc = hardware_manager.DCSource(voltage_source=voltage_source)
 
     @dot_experiment.updater
@@ -60,15 +50,17 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         rf_length: float,
         point_avgs: int = 10,
         full_avgs: int = 1,
-    ):
-        """
-        2D sweep of idle coordinate with RF turned on
+    ) -> spinqick_data.PsbData:
+        """Performs a 2D sweep of idle coordinate with RF on.  RF is turned on a the idle point in
+        the spam sequence.
 
         :param p_gates: specify the two plunger gates being used
-        :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
+        :param p_range: specify the range of each axis sweep. ((px_start, px_stop, px_points),
+            (py_start, py_stop, py_points))
         :param add_rf: add an RF pulse at the idle point
         :param rf_freq: frequency of RF pulse
         :param rf_gain: gain of RF pulse
+        :param rf_length: length (in microseconds) of RF pulse
         """
 
         px_gate, py_gate = p_gates
@@ -142,7 +134,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         analysis.calculate_conductance(
             sq_data,
             self.adc_unit_conversions,
-            average_level=spinqick_utils.AverageLevel.BOTH,
+            average_level=spinqick_enums.AverageLevel.BOTH,
         )
         if ro_cfg.reference:
             analysis.calculate_difference(sq_data)
@@ -165,20 +157,19 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         start_freq: float,
         stop_freq: float,
         num_pts: int,
-        rf_length: float = 10,
+        rf_length: float,
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
-        """Play an RF pulse and scan frequency, look for resonance
+        """Play a frequency sweep.
 
         :param rf_gain: Gain of RF tone in DAC units
         :param start_freq: Lowest RF frequency in MHz
         :param stop_freq: Max RF frequency in MHz
         :param num_pts: Number of points in the frequency sweep
-        :param point_avgs: Number of times to run sweep and average full experiemtn
         :param rf_length: Pulse length of RF drive in microseconds
-        :param plot: Plot result
-        :param save_data: Save data to netcdf
+        :param point_avgs: Number of times to repeat each measurement and average
+        :param full_avgs: Number of times to run sweep and average full experiment
         """
         assert self.experiment_config.qubit_configs is not None
         qubit_cfg = self.experiment_config.qubit_configs[self.qubit]
@@ -249,15 +240,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         time_range: Tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
-    ):
-        """sweeps frequency on FPGA and time in an outer python loop.
+    ) -> spinqick_data.PsbData:
+        """Performs a 2D sweep of RF pulse frequency and pulse length.
 
-        :param rf_gain: DAC units
+        :param rf_gain: RF pulse amplitude in DAC units
         :param freq_range: (start frequency (MHz), stop frequency (MHz), number of steps)
         :param time_range: (start time (us), stop time (us), number of steps)
-        :param point_avgs: number of averages per point
-        :param rf_cooldown: time to pause after RF drive before the second measurement
-        :param trig_offset: time in microseconds between trigger on pin 0 and beginning of RF pulse
         """
         start_freq, stop_freq, freq_pts = freq_range
         start_time, stop_time, time_pts = time_range
@@ -320,7 +308,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.reference,
             qubit_cfg.ro_cfg.thresh,
             qubit_cfg.ro_cfg.threshold,
-            final_avg_lvl=spinqick_utils.AverageLevel.BOTH,
+            final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
             plot_tools.plot2_psb(sq_data, "frequency", "time")
@@ -341,13 +329,11 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         time_range: Tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
-    ):
-        """perform a time rabi experiment.  This script loops over pulse time in software, but since this experiment is 1D that is plenty fast for us.
+    ) -> spinqick_data.PsbData:
+        """Performs a time rabi experiment, sweeping the length of the RF pulse time.
 
-        :param rf_gain: RF gain in DAC units
-        :time_range: (time_start, time_stop, points) in microseconds
-        :point_avgs: number of averages per time point
-        :full_avgs: number of averages over full experiment
+        :param rf_gain: RF gain in DAC units :time_range: (time_start, time_stop, num_points) in
+            microseconds
         """
         start_time, stop_time, time_pts = time_range
         qubit_cfg = self.experiment_config.qubit_configs[self.qubit]
@@ -414,11 +400,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         gain_range: Tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 1,
-    ):
-        """Rabi experiment which sweeps RF amplitude, keeping RF time constant. Currently this has no averaging built in, because I'm using Raverager.
+    ) -> spinqick_data.PsbData:
+        """Performs an experiment which sweeps RF pulse gain, keeping RF pulse length constant.
 
-        :param rf_time: pulse length, microseconds
-        :param gain_range: gain sweep parameters in dac units; (start_gain, stop_gain, number of points)
+        :param rf_time: pulse length in microseconds
+        :param gain_range: gain sweep parameters in dac units; (start_gain, stop_gain, number of
+            points)
         """
         start, stop, pts = gain_range
         qubit_cfg = self.experiment_config.qubit_configs[self.qubit]
@@ -484,12 +471,13 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         qubit: str,
         point_avgs: int = 10,
         full_avgs: int = 10,
-    ):
-        """Perform an all x-y experiment.  This experiment consists of a series of manipulations to demonstrate x-y control.
+    ) -> spinqick_data.PsbData:
+        """Perform an all x-y experiment.  This experiment consists of a series of manipulations to
+        demonstrate x-y control.
 
         :param qubit: specify qubit config label
-        :param point_avgs: averages per point
-        :param expt_avgs: averages of full experiment
+        :param point_avgs: averages per measurement point
+        :param full_averages: averages of full experiment
         """
 
         allxy_seq = [
@@ -576,14 +564,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
-        """this experiment performs two pi/2 pulses, incrementing the phase offset of the second pulse.
-        If you are driving x-y rotations you will see a periodic output.  This is a simple way to demonstrate that you have
-        x-y control of your qubit using RF drive phase.
+        """Performs two pi/2 pulses, incrementing the phase offset of the second pulse. If you are
+        driving x-y rotations you will see a periodic output.  This is a simple way to demonstrate
+        that you have x-y control of your qubit using RF drive phase.
 
         :param qubit: specify qubit config label
-        :param point_avgs: averages per point
-        :param expt_avgs: averages of full experiment
+        :param phase_range: (start_phase, end_phase, number of points)
         """
+
         phase_start, phase_stop, phase_steps = phase_range
         qubit_cfg = self.experiment_config.qubit_configs[qubit]
         assert isinstance(qubit_cfg, ld_qubit_models.Ld1Qubit)
@@ -649,11 +637,10 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
-        """perform a ramsey experiment.  Sweep time delay between two pi/2 pulses.
+        """Perform a 1D Ramsey experiment, by sweeping time delay between two pi/2 pulses.
 
         :param qubit: specify qubit config label
-        :param point_avgs: averages per point
-        :param expt_avgs: averages of full experiment
+        :param time_range: (start, end, number of points) in microseconds
         """
         start_time, stop_time, time_pts = time_range
         qubit_cfg = self.experiment_config.qubit_configs[qubit]
@@ -720,14 +707,13 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         freq_range: Tuple[float, float, int],
         full_avgs: int = 10,
         point_avgs: int = 10,
-    ):
-        """perform a series of ramsey experiments.  Sweep time delay between two pi/2 pulses, and sweep drive frequency
+    ) -> spinqick_data.PsbData:
+        """Performs a series of ramsey experiments, sweeping both delay time between two pulses and
+        pulse frequency.
+
         :param qubit: specify qubit config label
         :param time_range: (time_start, time_stop, points) in microseconds
         :param freq_range: (freq_start, freq_stop, points) in MHz
-        :param full_avgs: averages over the full experiment
-        :param point_avgs: repeat a single data point measurement and average this many times
-
         """
         start_freq, stop_freq, freq_pts = freq_range
         start_time, stop_time, time_pts = time_range
@@ -789,7 +775,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.reference,
             qubit_cfg.ro_cfg.thresh,
             qubit_cfg.ro_cfg.threshold,
-            final_avg_lvl=spinqick_utils.AverageLevel.BOTH,
+            final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
             plot_tools.plot2_psb(sq_data, "frequency", "time")
@@ -811,12 +797,11 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         time_range: Tuple[float, float, int],
         full_avgs: int = 10,
         point_avgs: int = 10,
-    ):
-        """perform a hahn echo or CPMG experiment.
+    ) -> spinqick_data.PsbData:
+        """Performs a hahn echo or CPMG experiment.
 
-        :param n_echoes: Number of pi pulses to insert. n=1 for Hahn echo
-        :time_range: (time_start, time_stop, points) in microseconds
-
+        :param n_echoes: Number of pi pulses to insert. n=1 for Hahn echo. :time_range: (time_start,
+            time_stop, points) in microseconds
         """
         start_time, stop_time, time_pts = time_range
         qubit_cfg = self.experiment_config.qubit_configs[qubit]

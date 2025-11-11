@@ -1,17 +1,20 @@
-"""functions for analyzing data"""
+"""Functions for analyzing data."""
 
-from typing import List
 import logging
+from typing import List
+
 import numpy as np
 from lmfit import models
 from sklearn.mixture import GaussianMixture
-from spinqick.core import spinqick_data, spinqick_utils
+
+from spinqick.core import spinqick_data
+from spinqick.helper_functions import spinqick_enums
 
 logger = logging.getLogger(__name__)
 
 
 def analyze_conductance(data: List[np.ndarray]):
-    """calculate data magnitude from acquire function output"""
+    """Calculate data magnitude from acquire function output."""
     full_data = []
     for adc_data in data:
         mag = np.sqrt(
@@ -22,7 +25,7 @@ def analyze_conductance(data: List[np.ndarray]):
 
 
 def analyze_transconductance(data: List[np.ndarray]):
-    """calculate transconductance from acquire function output"""
+    """Calculate transconductance from acquire function output."""
     full_data = []
     for adc_data in data:
         max_ind = np.argmax(adc_data[..., 0])  # get max amplitude in I
@@ -39,7 +42,7 @@ def analyze_transconductance(data: List[np.ndarray]):
 
 
 def thresh_psb(data: np.ndarray, threshold: float):
-    """threshold data"""
+    """Threshold data."""
     if threshold < 0:
         threshed = np.heaviside(data - threshold, 0)
     else:
@@ -48,7 +51,8 @@ def thresh_psb(data: np.ndarray, threshold: float):
 
 
 def interpret_data_psb(data, diff=True, thresh=None):
-    """take magnitude of data, take difference between singlet and triplet data and threshold if needed"""
+    """Take magnitude of data, take difference between singlet and triplet data and threshold if
+    needed."""
 
     mag = analyze_conductance(data)[0]  # for now this is just for the first adc
 
@@ -67,21 +71,21 @@ def interpret_data_psb(data, diff=True, thresh=None):
 def calculate_conductance(
     data: spinqick_data.SpinqickData,
     adc_conversion: list[float],
-    average_level: spinqick_utils.AverageLevel | None = None,
+    average_level: spinqick_enums.AverageLevel | None = None,
 ):
-    """calculates conductance from raw data and saves on the analyzed_data attribute"""
+    """Calculates conductance from raw data and saves on the analyzed_data attribute."""
     conductance_data = analyze_conductance(data.raw_data)
     adcs = range(len(conductance_data))
     # average inner and/or outer loops
     if average_level is not None:
         if average_level in [
-            spinqick_utils.AverageLevel.BOTH,
-            spinqick_utils.AverageLevel.INNER,
+            spinqick_enums.AverageLevel.BOTH,
+            spinqick_enums.AverageLevel.INNER,
         ]:
             conductance_data = [np.mean(conductance_data[i], axis=-1) for i in adcs]
         if average_level in [
-            spinqick_utils.AverageLevel.BOTH,
-            spinqick_utils.AverageLevel.OUTER,
+            spinqick_enums.AverageLevel.BOTH,
+            spinqick_enums.AverageLevel.OUTER,
         ]:
             conductance_data = [np.mean(conductance_data[i], axis=1) for i in adcs]
     data.analyzed_data = [conductance_data[i] * adc_conversion[i] for i in adcs]
@@ -92,7 +96,7 @@ def calculate_conductance(
 def calculate_transconductance(
     data: spinqick_data.SpinqickData, adc_conversion: list[float]
 ):
-    """calculates transconductance from raw data and saves on the analyzed_data attribute"""
+    """Calculates transconductance from raw data and saves on the analyzed_data attribute."""
     trans_data = analyze_transconductance(data.raw_data)
     data.analyzed_data = [
         trans_data[i] * adc_conversion[i] for i in range(len(trans_data))
@@ -157,7 +161,7 @@ def fit_blobs(
 
 
 def fit_gaussian(x_data, y_data):
-    """fit data to a gaussian"""
+    """Fit data to a gaussian."""
     gaussian = models.GaussianModel()
     line = models.ConstantModel()
     model = gaussian + line
@@ -169,8 +173,7 @@ def fit_gaussian(x_data, y_data):
         ),
         amplitude=dict(value=np.sum(y_data), min=0),
         # amplitude=dict(value=np.sum(y_data)),
-        sigma=dict(value=(np.max(x_data) - np.min(x_data)) / 10),
-        min=0,
+        sigma=dict(value=(np.max(x_data) - np.min(x_data)) / 10, min=0),
         c=dict(value=np.min(y_data)),
     )
     out = model.fit(mag, pars, x=x_data)
@@ -178,7 +181,7 @@ def fit_gaussian(x_data, y_data):
 
 
 def fit_sigmoid(x_data: np.ndarray, y_data: np.ndarray):
-    """fit data to a sigmoid"""
+    """Fit data to a sigmoid."""
     sigmoid = models.ThermalDistributionModel(form="fermi")
     amp = models.ConstantModel()
     offset = models.ConstantModel(prefix="o")
@@ -210,9 +213,9 @@ def fit_sigmoid(x_data: np.ndarray, y_data: np.ndarray):
 
 def calculate_difference(
     data: spinqick_data.PsbData,
-    average_level: spinqick_utils.AverageLevel | None = None,
+    average_level: spinqick_enums.AverageLevel | None = None,
 ):
-    """subtract reference measurement from actual data"""
+    """Subtract reference measurement from actual data."""
     diff = []
     assert data.analyzed_data is not None
     for conductance_data in data.analyzed_data:
@@ -223,13 +226,13 @@ def calculate_difference(
     # average inner and/or outer loops
     if average_level is not None:
         if average_level in [
-            spinqick_utils.AverageLevel.BOTH,
-            spinqick_utils.AverageLevel.INNER,
+            spinqick_enums.AverageLevel.BOTH,
+            spinqick_enums.AverageLevel.INNER,
         ]:
             diff = [np.mean(diff[i], axis=-1) for i in adcs]
         if average_level in [
-            spinqick_utils.AverageLevel.BOTH,
-            spinqick_utils.AverageLevel.OUTER,
+            spinqick_enums.AverageLevel.BOTH,
+            spinqick_enums.AverageLevel.OUTER,
         ]:
             diff = [np.mean(diff[i], axis=0) for i in adcs]
 
@@ -240,9 +243,9 @@ def calculate_difference(
 def calculate_thresholded(
     data: spinqick_data.PsbData,
     threshold: List[float],
-    average_level: spinqick_utils.AverageLevel | None = None,
+    average_level: spinqick_enums.AverageLevel | None = None,
 ):
-    """calculate thresholded 0 or 1 data from analyzed data and average after thresholding"""
+    """Calculate thresholded 0 or 1 data from analyzed data and average after thresholding."""
     threshed = []
     if data.difference_data is None:
         pre_thresh = data.analyzed_data
@@ -256,13 +259,13 @@ def calculate_thresholded(
         # average inner and/or outer loops
         if average_level is not None:
             if average_level in [
-                spinqick_utils.AverageLevel.BOTH,
-                spinqick_utils.AverageLevel.INNER,
+                spinqick_enums.AverageLevel.BOTH,
+                spinqick_enums.AverageLevel.INNER,
             ]:
                 threshed = [np.mean(threshed[i], axis=-1) for i in adcs]
             if average_level in [
-                spinqick_utils.AverageLevel.BOTH,
-                spinqick_utils.AverageLevel.OUTER,
+                spinqick_enums.AverageLevel.BOTH,
+                spinqick_enums.AverageLevel.OUTER,
             ]:
                 threshed = [np.mean(threshed[i], axis=0) for i in adcs]
         data.threshed_data = threshed
@@ -276,10 +279,10 @@ def analyze_psb_standard(
     reference: bool,
     thresh: bool,
     threshold: float | None,
-    final_avg_lvl: spinqick_utils.AverageLevel
-    | None = spinqick_utils.AverageLevel.BOTH,
+    final_avg_lvl: spinqick_enums.AverageLevel
+    | None = spinqick_enums.AverageLevel.BOTH,
 ):
-    """calculates conductance and if desired the thresholded data from a spinqick data object"""
+    """Calculates conductance and if desired the thresholded data from a spinqick data object."""
     if not reference and not thresh:
         calculate_conductance(
             sq_data,

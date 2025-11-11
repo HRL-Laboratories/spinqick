@@ -1,9 +1,8 @@
-"""
-Functions to help with plotting data output from averager functions
-"""
+"""Functions to help with plotting data output from averager functions and spinqickdata classes."""
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from spinqick.core import spinqick_data
 
 
@@ -16,7 +15,7 @@ def plot_decimated(iq_list, config, plot_iq=False):
     )  # [us]
 
     for iq in iq_list:
-        iq = np.transpose(iq)  # RAveragerProgram
+        iq = np.transpose(iq)
         plt.plot(
             time, np.abs(iq[0] + 1j * iq[1]), label="mag, ADC %d" % (config["ro_ch"])
         )
@@ -102,8 +101,20 @@ def plot1_psb_data(pnts, avgi, avgq, thresh=None):
     return fig
 
 
-def plot2_simple(xarray, yarray, data, timestamp, cbar_label="DCS conductance, arbs"):
-    """Basic 2D plot"""
+#### spinqick v2 code ####
+
+
+def plot2_simple(
+    xarray: np.ndarray,
+    yarray: np.ndarray,
+    data: np.ndarray,
+    timestamp: int,
+    cbar_label: str = "DCS conductance, arbs",
+):
+    """Basic 2D plot.
+
+    :param data: 2d array of data which matches the dimensions of xarray and yarray
+    """
     fig = plt.figure()
     plt.pcolormesh(xarray, yarray, data, shading="nearest", cmap="binary_r")
     plt.colorbar(label=cbar_label)
@@ -112,23 +123,33 @@ def plot2_simple(xarray, yarray, data, timestamp, cbar_label="DCS conductance, a
 
 
 def plot1_simple(
-    xarray, data, timestamp, dset_label: str | None = None, new_figure=True
+    xarray: np.ndarray,
+    data: np.ndarray,
+    timestamp: int,
+    dset_label: str | None = None,
+    new_figure: bool = True,
+    **kwargs,
 ):
-    """Basic 1D plot"""
+    """Basic 1D plot."""
     if new_figure:
         fig = plt.figure()
     else:
         fig = plt.gcf()
     if dset_label is None:
-        plt.plot(xarray, data)
+        plt.plot(xarray, data, **kwargs)
     else:
-        plt.plot(xarray, data, label=dset_label)
+        plt.plot(xarray, data, label=dset_label, **kwargs)
     plt.title("t: %d" % timestamp, loc="right", fontdict={"fontsize": 6})
     return fig
 
 
 def plot2_psb(sqd: spinqick_data.PsbData, x_gate: str, y_gate: str):
-    """plot psb data"""
+    """Plot psb data 2D plot.
+
+    :param sqd: the spinqick data object containing the data
+    :param x_gate: the name of the swept x-axis parameter from the spinqick.axes dictionary.
+    :param y_gate: the name of the swept y-axis parameter from the spinqick.axes dictionary.
+    """
     xarray = sqd.axes["x"]["sweeps"][x_gate]["data"]
     xloop = sqd.axes["x"]["loop_no"]
     yarray = sqd.axes["y"]["sweeps"][y_gate]["data"]
@@ -155,8 +176,12 @@ def plot2_psb(sqd: spinqick_data.PsbData, x_gate: str, y_gate: str):
     return fig
 
 
-def plot1_psb(sqd: spinqick_data.PsbData, x_gate: str):
-    """plot psb data 1d plot"""
+def plot1_psb(sqd: spinqick_data.PsbData, x_gate: str, **kwargs):
+    """Plot psb data 1d plot.
+
+    :param sqd: the spinqick data object containing the data
+    :param x_gate: the name of the swept x-axis parameter, typically a gate name.
+    """
     xarray = sqd.axes["x"]["sweeps"][x_gate]["data"]
     if sqd.threshed_data is not None:
         plot_data = sqd.threshed_data
@@ -166,6 +191,6 @@ def plot1_psb(sqd: spinqick_data.PsbData, x_gate: str):
         assert sqd.analyzed_data is not None
         plot_data = [data[0] for data in sqd.analyzed_data]
     for adc_data in plot_data:
-        fig = plot1_simple(xarray, adc_data, sqd.timestamp)
+        fig = plot1_simple(xarray, adc_data, sqd.timestamp, **kwargs)
 
     return fig

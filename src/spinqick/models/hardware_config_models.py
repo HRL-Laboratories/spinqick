@@ -1,7 +1,9 @@
-"""pydantic templates for hardware config dictionary"""
+"""Pydantic templates for hardware config parameters."""
 
-from typing import Dict, Union, Literal, List
+from typing import Dict, List, Literal, Union
+
 import pydantic
+
 from spinqick import settings
 
 
@@ -11,47 +13,59 @@ class VoltageSourceType:
 
 
 class AuxGate(pydantic.BaseModel):
+    """Auxiliary gate model."""
+
     slow_dac_address: str
     slow_dac_channel: int
 
 
 class HemtGate(AuxGate):
+    """Auxiliary gate model specific for powering HEMTs."""
+
     dc_conversion_factor: float
     max_v: float
     sd_out: int  # specify index of SourceDrainOut list
 
 
 class SlowGate(pydantic.BaseModel):
-    dc_conversion_factor: float
-    # slow dac information for DCSource class
+    """Model for gates with a DC voltage source channel."""
+
+    dc_conversion_factor: float  # output voles to gate voltage conversion
     slow_dac_address: str
     slow_dac_channel: int
     max_v: float
     gate_type: settings.GateTypes
-    # crosscoupling between gates
-    crosscoupling: Dict[settings.GateNames, float] | None = None
+    crosscoupling: Dict[settings.GateNames, float] | None = (
+        None  # crosscoupling between gates
+    )
 
 
 class FastGate(SlowGate):
-    # dac units to volts conversion
-    dac_conversion_factor: float
-    # qick channel associated with gate
-    qick_gen: int
+    """Model for gates associated with both a DC source channel and qick generator."""
+
+    dac_conversion_factor: float  # dac units to volts conversion
+    qick_gen: int  # qick channel associated with gate
 
 
 class SourceDrainIn(pydantic.BaseModel):
+    """Model describing the source-drain AC signal into the device."""
+
     qick_gen: int  # readout pulse channel
     unit_conversion: float
     sd_units: str
 
 
 class SourceDrainOut(pydantic.BaseModel):
+    """Model describign the output readout signal from the device."""
+
     qick_adc: int  # adc channel
     unit_conversion: float
     adc_units: str
 
 
 class HardwareConfig(pydantic.BaseModel):
+    """Model for the full hardware config."""
+
     sd_in: SourceDrainIn
     m1_readout: List[SourceDrainOut]
     m2_readout: List[SourceDrainOut]
@@ -61,6 +75,6 @@ class HardwareConfig(pydantic.BaseModel):
         None  # gate used to apply ac signal for transconductance
     )
     channels: Dict[settings.GateNames, Union[FastGate, SlowGate, HemtGate, AuxGate]]
-    voltage_source: Literal["test", "slow_dac"] = (
+    voltage_source: Literal["test", "slow_dac"] | None = (
         "test"  # specify the type of dc supply you're using for DCSource class
     )

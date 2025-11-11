@@ -1,22 +1,15 @@
-"""
-AveragerProgram -type qick code for the tune_electrostatics module
-Now for tprocv2
-"""
+"""AveragerProgram -type qick code for the tune_electrostatics module Now for tprocv2."""
 
 from qick import asm_v2
-from spinqick.core import awg_pulse
-from spinqick.core import readout_v2
-from spinqick.core.qick_utils import (
-    Mode,
-    Stdysel,
-    Waveform,
-    check_nyquist,
-)
+
+from spinqick.core import awg_pulse, readout_v2
+from spinqick.core.utils import check_nyquist
+from spinqick.helper_functions.qick_enums import Mode, Stdysel, Waveform
 from spinqick.models import experiment_models
 
 
 class BasebandPulseGvG(asm_v2.AveragerProgramV2):
-    """QICK class to sweep two gate voltages against each other, using QICK not slow DAC"""
+    """QICK class to sweep two gate voltages against each other, using QICK not slow DAC."""
 
     def _initialize(self, cfg: experiment_models.GvgBasebandConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg)
@@ -41,12 +34,11 @@ class BasebandPulseGvG(asm_v2.AveragerProgramV2):
 
 
 class Static(asm_v2.AveragerProgramV2):
-    """Run a series of readout triggers without triggering an external instrument"""
+    """Run a series of readout triggers without triggering an external instrument."""
 
     def _initialize(self, cfg: experiment_models.GvgDcConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg, cfg.mode)
         self.delay(1)
-        # self.trigger(pins=[cfg.trig_pin], width=cfg.trig_length)
         self.add_loop("shots", cfg.points)
 
     def _body(self, cfg: experiment_models.GvgDcConfig):
@@ -57,7 +49,10 @@ class Static(asm_v2.AveragerProgramV2):
 
 
 class GvG(asm_v2.AveragerProgramV2):
-    """Time this carefully with your DC voltage source.  This runs once per dac ramp, based on a trigger"""
+    """Time this carefully with your DC voltage source.
+
+    This runs once per dac ramp, based on a trigger
+    """
 
     def _initialize(self, cfg: experiment_models.GvgDcConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg, cfg.mode)
@@ -73,7 +68,7 @@ class GvG(asm_v2.AveragerProgramV2):
 
 
 class GvGPat(asm_v2.AveragerProgramV2):
-    """Runs GvG with an RF pulse on each step"""
+    """Runs GvG with an RF pulse on each step."""
 
     def _initialize(self, cfg: experiment_models.GvgPatConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg)

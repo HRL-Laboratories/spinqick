@@ -1,6 +1,4 @@
-"""
-This module holds scripts which can be useful when setting up a new device or system.
-"""
+"""This module holds scripts which can be useful when setting up a new device or system."""
 
 import logging
 from typing import Tuple
@@ -8,48 +6,36 @@ from typing import Tuple
 import numpy as np
 from matplotlib import pyplot as plt
 
-from spinqick.core import dot_experiment
-from spinqick.core import spinqick_data, spinqick_utils
+from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import (
+    analysis,
     hardware_manager,
     plot_tools,
-    analysis,
-)
-from spinqick.qick_code_v2 import (
-    system_calibrations_programs_v2,
+    spinqick_enums,
 )
 from spinqick.models import experiment_models
-from spinqick.settings import file_settings
+from spinqick.qick_code_v2 import system_calibrations_programs_v2
 
 logger = logging.getLogger(__name__)
 
 
 class SystemCalibrations(dot_experiment.DotExperiment):
-    """This class holds functions that wrap the QICK classes for hardware calibrations"""
+    """This class holds functions that wrap the QICK classes for hardware calibrations.Initialize
+    with information about your rfsoc and your experimental setup.
+
+    :param soccfg: QickConfig object
+    :param soc: Qick object
+    :param datadir: data directory where all data is being stored. Experiment will make a folder
+        here with today's date.
+    """
 
     def __init__(
-        self,
-        soccfg,
-        soc,
-        voltage_source: hardware_manager.VoltageSource,
-        datadir: str = file_settings.data_directory,
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
     ):
-        """initialize with information about your rfsoc and your experimental setup
-
-        :param soccfg: QickConfig object
-        :param soc: Qick object
-        :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        """
-        super().__init__(datadir=datadir)
-
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.datadir = datadir
         self.vdc = hardware_manager.DCSource(voltage_source=voltage_source)
-        self.plot = True
-        self.save_data = True
-
-    # TODO write tune_hs script for tprocv2
 
     @dot_experiment.updater
     def sweep_adc_trig_offset(
@@ -58,11 +44,11 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         point_avgs: int,
         full_avgs: int,
         loop_slack: float,
-    ):
-        """sweep the adc trigger offset parameter, which sets the offset between when a pulse is fired and when readout is turned on.
+    ) -> spinqick_data.SpinqickData:
+        """Sweep the adc trigger offset parameter, which sets the offset between when a pulse is
+        fired and when readout is turned on.
 
-        :param times:
-        :param avgs: Averages per time point
+        :param times: (start offset time, end offset time, number of points)
         """
         delay_start, delay_stop, points = times
         delay_sweep = np.linspace(delay_start, delay_stop, points)
@@ -91,7 +77,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         analysis.calculate_conductance(
             data_obj,
             [1 for i in range(len(raw_data))],
-            average_level=spinqick_utils.AverageLevel.BOTH,
+            average_level=spinqick_enums.AverageLevel.BOTH,
         )
         data_obj.add_axis(
             [delay_sweep],

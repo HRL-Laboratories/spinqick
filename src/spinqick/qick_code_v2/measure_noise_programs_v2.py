@@ -1,11 +1,9 @@
-"""
-Qick code for noise experiments
-"""
+"""Qick code for noise experiments."""
 
-from qick import asm_v2, QickConfig
+from qick import QickConfig, asm_v2
 
+from spinqick.helper_functions.qick_enums import Mode, Waveform
 from spinqick.models import dcs_model
-from spinqick.core.qick_utils import Mode, Waveform
 
 
 def grab_noise(
@@ -15,8 +13,9 @@ def grab_noise(
     readout_tone: bool | None = None,
     continuous_tone: bool | None = None,
 ) -> asm_v2.QickProgramV2:
-    """This function creates a simple qick program which utilizes the ddr4 buffer to be able to grab long time traces of data.
-    The user may apply a tone while grabbing this data or turn on demodulation.
+    """This function creates a simple qick program which utilizes the ddr4 buffer to be able to grab
+    long time traces of data. The user may apply a tone while grabbing this data or turn on
+    demodulation.
 
     :param demodulate: demodulate output at readout_freq frequency
     :param readout_tone: optionally play a tone on the readout channel
@@ -84,7 +83,7 @@ def grab_noise(
     noiseprogram.delay(100)
     if readout_tone:
         noiseprogram.pulse(ch=gen_ch, name="sourcedrain", t=0)
-    noiseprogram.trigger(ros=[ro_ch], ddr4=True, mr=True, t=config.adc_trig_offset)
+    noiseprogram.trigger(ros=[ro_ch], ddr4=True, mr=True, t=config.adc_trig_offset)  # type: ignore
     noiseprogram.end()
 
     return noiseprogram
