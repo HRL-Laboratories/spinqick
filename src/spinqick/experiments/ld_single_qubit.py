@@ -8,12 +8,7 @@ from matplotlib import pyplot as plt
 
 from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import (
-    analysis,
-    hardware_manager,
-    plot_tools,
-    spinqick_enums,
-)
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models, ld_qubit_models
 from spinqick.qick_code_v2 import ld_single_qubit_programs_v2, psb_setup_programs_v2
 
@@ -32,9 +27,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         voltage state each time data is saved.
     """
 
-    def __init__(
-        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
-    ):
+    def __init__(self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs):
         super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
@@ -110,9 +103,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         data = meas.acquire(self.soc, progress=True)
         self.soc.reset_gens()
         trigs = 2 if ro_cfg.reference else 1
-        sq_data = spinqick_data.PsbData(
-            data, idle_cfg, trigs, 1, "_idle_scan_rf", prog=meas
-        )
+        sq_data = spinqick_data.PsbData(data, idle_cfg, trigs, 1, "_idle_scan_rf", prog=meas)
         sq_data.add_axis(
             [np.linspace(px_start_dacval, px_stop_dacval, px_num_points)],
             "x",

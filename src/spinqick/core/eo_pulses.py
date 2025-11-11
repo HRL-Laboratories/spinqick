@@ -106,9 +106,7 @@ def setup_pi_pulse(
                 filter_sandwich=False,
             )
         else:
-            idata_array = dac_pulses.generate_baseband(
-                1, time, gen, prog.soccfg, pad_pulse=False
-            )
+            idata_array = dac_pulses.generate_baseband(1, time, gen, prog.soccfg, pad_pulse=False)
             awg_pulse.add_arb_wf(
                 prog,
                 gen,
@@ -195,12 +193,8 @@ def setup_evol_sweep(
                 exchange_gain = gate_obj.gains.exchange_gain
             pulse_name = gate_name + "_" + axis + "_evol"
             return_name = gate_name + "_" + "idle_return"
-            env = dac_pulses.generate_baseband(
-                1, cfg.times.exchange_time, gen, prog.soccfg
-            )
-            idle = dac_pulses.generate_baseband(
-                1, cfg.times.idle_time, gen, prog.soccfg
-            )
+            env = dac_pulses.generate_baseband(1, cfg.times.exchange_time, gen, prog.soccfg)
+            idle = dac_pulses.generate_baseband(1, cfg.times.idle_time, gen, prog.soccfg)
             prog.add_envelope(
                 gen,
                 "evol",
@@ -549,15 +543,11 @@ def theta_to_x_gain(
     assert exchange_cal is not None
     cal = exchange_cal.cal_parameters
     tlist = cal.theta_list
-    glist = (
-        cal.volt_list
-    )  # volts are converted to gain in the config stored on dot experiment
+    glist = cal.volt_list  # volts are converted to gain in the config stored on dot experiment
     assert tlist
     assert glist
     if theta != 0:
-        exchange_v = eo_analysis.fine_cal_voltage(
-            theta, tlist, glist, cal.A, cal.B, cal.theta_max
-        )
+        exchange_v = eo_analysis.fine_cal_voltage(theta, tlist, glist, cal.A, cal.B, cal.theta_max)
     else:
         exchange_v = 0
     exchange_gain = exchange_v * x_gate_conversion
@@ -587,20 +577,12 @@ def dumb_1q_compiler(
     z_wf = np.array([])
     n_wf = np.array([])
     for theta in z_recipe:
-        zgain = theta_to_x_gain(
-            spinqick_enums.ExchangeAxis.Z, qubit_cfg, theta, x_z_conversion
-        )
-        wf = dac_pulses.baseband_pulse_train(
-            zgain, 0, time, idle_time, 1, z_x.gen, prog.soccfg
-        )
+        zgain = theta_to_x_gain(spinqick_enums.ExchangeAxis.Z, qubit_cfg, theta, x_z_conversion)
+        wf = dac_pulses.baseband_pulse_train(zgain, 0, time, idle_time, 1, z_x.gen, prog.soccfg)
         z_wf = np.append(z_wf, wf)
     for theta in n_recipe:
-        ngain = theta_to_x_gain(
-            spinqick_enums.ExchangeAxis.N, qubit_cfg, theta, x_n_conversion
-        )
-        wf = dac_pulses.baseband_pulse_train(
-            ngain, 0, time, idle_time, 1, n_x.gen, prog.soccfg
-        )
+        ngain = theta_to_x_gain(spinqick_enums.ExchangeAxis.N, qubit_cfg, theta, x_n_conversion)
+        wf = dac_pulses.baseband_pulse_train(ngain, 0, time, idle_time, 1, n_x.gen, prog.soccfg)
         n_wf = np.append(n_wf, wf)
     return n_wf, z_wf
 
@@ -640,20 +622,14 @@ def setup_1q_cliffords(
     z_wf_total = np.array([])
     for clifford in cliffords:
         nr, zr = clifford_to_recipe(clifford)
-        n_wf, z_wf = dumb_1q_compiler(
-            prog, qubit_cfg, nr, zr, x_n_conversion, x_z_conversion
-        )
+        n_wf, z_wf = dumb_1q_compiler(prog, qubit_cfg, nr, zr, x_n_conversion, x_z_conversion)
         n_wf_total = np.append(n_wf_total, n_wf)
         z_wf_total = np.append(z_wf_total, z_wf)
         label = label + clifford
     if label + "_n" not in prog.pulses:
-        awg_pulse.add_arb_wf(
-            prog, n_x.gen, label + "_n", 1, n_wf_total, predistort=True
-        )
+        awg_pulse.add_arb_wf(prog, n_x.gen, label + "_n", 1, n_wf_total, predistort=True)
     if label + "_z" not in prog.pulses:
-        awg_pulse.add_arb_wf(
-            prog, z_x.gen, label + "_z", 1, z_wf_total, predistort=True
-        )
+        awg_pulse.add_arb_wf(prog, z_x.gen, label + "_z", 1, z_wf_total, predistort=True)
 
 
 def play_1q_clifford(

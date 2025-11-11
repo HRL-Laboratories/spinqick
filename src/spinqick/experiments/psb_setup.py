@@ -13,12 +13,7 @@ from scipy.stats import norm
 
 from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import (
-    analysis,
-    hardware_manager,
-    plot_tools,
-    spinqick_enums,
-)
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models
 from spinqick.qick_code_v2 import psb_setup_programs_v2
 
@@ -125,9 +120,7 @@ class PsbSetup(dot_experiment.DotExperiment):
         plot_data = sq_data.difference_data if reference else sq_data.analyzed_data
         if plot_data is not None:
             if self.plot and not use_gmm:
-                hist, bins = np.histogram(
-                    plot_data[0], bins=100, range=None, weights=None
-                )
+                hist, bins = np.histogram(plot_data[0], bins=100, range=None, weights=None)
                 x = bins + (bins[1] - bins[0]) / 2
                 plot_tools.plot1_simple(x[:-1], hist, sq_data.timestamp)
             if fit:
@@ -144,14 +137,8 @@ class PsbSetup(dot_experiment.DotExperiment):
                     hist, bins = np.histogram(plot_data_gmm, density=True, bins=x_axis)
                     bins = bins + (bins[1] - bins[0]) / 2
 
-                    yaxis0 = (
-                        norm.pdf(x_axis, mean[0, 0], np.sqrt(covs[0, 0]))
-                        * weights[0, 0]
-                    )
-                    yaxis1 = (
-                        norm.pdf(x_axis, mean[0, 1], np.sqrt(covs[0, 1]))
-                        * weights[0, 1]
-                    )
+                    yaxis0 = norm.pdf(x_axis, mean[0, 0], np.sqrt(covs[0, 0])) * weights[0, 0]
+                    yaxis1 = norm.pdf(x_axis, mean[0, 1], np.sqrt(covs[0, 1])) * weights[0, 1]
 
                     if self.plot:
                         _, ax = plt.subplots()
@@ -184,9 +171,7 @@ class PsbSetup(dot_experiment.DotExperiment):
                         pops = 1e2 * pops[[0, 1]] / (pops[0] + pops[1])
                         # leakage = 1e2 * np.sum(weights[0, 2:]) / np.sum(weights)
                         thresh_sign = np.sign(np.sum(weights))
-                        threshold_val = (
-                            np.abs((mean[0, 1] - mean[0, 0]) / 2) * thresh_sign
-                        )
+                        threshold_val = np.abs((mean[0, 1] - mean[0, 0]) / 2) * thresh_sign
 
                         labels = [
                             f"SNR = {snr:.1f}",
@@ -223,9 +208,7 @@ class PsbSetup(dot_experiment.DotExperiment):
                             plt.plot(x[:-1], gauss(x[:-1], *popt))
                             plt.xlabel("DCS conductance (arbs)")
                         print("sigma1: %f, sigma2: %f" % (popt[1], popt[4]))
-                        print(
-                            "fwhm1: %f, fwhm2: %f" % (popt[1] * 2.355, popt[4] * 2.355)
-                        )
+                        print("fwhm1: %f, fwhm2: %f" % (popt[1] * 2.355, popt[4] * 2.355))
                         print("mu1: %f, mu2: %f" % (popt[2], popt[5]))
                         print("A1: %f, A2: %f" % (popt[0], popt[3]))
                         snr = 2 * np.abs(popt[2] - popt[5]) / (popt[1] + popt[4])
