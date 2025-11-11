@@ -217,9 +217,7 @@ def baseband_centered(
 
 def us2daccycles(time: float, gen: int, soccfg):
     """Convert time in microseconds to dac clock cycles."""
-    fs = soccfg["gens"][gen][
-        "f_dds"
-    ]  # this may be the wrong number to use, seems to work for now
+    fs = soccfg["gens"][gen]["f_dds"]  # this may be the wrong number to use, seems to work for now
     cycles = int(time * fs)
     return cycles
 
@@ -258,9 +256,7 @@ def calculate_ramp_sweep(
     time_incr = dac_incr / slope
     envelope_incr = soccfg.us2cycles(time_incr, gen_ch=gen)
     stop_r_final = np.abs(ramp_ampl) + end_sweep  # end of programmed ramp
-    length_full = (
-        stop_r_final - start_sweep
-    ) / slope  # length of full ramp in microseconds
+    length_full = (stop_r_final - start_sweep) / slope  # length of full ramp in microseconds
     ramp = generate_ramp(start_sweep, stop_r_final, np.abs(length_full), gen, soccfg)
     return ramp, envelope_incr
 
@@ -304,9 +300,7 @@ def add_wf_filter(
         else:
             raise Exception(" no iir_1 taps specified ")
         wf_filt_1 = signal.lfilter(iir_b, iir_a, wf_rounded)
-        b, a = signal.butter(
-            1, iir_butter, fs=6.881e9
-        )  # apply a lpf to round the pulse edges
+        b, a = signal.butter(1, iir_butter, fs=6.881e9)  # apply a lpf to round the pulse edges
         wf_filt = signal.filtfilt(b, a, wf_filt_1)
         if filter_settings.fir_taps is not None:
             wf_filt = signal.convolve(wf_filt_1, filter_settings.fir_taps, mode="same")

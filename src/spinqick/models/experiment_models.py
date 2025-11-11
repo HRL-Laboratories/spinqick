@@ -29,9 +29,7 @@ class PatConfig(pydantic.BaseModel):
 
 
 class GvgBasebandConfig(SweepTwoConfig):
-    measure_buffer: (
-        float  # delay in microseconds between changing voltage points and measurement
-    )
+    measure_buffer: float  # delay in microseconds between changing voltage points and measurement
     dcs_cfg: dcs_model.DcsConfig
 
 

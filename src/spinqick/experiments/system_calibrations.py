@@ -7,12 +7,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import (
-    analysis,
-    hardware_manager,
-    plot_tools,
-    spinqick_enums,
-)
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models
 from spinqick.qick_code_v2 import system_calibrations_programs_v2
 
@@ -29,9 +24,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         here with today's date.
     """
 
-    def __init__(
-        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
-    ):
+    def __init__(self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs):
         super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc

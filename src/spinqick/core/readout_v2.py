@@ -214,9 +214,7 @@ def init_point_multisweep(
             gain_val = pulse_gain
         pulse_name = gate + "_" + sweep_step
         if pulse_length is not None:
-            awg_pulse.add_short_baseband(
-                prog, gen, pulse_name, gain_val, pulse_length, prog.soccfg
-            )
+            awg_pulse.add_short_baseband(prog, gen, pulse_name, gain_val, pulse_length, prog.soccfg)
         else:
             awg_pulse.add_long_baseband(prog, gen, pulse_name, gain_val, prog.soccfg)
 

@@ -93,14 +93,10 @@ def calculate_conductance(
     data.analysis_averaged = average_level
 
 
-def calculate_transconductance(
-    data: spinqick_data.SpinqickData, adc_conversion: list[float]
-):
+def calculate_transconductance(data: spinqick_data.SpinqickData, adc_conversion: list[float]):
     """Calculates transconductance from raw data and saves on the analyzed_data attribute."""
     trans_data = analyze_transconductance(data.raw_data)
-    data.analyzed_data = [
-        trans_data[i] * adc_conversion[i] for i in range(len(trans_data))
-    ]
+    data.analyzed_data = [trans_data[i] * adc_conversion[i] for i in range(len(trans_data))]
     data.analysis_type = "transconductance"
 
 
@@ -119,9 +115,7 @@ def calculate_electron_temperature(
     return kta
 
 
-def fit_blobs(
-    data: np.ndarray, n_components: int = 2
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def fit_blobs(data: np.ndarray, n_components: int = 2) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Fits gaussian mixture models to integrated measurements."""
     # GaussianMixture needs shape (n,1) for n independent measurements.
     data = np.squeeze(data)
@@ -130,13 +124,10 @@ def fit_blobs(
         data_to_bin = np.expand_dims(data_to_bin, 1)
     elif data.ndim == 2:
         data_to_bin = np.moveaxis(data, -1, 0)  # shot axis to first axis
-        data_to_bin = data_to_bin.reshape(
-            data_to_bin.shape[0], 1, *data_to_bin.shape[1:]
-        )
+        data_to_bin = data_to_bin.reshape(data_to_bin.shape[0], 1, *data_to_bin.shape[1:])
     else:
         raise NotImplementedError(
-            "Gaussian mixture models not implement "
-            + "for datasets with more than two dimensions"
+            "Gaussian mixture models not implement " + "for datasets with more than two dimensions"
         )
 
     mean, covs, weights = np.empty((3, data_to_bin.shape[-1], n_components))
@@ -168,9 +159,7 @@ def fit_gaussian(x_data, y_data):
     mag = y_data
     # pars = gaussian.guess(mag, x=x_data)
     pars = model.make_params(
-        center=dict(
-            value=x_data[np.argmax(y_data)], min=np.min(x_data), max=np.max(x_data)
-        ),
+        center=dict(value=x_data[np.argmax(y_data)], min=np.min(x_data), max=np.max(x_data)),
         amplitude=dict(value=np.sum(y_data), min=0),
         # amplitude=dict(value=np.sum(y_data)),
         sigma=dict(value=(np.max(x_data) - np.min(x_data)) / 10, min=0),
@@ -279,8 +268,7 @@ def analyze_psb_standard(
     reference: bool,
     thresh: bool,
     threshold: float | None,
-    final_avg_lvl: spinqick_enums.AverageLevel
-    | None = spinqick_enums.AverageLevel.BOTH,
+    final_avg_lvl: spinqick_enums.AverageLevel | None = spinqick_enums.AverageLevel.BOTH,
 ):
     """Calculates conductance and if desired the thresholded data from a spinqick data object."""
     if not reference and not thresh:

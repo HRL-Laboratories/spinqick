@@ -58,9 +58,7 @@ def add_arb_wf(
         library.
     """
     if predistort:
-        add_predistorted_envelope(
-            prog, ch, name + "_env", pulse, filter_sandwich=filter_sandwich
-        )
+        add_predistorted_envelope(prog, ch, name + "_env", pulse, filter_sandwich=filter_sandwich)
     else:
         prog.add_envelope(ch, name + "_env", pulse)
 

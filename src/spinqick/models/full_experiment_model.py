@@ -19,9 +19,7 @@ class QubitParams(pydantic.BaseModel):
     """Spam settings and qubit parameters for one qubit."""
 
     ro_cfg: ReadoutParams
-    qubit_params: Union[
-        qubit_models.Eo1QubitAxes, ld_qubit_models.Ld1QubitParams, None
-    ] = None
+    qubit_params: Union[qubit_models.Eo1QubitAxes, ld_qubit_models.Ld1QubitParams, None] = None
 
 
 class ExperimentConfig(pydantic.BaseModel):

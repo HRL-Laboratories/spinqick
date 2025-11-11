@@ -16,9 +16,7 @@ class DcsConfigParams(pydantic.BaseModel):
     readout_length: float  # readout length in us
     pulse_gain_readout: float  # readout pulse gain, between -1 and 1
     slack_delay: float  # delay time in program after measurement is taken
-    ac_gate_gain: float | None = (
-        None  # readout pulse for transconductance gain, between -1 and 1
-    )
+    ac_gate_gain: float | None = None  # readout pulse for transconductance gain, between -1 and 1
 
 
 class DcsConfig(DcsConfigParams):
