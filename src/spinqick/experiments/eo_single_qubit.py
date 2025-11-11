@@ -1,163 +1,42 @@
-"""Module to hold exchange only experiments"""
+"""Defines the EOSingleQubit class used to perform coherent control of a single exchange-only
+qubit."""
 
 import logging
-from typing import Tuple, Literal
+from typing import Literal, Tuple
+
 import numpy as np
 import pylab as plt
-from scipy import signal, optimize
-import memspectrum
-from spinqick.core import dot_experiment, eo_pulses
-from spinqick.core import spinqick_data, spinqick_utils
-from spinqick.helper_functions import analysis, plot_tools, hardware_manager
-from spinqick.settings import file_settings
+
+from spinqick.core import dot_experiment, spinqick_data
+from spinqick.experiments import eo_analysis
+from spinqick.helper_functions import (
+    analysis,
+    hardware_manager,
+    plot_tools,
+    spinqick_enums,
+)
 from spinqick.models import experiment_models, qubit_models
 from spinqick.qick_code_v2 import eo_single_qubit_programs_v2
 
 logger = logging.getLogger(__name__)
 
 
-def course_cal_function(theta, afit, bfit, theta_max):
-    """fit function used for course cal, from https://doi.org/10.1038/s41565-019-0500-4"""
-    return -2 * afit * np.log((theta_max - theta) / theta_max / np.sqrt(theta)) + bfit
-
-
-def course_cal(threshed_data, volts_data, n_pulses):
-    """perform the course calibration procedure"""
-    d_filt = signal.savgol_filter(threshed_data, 10, 2)
-    mval = np.max(d_filt) - (np.max(d_filt) - np.min(d_filt)) / 2
-    find_pk_data = np.abs(d_filt - mval)
-    maxpts, _ = signal.find_peaks(find_pk_data, width=None, prominence=0.1)
-    angle_array = np.pi * (1 + np.arange(len(maxpts))) / n_pulses
-    v_array = volts_data[maxpts]
-    p0_array = threshed_data[maxpts]
-    # pylint: disable-next=unbalanced-tuple-unpacking
-    popt, _ = optimize.curve_fit(
-        course_cal_function, angle_array, v_array, p0=[0.1, 1, angle_array[-1] * 2]
-    )
-    best_fit = course_cal_function(angle_array, *popt)
-    fit_dict = {"A": popt[0], "B": popt[1], "theta_max": popt[2]}
-    return angle_array, d_filt, best_fit, popt, v_array, p0_array, fit_dict, maxpts
-
-
-def course_cal_fit(sqd: spinqick_data.PsbData, n_pulses: int, x_gate: str):
-    """Course calibration fit, appends data to the spinqick data object"""
-    threshed_data = sqd.threshed_data
-    assert threshed_data is not None
-    data = threshed_data[0]
-    xvolts = sqd.axes["x"]["sweeps"][x_gate]["data"]
-    angle_array, d_filt, best_fit, popt, v_array, p0_array, fit_dict, _ = course_cal(
-        data, xvolts, n_pulses
-    )
-    sqd.add_fit_params(fit_dict, best_fit=d_filt, fit_axis="x")
-    return angle_array, d_filt, best_fit, popt, v_array, p0_array
-
-
-def process_fine_cal(
-    theta_array: np.ndarray,
-    voltage_array: np.ndarray,
-    data_array: np.ndarray,
-    n_pulses: int,
-    timestamp: int,
-    plot: bool = True,
-):
-    """fitting procedure for fine calibration from https://doi.org/10.1038/s41565-019-0500-4"""
-    mesa = memspectrum.MESA()
-    mesa.solve(data_array, method="standard", optimisation_method="FPE")
-    extension_length = 5000
-    n_sim = 200
-    m1 = mesa.forecast(
-        data_array[::-1], length=extension_length, number_of_simulations=n_sim
-    )
-    m2 = mesa.forecast(data_array, length=extension_length, number_of_simulations=n_sim)
-    extended_data = np.concatenate(
-        [sum([m[::-1] for m in m1]) / n_sim, data_array, sum(m2) / n_sim]
-    )
-    signal_freq = theta_array[-1] / len(data_array) / np.pi / 2 * n_pulses
-    sos_filt = signal.butter(
-        1, [signal_freq / 2, signal_freq * 4], "bandpass", output="sos"
-    )
-    filtered_extended = signal.sosfiltfilt(sos_filt, extended_data)
-    fignums = []
-    if plot:
-        fig1 = plot_tools.plot1_simple(
-            theta_array,
-            filtered_extended[extension_length : extension_length + len(data_array)]
-            + np.mean(data_array),
-            timestamp,
-            dset_label="extended",
-        )
-        plot_tools.plot1_simple(
-            theta_array, data_array, timestamp, dset_label="fit", new_figure=False
-        )
-        plt.xlabel("estimated theta (rad)")
-        plt.ylabel("singlet probability")
-        plt.legend()
-        first_fignum = fig1.number
-        fignums.append(first_fignum)
-    filtered_transformed = signal.hilbert(filtered_extended)
-    theta_fit = (
-        np.unwrap(
-            np.angle(filtered_transformed)[
-                extension_length : extension_length + len(data_array)
-            ]
-        )
-        / n_pulses
-    )
-    if plot:
-        fig2 = plot_tools.plot1_simple(
-            voltage_array, theta_fit, timestamp, dset_label="new theta vals"
-        )
-        plt.plot(voltage_array, theta_array, "o", label="initial theta vals")
-        plt.yscale("log")
-        plt.xlabel("x gate voltage (V)")
-        plt.ylabel("theta (rad)")
-        plt.legend()
-        fignum = fig2.number
-        fignums.append(fignum)
-    return fignums, theta_fit
-
-
-def fine_cal_voltage(
-    theta: float,
-    theta_list: list,
-    voltage_list: list,
-    afit: float,
-    bfit: float,
-    theta_max: float,
-):
-    """finecal interpolation function from https://doi.org/10.1038/s41565-019-0500-4"""
-    theta_sampling = theta_list[-1] - theta_list[-2]
-    mask = [np.abs(theta - t) < theta_sampling for t in theta_list]
-    theta_array = np.array(theta_list)
-    voltage_array = np.array(voltage_list)
-    t_range = theta_array[mask]
-    v_range = voltage_array[mask]
-    alpha = (theta - t_range[0]) / (t_range[1] - t_range[0])
-    exp_i = np.exp((bfit - v_range[0]) / (2 * afit))
-    exp_j = np.exp((bfit - v_range[1]) / (2 * afit))
-    f_inv_i = (theta_max * (-1 * exp_i + np.sqrt(exp_i**2 + 4 / theta_max)) / 2) ** 2
-    f_inv_j = (theta_max * (-1 * exp_j + np.sqrt(exp_j**2 + 4 / theta_max)) / 2) ** 2
-    theta_adj = (1 - alpha) * f_inv_i + alpha * f_inv_j
-    vfinal = course_cal_function(theta_adj, afit, bfit, theta_max)
-    return vfinal
-
-
 class EOSingleQubit(dot_experiment.DotExperiment):
-    """This class holds functions that wrap the QICK classes for setting up EO single qubit experiments."""
+    """Contains methods that wrap the QICK classes for setting up EO single qubit experiments.
+    Initialize with information about your rfsoc and your experimental setup.
+
+    :param soccfg: qick config object (QickConfig)
+    :param soc: QickSoc object
+    :param voltage_source: Initialized DC voltage source object. This is used here for saving the DC
+        voltage state each time data is saved.
+    """
 
     def __init__(
-        self,
-        soccfg,
-        soc,
-        voltage_source: hardware_manager.VoltageSource,
-        datadir=file_settings.data_directory,
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
     ):
-        super().__init__(datadir=datadir)
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.datadir = datadir
-        self.save_data = True
-        self.plot = True
         self.vdc = hardware_manager.DCSource(voltage_source=voltage_source)
 
     @dot_experiment.updater
@@ -169,7 +48,16 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         house_point_2: tuple[float, float],
         x_volts: float,
     ):
-        """calculate detuning and exchange axes.  Returns the vectors after dac unit conversion!"""
+        """Calculates detuning and exchange axes from a pair of points traversing the non-
+        equilibrium cell.This is mainly useful for using spinqick without crosstalk compensation.
+
+        :param house_point_1: ('Px', 'Py') pair of voltage coordinates defining a point on one edge
+            of the cell. The detuning axis is the vector connecting the two pairs of house_points.
+        :param house_point_2: ('Px', 'Py') pair of voltage coordinates defining a point on other
+            edge of the cell.
+        :param x_volts: voltage applied to x-gate during the measurement
+        """
+
         # first convert volts to dac units
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
@@ -190,7 +78,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             gates.x.gains.idle_gain,
         ]
         x_gain = self.volts2dac(x_volts, axis_cfg.gates.x.name)
-        detuning, exchange = eo_pulses.define_fingerprint_vectors(
+        detuning, exchange = eo_analysis.define_fingerprint_vectors(
             np.array(px_points), np.array(py_points), np.array(idle_points), x_gain
         )
         return detuning, exchange
@@ -199,7 +87,8 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def calculate_exchange_gate_vals(
         self, qubit: str, axis: str, detuning: float, x_throw: float
     ):
-        """calculate exchange gain at gates in rfsoc units, given detuning and x_throw in volts"""
+        """Calculate exchange gain at gates in rfsoc units, given detuning and x_throw in volts."""
+
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
         axis_cfg: qubit_models.ExchangeAxisConfig = getattr(eo1qubit, axis)
@@ -212,7 +101,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             gates.py.gains.idle_gain,
             gates.x.gains.idle_gain,
         ]
-        gate_vals = eo_pulses.calculate_fingerprint_gate_vals(
+        gate_vals = eo_analysis.calculate_fingerprint_gate_vals(
             detuning_convert,
             x_convert,
             np.array(axis_cfg.detuning_vector),
@@ -225,7 +114,13 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def calc_symmetric_vector(
         self, qubit: str, axis: str, detuning_volts: float, x_volts: float
     ):
-        """calculate detuning and exchange axes.  Returns the vectors after dac unit conversion!"""
+        """Calculates the symmetric vector, assuming the vector starts at the idle point and ends at
+        the point specified here. Returns the vectors after dac unit conversion.
+
+        :param detuning_volts: detuning value of symmetric vector endpoint
+        :param x_volts: exchange gate voltage at endpoint of symmetric vector
+        """
+
         # first convert volts to dac units
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
@@ -241,7 +136,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         x_gain = self.volts2dac(
             (x_volts - gates.x.gains.idle_gain), axis_cfg.gates.x.name
         )
-        gate_vals = eo_pulses.calculate_fingerprint_gate_vals(
+        gate_vals = eo_analysis.calculate_fingerprint_gate_vals(
             detuning_convert,
             x_gain,
             np.array(axis_cfg.detuning_vector),
@@ -256,7 +151,8 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def calculate_exchange_volts(
         self, qubit: str, axis: str, detuning: float, x_throw: float
     ):
-        """calculate exchange gain at gates in voltage units"""
+        """Calculates the exchange gain at gates in voltage units."""
+
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
         axis_cfg: qubit_models.ExchangeAxisConfig = getattr(eo1qubit, axis)
@@ -270,7 +166,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
 
     @dot_experiment.updater
     def theta_to_voltage(self, qubit: str, axis: str, theta: float):
-        """use finecal data to convert theta to gate voltages"""
+        """Use finecal curve to convert angle to gate voltages."""
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
         axis_cfg: qubit_models.ExchangeAxisConfig = getattr(eo1qubit, axis)
@@ -280,7 +176,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         vlist = cal.cal_parameters.volt_list
         assert tlist is not None
         assert vlist is not None
-        v_x = fine_cal_voltage(
+        v_x = eo_analysis.fine_cal_voltage(
             theta,
             tlist,
             vlist,
@@ -295,18 +191,22 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def do_nonequilibrium(
         self,
         qubit: str,
-        axis: Literal["n", "z", "m"],
+        axis: spinqick_enums.ExchangeAxis,
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
         point_avgs: int = 1,
         full_avgs: int = 1,
         t1j: bool = False,
     ):
-        """Perform a scan of the non-equilibrium cell.  This helps us to set the detuning axis for a fingerprint plot.
+        """Perform a scan of the non-equilibrium cell.  This helps us to set the detuning axis for a
+        fingerprint plot.
 
         :param qubit: Qubit label, describing the qubit of interest in the experiment config
         :param axis: Qubit axis (n, z or m)
-        :param p_range: range of p gate sweeps: (p2 start voltage, p2 stop voltage, p2 points), (p3 start voltage, p3 stop voltage, p3 points)
-
+        :param p_range: range of p gate sweeps: (p2 start voltage, p2 stop voltage, p2 points), (p3
+            start voltage, p3 stop voltage, p3 points)
+        :param t1j: if true, does not apply a prerotation on 'n' axis for z axis measurement. This
+            way the user can easily see if there are parts of the charge cell where singlets are
+            decaying due to x-gate throw.
         """
 
         px_start, px_stop, px_pts = p_range[0]
@@ -381,14 +281,14 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             if eo1qubit.ro_cfg.thresh:
                 avg_lvl = None
             else:
-                avg_lvl = spinqick_utils.AverageLevel.BOTH
+                avg_lvl = spinqick_enums.AverageLevel.BOTH
             analysis.calculate_difference(sq_data, average_level=avg_lvl)
         if eo1qubit.ro_cfg.thresh:
             assert eo1qubit.ro_cfg.threshold
             analysis.calculate_thresholded(
                 sq_data,
                 [eo1qubit.ro_cfg.threshold],
-                average_level=spinqick_utils.AverageLevel.BOTH,
+                average_level=spinqick_enums.AverageLevel.BOTH,
             )
         if self.plot:
             plot_tools.plot2_psb(sq_data, ne_config.gx_gate, ne_config.gy_gate)
@@ -405,17 +305,20 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def do_fingerprint(
         self,
         qubit: str,
-        axis: Literal["n", "z", "m"],
+        axis: spinqick_enums.ExchangeAxis,
         detuning_range: Tuple[float, float, int],
         exchange_range: Tuple[float, float, int],
         n_pulses: int = 1,
         point_avgs: int = 1,
         full_avgs: int = 1,
     ):
-        """
+        """Perform a 2D sweep of axis detuning vs exchange gate voltage.
+
         :param qubit: Qubit label, describing the qubit of interest in the experiment config
         :param axis: Qubit axis (n, z or m)
         :param detuning_range: range of detuning axis sweep (start, stop, num_points)
+        :param detuning_range: range of exchange axis sweep (start, stop, num_points)
+        :param n_pulses: optionally play more than one pulse
         """
         d_start, d_stop, d_pts = detuning_range
         x_start, x_stop, x_pts = exchange_range
@@ -491,14 +394,14 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             if eo1qubit.ro_cfg.thresh:
                 avg_lvl = None
             else:
-                avg_lvl = spinqick_utils.AverageLevel.BOTH
+                avg_lvl = spinqick_enums.AverageLevel.BOTH
             analysis.calculate_difference(sq_data, average_level=avg_lvl)
         if eo1qubit.ro_cfg.thresh:
             assert eo1qubit.ro_cfg.threshold
             analysis.calculate_thresholded(
                 sq_data,
                 [eo1qubit.ro_cfg.threshold],
-                average_level=spinqick_utils.AverageLevel.BOTH,
+                average_level=spinqick_enums.AverageLevel.BOTH,
             )
 
         if self.plot:
@@ -517,14 +420,19 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def time_sweep(
         self,
         qubit: str,
-        axis: Literal["n", "z", "m"],
+        axis: spinqick_enums.ExchangeAxis,
         max_time: float,
         time_pts: int,
         point_avgs: int,
         full_avgs: int,
     ):
-        """Perform a time-rabi style measurement"""
-        start, stop, points = 0, max_time, time_pts
+        """Perform a time-rabi style measurement, sweeping pulse time.  Note that the minimum
+        allowed time step is the length of one tproc clock cycle.
+
+        :param max_time: pulse duration at the end of the sweep in microseconds
+        :param time_pts: number of steps in time sweep
+        """
+        start, stop, points = 0.005, max_time, time_pts
         assert self.experiment_config.qubit_configs
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
@@ -555,7 +463,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             prog=meas,
             voltage_state=self.vdc.all_voltages,
         )
-        t_min_actual = 3 * self.soccfg.cycles2us(3, gen_ch=x_cfg.gen)
+        t_min_actual = self.soccfg.cycles2us(3, gen_ch=x_cfg.gen)
         times_actual = t_min_actual + np.linspace(start, stop, time_pts)
         sq_data.add_axis(
             [times_actual],
@@ -590,18 +498,26 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def fid_sweep(
         self,
         qubit: str,
+        axis: spinqick_enums.ExchangeAxis,
         max_time: float,
         time_pts: int,
         point_avgs: int,
         full_avgs: int,
     ):
-        """Perform a free induction decay measurement"""
+        """Perform a free induction decay measurement. If n or m axis is selected, adds a pi pulse
+        on this axis before and after the decay time. Note that the minimum allowed time step is the
+        length of one tproc clock cycle.
+
+        :param max_time: maximum delay duration in microseconds
+        :param time_pts: number of steps in time sweep
+        """
         start, stop, points = 0, max_time, time_pts
         assert self.experiment_config.qubit_configs
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
         t_cfg = experiment_models.T2StarConfig(
             psb_cfg=eo1qubit.ro_cfg.psb_cfg,
+            qubit=eo1qubit,
             dcs_cfg=eo1qubit.ro_cfg.dcs_cfg,
             reference=eo1qubit.ro_cfg.reference,
             point_avgs=point_avgs,
@@ -609,6 +525,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             start=start,
             stop=stop,
             expts=points,
+            axis=axis,
         )
         meas = eo_single_qubit_programs_v2.T2Star(
             self.soccfg, reps=1, initial_delay=1, final_delay=0, cfg=t_cfg
@@ -660,13 +577,19 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def course_cal(
         self,
         qubit: str,
-        axis: Literal["n", "z", "m"],
+        axis: spinqick_enums.ExchangeAxis,
         exchange_range: Tuple[float, float, int],
         n_pulses: int = 3,
         point_avgs: int = 10,
         full_avgs: int = 10,
+        fit: bool = True,
     ):
-        """perform a course calibration of exchange angle"""
+        """Perform a course calibration of exchange angle.
+
+        :param exchange_range: range of x-gate voltages to perform the calibration over (start
+            voltage, end voltage, number of points)
+        :param n_pulses: number of pulses to apply for the calibration
+        """
 
         start, stop, points = exchange_range
         assert self.experiment_config.qubit_configs
@@ -684,7 +607,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             n_pulses=n_pulses,
             axis=axis,
         )
-        meas = eo_single_qubit_programs_v2.CourseCal(
+        meas = eo_single_qubit_programs_v2.CourseCalComp(
             self.soccfg, reps=1, initial_delay=1, final_delay=0, cfg=cc_cfg
         )
         data = meas.acquire(self.soc, progress=True)
@@ -721,39 +644,44 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                 analysis.calculate_difference(sq_data, average_level=None)
             else:
                 analysis.calculate_difference(
-                    sq_data, average_level=spinqick_utils.AverageLevel.BOTH
+                    sq_data, average_level=spinqick_enums.AverageLevel.BOTH
                 )
         if eo1qubit.ro_cfg.thresh:
             assert eo1qubit.ro_cfg.threshold
             analysis.calculate_thresholded(
                 sq_data,
                 [eo1qubit.ro_cfg.threshold],
-                average_level=spinqick_utils.AverageLevel.BOTH,
+                average_level=spinqick_enums.AverageLevel.BOTH,
             )
-
-        angle_array, d_filt, best_fit, _, v_array, p0_array = course_cal_fit(
-            sq_data, n_pulses, x_cfg.name
-        )
+        if fit:
+            angle_array, d_filt, best_fit, _, v_array, p0_array = (
+                eo_analysis.course_cal_fit(sq_data, n_pulses, x_cfg.name)
+            )
         if self.plot:
             fig = plot_tools.plot1_psb(sq_data, x_cfg.name)
-            plt.plot(np.linspace(start, stop, points), d_filt, label="filtered data")
-            plt.plot(v_array, p0_array, "*", label="extrema")
-            plt.legend()
+            if fit:
+                plt.plot(
+                    np.linspace(start, stop, points), d_filt, label="filtered data"
+                )
+                plt.plot(v_array, p0_array, "*", label="extrema")
+                plt.legend()
             plt.xlabel(x_cfg.name + "(V)")
             plt.title("coursecal")
             fignum = fig.number
-            fig = plt.figure()
-            plt.plot(angle_array, v_array, "o", label="estimated extrema")
-            plt.plot(angle_array, best_fit, label="angle fit")
-            plt.legend()
-            plt.ylabel("x gate voltage")
-            plt.xlabel("angle (radians)")
-            fig2 = fig.number
+            if fit:
+                fig = plt.figure()
+                plt.plot(angle_array, v_array, "o", label="estimated extrema")
+                plt.plot(angle_array, best_fit, label="angle fit")
+                plt.legend()
+                plt.ylabel("x gate voltage")
+                plt.xlabel("angle (radians)")
+                fig2 = fig.number
         if self.save_data:
             nc = sq_data.save_data()
             if self.plot:
                 nc.save_last_plot(fignum)
-                nc.save_last_plot(fig2)
+                if fit:
+                    nc.save_last_plot(fig2)
             nc.close()
         return sq_data
 
@@ -761,13 +689,17 @@ class EOSingleQubit(dot_experiment.DotExperiment):
     def fine_cal(
         self,
         qubit: str,
-        axis: Literal["n", "z", "m"],
+        axis: spinqick_enums.ExchangeAxis,
         theta_range: Tuple[float, float, int],
-        t_res: Literal["fs", "fabric"] = "fabric",
+        t_res: Literal["fs", "fabric"] = "fs",
         n_pulses: int = 10,
-        point_avgs: int = 10,
+        point_avgs: int = 5,
+        full_avgs: int = 2,
     ):
-        """perform a fine calibration of exchange angle.  Use analyzed data as calibration curve"""
+        """Perform a fine calibration of exchange angle.
+
+        Use analyzed data as calibration curve
+        """
 
         eo1qubit = self.experiment_config.qubit_configs[qubit]
         assert isinstance(eo1qubit, qubit_models.Eo1Qubit)
@@ -778,67 +710,73 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         assert isinstance(py_cfg, qubit_models.ExchangeGate)
         assert axis_cfg.exchange_cal is not None
         theta_array = np.linspace(*theta_range)
-        v_array = course_cal_function(
+        v_array = eo_analysis.course_cal_function(
             theta_array,
             axis_cfg.exchange_cal.cal_parameters.A,
             axis_cfg.exchange_cal.cal_parameters.B,
             axis_cfg.exchange_cal.cal_parameters.theta_max,
         )
         sqd_list = []
-        combined_data = np.zeros(len(v_array))
-        for i, x_volts in enumerate(v_array):
-            fc_cfg = experiment_models.FineCalConfig(
-                qubit=eo1qubit,
-                point_avgs=point_avgs,
-                n_pulses=n_pulses,
-                axis=axis,
-                exchange_gain=self.volts2dac(x_volts, axis_cfg.gates.x.name),
-                t_res=t_res,
-            )
-            meas = eo_single_qubit_programs_v2.FineCal(
-                self.soccfg, reps=1, initial_delay=1, final_delay=0, cfg=fc_cfg
-            )
-            data = meas.acquire(self.soc, progress=False)
-            self.soc.reset_gens()
-            trigs = 2 if eo1qubit.ro_cfg.reference else 1
-            sqd = spinqick_data.PsbData(
-                data,
-                fc_cfg,
-                trigs,
-                1,
-                "_finecal",
-                prog=meas,
-                voltage_state=self.vdc.all_voltages,
-            )
-            sqd.add_point_average(point_avgs, 0)
-            analysis.analyze_psb_standard(
-                sqd,
-                self.adc_unit_conversions,
-                eo1qubit.ro_cfg.reference,
-                eo1qubit.ro_cfg.thresh,
-                eo1qubit.ro_cfg.threshold,
-                final_avg_lvl=spinqick_utils.AverageLevel.INNER,
-            )
-            sqd_list.append(sqd)
-            if sqd.threshed_data is not None:
-                combined_data[i] = sqd.threshed_data[0]
-            else:
-                if sqd.difference_data is not None:
-                    combined_data[i] = sqd.difference_data[0]
+        combined_data = np.zeros((full_avgs, len(v_array)))
+        labels = []
+        for avg in range(full_avgs):
+            for i, x_volts in enumerate(v_array):
+                fc_cfg = experiment_models.FineCalConfig(
+                    qubit=eo1qubit,
+                    point_avgs=point_avgs,
+                    n_pulses=n_pulses,
+                    axis=axis,
+                    exchange_gain=self.volts2dac(x_volts, axis_cfg.gates.x.name),
+                    t_res=t_res,
+                )
+                meas = eo_single_qubit_programs_v2.FineCalComp(
+                    self.soccfg, reps=1, initial_delay=1, final_delay=0, cfg=fc_cfg
+                )
+                data = meas.acquire(self.soc, progress=False)
+                self.soc.reset_gens()
+                trigs = 2 if eo1qubit.ro_cfg.reference else 1
+                sqd = spinqick_data.PsbData(
+                    data,
+                    fc_cfg,
+                    trigs,
+                    1,
+                    "_finecal",
+                    prog=meas,
+                    voltage_state=self.vdc.all_voltages,
+                )
+                sqd.add_point_average(point_avgs, 0)
+                analysis.analyze_psb_standard(
+                    sqd,
+                    self.adc_unit_conversions,
+                    eo1qubit.ro_cfg.reference,
+                    eo1qubit.ro_cfg.thresh,
+                    eo1qubit.ro_cfg.threshold,
+                    final_avg_lvl=spinqick_enums.AverageLevel.INNER,
+                )
+                sqd_list.append(sqd)
+                if sqd.threshed_data is not None:
+                    combined_data[avg, i] = sqd.threshed_data[0]
                 else:
-                    assert sqd.analyzed_data
-                    combined_data[i] = sqd.analyzed_data[0]
-        dset_labels = [str(round(theta, ndigits=2)) for theta in theta_array]
+                    if sqd.difference_data is not None:
+                        combined_data[avg, i] = sqd.difference_data[0]
+                    else:
+                        assert sqd.analyzed_data
+                        combined_data[avg, i] = sqd.analyzed_data[0]
+            dset_labels = [
+                str(round(theta, ndigits=2)) + "_" + str(avg) for theta in theta_array
+            ]
+            labels += dset_labels
         finecal_composite = spinqick_data.CompositeSpinqickData(
             sqd_list,
-            dset_labels,
+            labels,
             "_finecal",
             dset_coordinates=v_array,
             dset_coordinate_units="x_gate_volts",
             analyzed_data=combined_data,
         )
-        fignum, theta_fit = process_fine_cal(
-            theta_array, v_array, combined_data, n_pulses, finecal_composite.timestamp
+        avged_data = np.mean(combined_data, axis=0)
+        fignum, theta_fit = eo_analysis.process_fine_cal(
+            theta_array, v_array, avged_data, n_pulses, finecal_composite.timestamp
         )
         finecal_composite.analyzed_data = theta_fit
         if self.save_data:

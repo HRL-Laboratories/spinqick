@@ -1,14 +1,13 @@
-"""
-work in progress, reorganizing models for use in tprocv2 experiments
-"""
+"""Work in progress, reorganizing models for use in tprocv2 experiments."""
 
 # from typing import Dict, Optional
 from typing import List
+
 import pydantic
 
 
 class DcsConfigParams(pydantic.BaseModel):
-    """config parameters specifically for readout chain"""
+    """Config parameters specifically for readout chain."""
 
     adc_trig_offset: float  # time delay of adc measurement
     dds_freq: float  # frequency of readout pulse (MHz)
@@ -23,7 +22,7 @@ class DcsConfigParams(pydantic.BaseModel):
 
 
 class DcsConfig(DcsConfigParams):
-    """DcsConfig which includes information about dac and adc channels"""
+    """DcsConfig which includes information about dac and adc channels."""
 
     sd_gen: int  # readout pulse dac channel
     ac_gate_gen: int | None = None  # optional gate for transconductance

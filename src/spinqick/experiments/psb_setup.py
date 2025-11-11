@@ -1,60 +1,50 @@
-"""
-Module to hold functions that help set up Pauli spin blockade.
-
-"""
+"""Defines the PsbSetup class which is used for setting up Pauli Spin Blockade spin-to-charge
+conversion."""
 
 import logging
-from typing import Tuple, Union, List
+from typing import Tuple
 
+import matplotlib.patches as mpl_patches
 import numpy as np
 from matplotlib import pyplot as plt
-import matplotlib.patches as mpl_patches
+from qick import QickConfig
 from scipy import optimize
 from scipy.stats import norm
-from qick import QickConfig
 
-from spinqick.core import dot_experiment
-from spinqick.helper_functions import plot_tools, analysis, hardware_manager
-from spinqick.qick_code_v2 import psb_setup_programs_v2
-from spinqick.core import spinqick_data, spinqick_utils
-from spinqick.settings import file_settings
 from spinqick import settings
-from spinqick.models import (
-    experiment_models,
-    hardware_config_models,
-    full_experiment_model,
-    ld_qubit_models,
-    qubit_models,
+from spinqick.core import dot_experiment, spinqick_data
+from spinqick.helper_functions import (
+    analysis,
+    hardware_manager,
+    plot_tools,
+    spinqick_enums,
 )
+from spinqick.models import experiment_models, hardware_config_models
+from spinqick.qick_code_v2 import psb_setup_programs_v2
 
 logger = logging.getLogger(__name__)
 
 
 class PsbSetup(dot_experiment.DotExperiment):
-    """This class holds functions that wrap the QICK classes for setting up PSB readout."""
+    """This class holds functions that wrap the QICK classes for setting up PSB readout. Initialize
+    with information about your rfsoc and your experimental setup.
+
+    :param soccfg: qick config object (QickConfig)
+    :param soc: QickSoc object
+    :param voltage_source: Initialized DC voltage source object. This is used here for saving the DC
+        voltage state each time data is saved.
+    """
 
     def __init__(
         self,
         soccfg: QickConfig,
         soc,
         voltage_source: hardware_manager.VoltageSource,
-        datadir: str = file_settings.data_directory,
-        save_data: bool = True,
-        plot: bool = True,
+        **kwargs,
     ):
-        """initialize with information about your rfsoc and your experimental setup
-
-        :param soccfg: qick config object (QickConfig)
-        :param soc: QickSoc object
-        :param datadir: data directory where all data is being stored. Experiment will make a folder here with today's date.
-        """
-
-        super().__init__(datadir=datadir)
+        super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
-        self.datadir = datadir
-        self.save_data = save_data
-        self.plot = plot
         self.reference = True
         self.thresh = True
         self.threshold = 0
@@ -62,19 +52,12 @@ class PsbSetup(dot_experiment.DotExperiment):
 
     @property
     def psb_config(self):
-        """get psb config for selected qubit from experiment config"""
+        """Get psb config for selected qubit from experiment config."""
         try:
             qubits = self.experiment_config.qubit_configs
             assert isinstance(qubits, dict)
             qubit = qubits[self.qubit]
-            assert isinstance(
-                qubit,
-                Union[
-                    qubit_models.Eo1Qubit,
-                    ld_qubit_models.Ld1Qubit,
-                    full_experiment_model.Ro1Qubit,
-                ],
-            )
+            assert qubit is not None
             ro = qubit.ro_cfg
         except AssertionError:
             logger.error("specified qubit parameters not found in experiment config")
@@ -94,13 +77,16 @@ class PsbSetup(dot_experiment.DotExperiment):
         use_gmm: bool = False,
         log_scale: bool = False,
     ):
-        """Produce a measurement histogram to show relative prevalance of measured singlets and triplets.
+        """Perform some number of spam sequences and produce a measurement histogram to show
+        relative prevalance of measured 0 and 1 states.  This simply plays the spam sequence as
+        defined in the config.
 
         :param num_measurements: Total number of measurements
-        :param reference: perform a reference measurement and report the difference between the two measurements
+        :param reference: perform a reference measurement and report the difference between the two
+            measurements
         :param fit: if True, fit results to a pair of gaussians
-        :param differential: if True, measure a singlet and then measure a mixture of singlets and triplets.  Subtract the first measurement from the second.
-
+        :param use_gmm: use gaussian mixtures model to fit gaussians :log_scale: if true, plot y
+            axis in log scale
         """
 
         mh_cfg = experiment_models.MeashistConfig(
@@ -148,10 +134,12 @@ class PsbSetup(dot_experiment.DotExperiment):
                 if use_gmm:
                     plot_data_gmm = np.squeeze(plot_data[0])
                     mean, covs, weights = analysis.fit_blobs(plot_data_gmm, n_gaussians)
-                    mus = mean[0, :2]
-                    mus_locs = np.argsort(mus)
-                    x_begin = mus[mus_locs][0] - 4 * np.sqrt(covs[0, mus_locs[0]])
-                    x_end = mus[mus_locs][1] + 4 * np.sqrt(covs[0, mus_locs[1]])
+                    # mus = mean[0, :2]
+                    # mus_locs = np.argsort(mus)
+                    # x_begin = mus[mus_locs][0] - 4 * np.sqrt(covs[0, mus_locs[0]])
+                    # x_end = mus[mus_locs][1] + 4 * np.sqrt(covs[0, mus_locs[1]])
+                    x_begin = np.min(plot_data_gmm)
+                    x_end = np.max(plot_data_gmm)
                     x_axis = np.linspace(x_begin, x_end, 50)
                     hist, bins = np.histogram(plot_data_gmm, density=True, bins=x_axis)
                     bins = bins + (bins[1] - bins[0]) / 2
@@ -194,12 +182,16 @@ class PsbSetup(dot_experiment.DotExperiment):
                         )
                         pops = weights[0][[0, 1]][np.argsort(mean[0][[0, 1]])]
                         pops = 1e2 * pops[[0, 1]] / (pops[0] + pops[1])
-                        leakage = 1e2 * np.sum(weights[0, 2:]) / np.sum(weights)
+                        # leakage = 1e2 * np.sum(weights[0, 2:]) / np.sum(weights)
+                        thresh_sign = np.sign(np.sum(weights))
+                        threshold_val = (
+                            np.abs((mean[0, 1] - mean[0, 0]) / 2) * thresh_sign
+                        )
 
                         labels = [
                             f"SNR = {snr:.1f}",
                             f"Pop. = {int(pops[0])} %/ {int(pops[1])} %",
-                            f"Leakage = {leakage:.1f} %",
+                            f"threshold = {threshold_val:.2f}",
                         ]
                         handles = [
                             mpl_patches.Rectangle(
@@ -249,16 +241,7 @@ class PsbSetup(dot_experiment.DotExperiment):
 
         return sq_data
 
-    @dot_experiment.updater
-    def meashist_2d_sweep(
-        self,
-        num_measurements: int,
-        sweep_vars: List[str],
-        start: float,
-        stop: float,
-        steps: int,
-    ):
-        """TODO 2d sweep of readout parameters for optimizing SNR"""
+        """TODO 2d sweep of readout parameters for optimizing SNR."""
 
     @dot_experiment.updater
     def idle_cell_scan(
@@ -268,11 +251,11 @@ class PsbSetup(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         full_avgs: int = 10,
     ):
-        """
-        2D sweep of idle coordinate.
+        """Performs a 2D sweep of idle coordinate.
 
         :param p_gates: specify the two plunger gates being used
-        :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
+        :param p_range: specify the range of each axis sweep. ((px_start, px_stop, px_points),
+            (py_start, py_stop, py_points))
         """
 
         px_gate, py_gate = p_gates
@@ -351,14 +334,14 @@ class PsbSetup(dot_experiment.DotExperiment):
             if self.thresh:
                 avg_lvl = None
             else:
-                avg_lvl = spinqick_utils.AverageLevel.BOTH
+                avg_lvl = spinqick_enums.AverageLevel.BOTH
             analysis.calculate_difference(sq_data, average_level=avg_lvl)
         if self.thresh:
             assert self.threshold
             analysis.calculate_thresholded(
                 sq_data,
                 [self.threshold],
-                average_level=spinqick_utils.AverageLevel.BOTH,
+                average_level=spinqick_enums.AverageLevel.BOTH,
             )
         if self.plot:
             plot_tools.plot2_psb(sq_data, px_gate, py_gate)
@@ -385,11 +368,11 @@ class PsbSetup(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         full_avgs: int = 10,
     ):
-        """
-        2D sweep of flush coordinate.
+        """Performs a 2D sweep of flush coordinate.
 
         :param p_gates: specify the two plunger gates being used
-        :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
+        :param p_range: specify the range of each axis sweep. ((px_start, px_stop, px_points),
+            (py_start, py_stop, py_points))
         """
 
         px_gate, py_gate = p_gates
@@ -469,7 +452,7 @@ class PsbSetup(dot_experiment.DotExperiment):
             self.reference,
             self.thresh,
             self.threshold,
-            final_avg_lvl=spinqick_utils.AverageLevel.BOTH,
+            final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
             plot_tools.plot2_psb(sq_data, px_gate, py_gate)
@@ -497,12 +480,15 @@ class PsbSetup(dot_experiment.DotExperiment):
         point_avgs: int = 10,
         full_avgs: int = 10,
     ):
-        """
-        2D sweep of measurement coordinates.  Here we are using a series of fast steps to approximate a ramp.
+        """Performs a 2D sweep of the measurement coordinate.  Here we are using a series of fast
+        steps to approximate a ramp.
 
         :param p_gates: specify the two plunger gates being used
-        :param p_range: specify the range of each axis sweep.  ((px_start, px_stop, px_points), (py_start, py_stop, py_points))
-        :param step_time: time per step in ramps
+        :param p_range: specify the range of each axis sweep. ((px_start, px_stop, px_points),
+            (py_start, py_stop, py_points))
+        :param step_time: time per step in each ramp, in microseconds. This uses a series of steps
+            to approximate a ramp because it is challenging to code a sweep of the start and
+            endpoints of a ramp in qick api.
         """
 
         px_gate, py_gate = p_gates
@@ -579,7 +565,7 @@ class PsbSetup(dot_experiment.DotExperiment):
             self.reference,
             self.thresh,
             self.threshold,
-            final_avg_lvl=spinqick_utils.AverageLevel.BOTH,
+            final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
             plot_tools.plot2_psb(sq_data, px_gate, py_gate)

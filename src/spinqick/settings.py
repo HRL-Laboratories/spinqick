@@ -1,11 +1,16 @@
-"""User specific settings"""
+"""User specific settings."""
 
-import pydantic_settings
-from typing import List, Tuple, Literal
+import os
 from enum import StrEnum, auto
+from typing import List, Literal, Tuple
+
+import numpy as np
+import pydantic_settings
 
 
 class GateTypes(StrEnum):
+    """Strenum for labeling the purpose of each gate."""
+
     MEASURE = auto()
     TUNNEL = auto()
     EXCHANGE = auto()
@@ -14,7 +19,7 @@ class GateTypes(StrEnum):
 
 
 class GateNames(StrEnum):
-    """modify this to suit the way you label your system"""
+    """Modify this to suit the way you label your system."""
 
     P1 = "P1"
     P2 = "P2"
@@ -53,37 +58,51 @@ class GateNames(StrEnum):
     TEST = "test"
 
 
+def make_default_config_path(filename: str):
+    """Makes a default path to the config file within the spinqick package."""
+    settings_path = os.path.abspath(__file__)
+    current_dir = os.path.dirname(settings_path)
+    full_path = os.path.join(current_dir, filename)
+    return full_path
+
+
 class FileSettings(pydantic_settings.BaseSettings):
-    """specify the locations of each config file on your machine.
-    TODO combine these into a single json file
+    """Specify the locations of each config file on your machine, and the directory to save data to.
+
+    By default, the files are located in the spinqick repo, but its a good idea to save them
+    elsewhere on your machine.
     """
 
-    data_directory: str = "C:/Data/QICK/eo_demo_2025/data/"
-    hardware_config: str = "C:/Data/QICK/eo_demo_2025/hardware_cfg.json"
-    dot_experiment_config: str = "C:/Data/QICK/eo_demo_2025/full_config.json"
+    data_directory: str = "C:/Users/alwessels/data"
+    hardware_config: str = make_default_config_path("config/hardware_config.json")
+    dot_experiment_config: str = make_default_config_path("config/full_config.json")
 
 
 class FilterSettings(pydantic_settings.BaseSettings):
-    """optional settings for implementing pulse predistortion. Filtering is implemented with lfilter
+    """Optional settings for implementing pulse predistortion.
+
+    Filtering is implemented with lfilter
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.lfilter.html#scipy.signal.lfilter
     """
 
     iir_taps: Tuple[List[float], List[float]] | None = (
-        [1.0076777, -1.00368251],
-        [1.0, -0.996],
+        [1.0, -1.99081583, 0.99082555],
+        [0.9685454, -1.92799398, 0.95945829],
     )
     iir_2_taps: Tuple[List[float], List[float]] | None = (
-        [0.06151177, 0.06151177],
-        [1.0, -0.87697646],
+        [1.0, -0.99050165],
+        [0.98835501, -0.97885945],
     )
-    apply_filter: Literal["both", "iir_1"] | None = None
+
+    fir_taps: np.ndarray | None = None
+    apply_filter: Literal["both", "iir_1", "fir"] | None = None
 
 
 class DacSettings(pydantic_settings.BaseSettings):
-    """specific settings pertaining to slow speed DACs"""
+    """Specific settings pertaining to slow speed DACs."""
 
-    t_min_slow_dac: float = 3.0  # minimum slow dac sweep step
-    trig_length: float = 0.2  # time that dac trigger is set high
+    t_min_slow_dac: float = 3.0  # minimum slow dac sweep step in microseconds
+    trig_length: float = 0.2  # time that dac trigger is set high in microseconds
     trig_pin: int = 0  # trigger pin to use when calling the trigger function
 
 

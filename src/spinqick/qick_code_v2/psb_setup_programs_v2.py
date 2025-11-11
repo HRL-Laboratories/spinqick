@@ -1,15 +1,14 @@
-"""
-programs to help set up pauli spin blockade
-"""
+"""Programs to help set up pauli spin blockade."""
 
 import numpy as np
 from qick import asm_v2
+
 from spinqick.core import readout_v2
 from spinqick.models import experiment_models, spam_models
 
 
 class MeasHist(asm_v2.AveragerProgramV2):
-    """This is a bare bones class to make a PSB measurement histogram"""
+    """This is a bare bones class to make a PSB measurement histogram."""
 
     def _initialize(self, cfg: experiment_models.MeashistConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg)
@@ -24,7 +23,7 @@ class MeasHist(asm_v2.AveragerProgramV2):
 
 
 class IdleScan(asm_v2.AveragerProgramV2):
-    """Perform a 2D sweep of the idle point"""
+    """Perform a 2D sweep of the idle point."""
 
     def _initialize(self, cfg: experiment_models.PsbScanConfig):
         idle_x_gains = asm_v2.QickSweep1D("x_sweep", cfg.gx_start, cfg.gx_stop)
@@ -55,7 +54,7 @@ class IdleScan(asm_v2.AveragerProgramV2):
 
 
 class FlushScan(asm_v2.AveragerProgramV2):
-    """Perform a 2D sweep of the flush point"""
+    """Perform a 2D sweep of the flush point."""
 
     def _initialize(self, cfg: experiment_models.PsbScanConfig):
         flush_x_gains = asm_v2.QickSweep1D("x_sweep", cfg.gx_start, cfg.gx_stop)
@@ -85,10 +84,13 @@ class FlushScan(asm_v2.AveragerProgramV2):
 
 
 class MeasureScanStepRamp(asm_v2.AveragerProgramV2):
-    """Scan measurement window point, this time use steps to emulate a ramp. Right now this only ramps two P gates."""
+    """Scan measurement window point, this time use steps to emulate a ramp.
+
+    Right now this only ramps two P gates.
+    """
 
     def ramp_prog(self, cfg: experiment_models.MeasScanConfig, step_label):
-        """asm_v2 chunk which steps"""
+        """asm_v2 chunk which steps."""
         sub = asm_v2.AsmV2()
         cfg_step: spam_models.SpamStepDac = getattr(cfg.psb_cfg, step_label)
         ramp_length = cfg_step.duration

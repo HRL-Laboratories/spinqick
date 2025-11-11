@@ -1,62 +1,58 @@
-"""Module for setting up exchange-only pulse sequences
-TODO use AWG pulses module
-"""
+"""Module for setting up exchange-only pulse sequences."""
 
-from typing import Literal, List
+from typing import List, Literal
+
 import numpy as np
-from qick import asm_v2
-from spinqick.models import qubit_models
-from spinqick.helper_functions import dac_pulses
-from spinqick.core import qick_utils
+from qick import QickConfig, asm_v2
 
+from spinqick.core import awg_pulse
+from spinqick.experiments import eo_analysis
+from spinqick.helper_functions import dac_pulses, qick_enums, spinqick_enums
+from spinqick.models import qubit_models
+
+# composite cliffords from Andrews et al 2019 supplement https://doi.org/10.1038/s41565-019-0500-4
 THETA1 = np.arctan(np.sqrt(8))
 THETA2 = np.pi - np.arctan(np.sqrt(5) / 2)
 THETA3 = 74.755 / 180 * np.pi
 THETA4 = 201.625 / 180 * np.pi
-CLIFFORDS_1Q = {}
+CLIFFORDS_1Q = {
+    "I": [0, 0, 0, 0],
+    "X": [0, np.pi - THETA1, THETA1, np.pi - THETA1],
+    "Y": [np.pi, np.pi - THETA1, THETA1, np.pi - THETA1],
+    "Z": [np.pi, 0, 0, 0],
+    "S": [3 * np.pi / 2, 0, 0, 0],
+    "Sd": [np.pi / 2, 0, 0, 0],
+    "SX": [0, THETA3, THETA2, THETA4],
+    "SdX": [0, THETA4, THETA2, THETA3],
+    "H": [(np.pi - THETA1) / 2, np.pi + THETA1, (np.pi - THETA1) / 2, 0],
+    "XH": [(np.pi + THETA1) / 2, np.pi - THETA1, (3 * np.pi + THETA1) / 2, 0],
+    "YH": [(np.pi + THETA1) / 2, np.pi - THETA1, (np.pi + THETA1) / 2, 0],
+    "ZH": [(3 * np.pi + THETA1) / 2, np.pi - THETA1, (np.pi + THETA1) / 2, 0],
+    "SH": [(np.pi - THETA1) / 2, np.pi + THETA1, 2 * np.pi - THETA1 / 2, 0],
+    "HS": [2 * np.pi - THETA1 / 2, np.pi + THETA1, (np.pi - THETA1) / 2, 0],
+    "SdH": [(3 * np.pi + THETA1) / 2, np.pi - THETA1, THETA1 / 2, 0],
+    "HSd": [THETA1 / 2, np.pi - THETA1, (3 * np.pi + THETA1) / 2, 0],
+    "HSH": [THETA1 / 2, np.pi - THETA1, THETA1 / 2, 0],
+    "HSdH": [np.pi + THETA1 / 2, np.pi - THETA1, np.pi + THETA1 / 2, 0],
+    "SdHS": [np.pi + THETA1 / 2, np.pi - THETA1, THETA1 / 2, 0],
+    "SHSd": [THETA1 / 2, np.pi - THETA1, np.pi + THETA1 / 2, 0],
+    "HSX": [THETA1 / 2, np.pi - THETA1, (np.pi + THETA1) / 2, 0],
+    "SdXH": [(np.pi + THETA1) / 2, np.pi - THETA1, THETA1 / 2, 0],
+    "HSdX": [2 * np.pi - THETA1 / 2, np.pi + THETA1, (3 * np.pi - THETA1) / 2, 0],
+    "SXH": [(3 * np.pi - THETA1) / 2, np.pi + THETA1, 2 * np.pi - THETA1 / 2, 0],
+}
 
 
-def define_fingerprint_vectors(
-    px_points: np.ndarray,
-    py_points: np.ndarray,
-    idle_point: np.ndarray,
-    x_point: float,
-):
-    """define the detuning and exchange axes based on nonequilibrium cell parameters
-    :param px_points: [Px1, Px2] format, defines the start and endpoints of a line being used to
-    define detuning vector
-    :param py_points: [Py1, Py2]
-    :param x_point: x value used during nonequilibrium cell sweep
-    """
-    delta_px = px_points[1] - px_points[0]
-    delta_py = py_points[1] - py_points[0]
-    detuning_raw = np.array([delta_px, delta_py, 0])
-    detuning = detuning_raw / np.linalg.norm(detuning_raw)
-    midpoint = np.array([px_points[0] + delta_px / 2, py_points[0] + delta_py / 2])
-    symmetric_raw = np.array([midpoint[0], midpoint[1], x_point]) - np.array(
-        [idle_point[0], idle_point[1], idle_point[2]]
-    )
-    symmetric = symmetric_raw / (x_point - idle_point[2])
-    return detuning, symmetric
+def round_up_pulses(pulsetime: float, soccfg: QickConfig):
+    """Calculate the pulse length after rounding to fabric cycles."""
 
-
-def calculate_fingerprint_gate_vals(
-    detuning, x, detuning_vector, symmetric_vector, idle_point
-):
-    """calculate individual gate voltages given detuning, x-gate gain, and detuning and symmetric vectors"""
-    vector_out = np.zeros(3)
-    vector_out = detuning_vector * detuning + symmetric_vector * x + idle_point
-    return vector_out
-
-
-def add_predistorted_envelope(prog: asm_v2.QickProgramV2, ch, name, idata, qdata=None):
-    """Apply predistortion to the pulses"""
-    idata_filt = dac_pulses.add_wf_filter(idata)
-    prog.add_envelope(ch, name, idata_filt, qdata)
+    cycles = round(np.ceil(pulsetime / soccfg.cycles2us(1)))
+    return soccfg.cycles2us(cycles)
 
 
 def setup_eo_gens(prog: asm_v2.QickProgramV2, qubit_cfg: qubit_models.Eo1Qubit):
-    """declare all generators associated with a qubit"""
+    """Declare all generators associated with a qubit."""
+
     for exchange_axis in ["n", "z", "m"]:
         cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, exchange_axis)
         if cfg is not None:
@@ -75,99 +71,113 @@ def setup_eo_gens(prog: asm_v2.QickProgramV2, qubit_cfg: qubit_models.Eo1Qubit):
 def setup_pi_pulse(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    exchange_axis: list[Literal["n", "z", "m"]],
-    pulse_time_cal: Literal["course", "fine"] = "course",
+    exchange_axis: list[spinqick_enums.ExchangeAxis],
+    pulse_time_cal: Literal["course", "fine"] = "fine",
 ):
-    """setup a pi pulse for one or both axes of a qubit
-    Right now this is assuming course pulse time definition
+    """Setup a pi pulse for one or more axes of a qubit.
+
+    :param pulse_time_cal: if "course", function assumes that the calibration was performed with
+        pulse time rounded to the nearest fabric clock cycle. If "fine", pulse times are defined and
+        rounded to the nearest dac clock cycle.
     """
+
     for axis in exchange_axis:
         cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
-        for gate in cfg.gates.model_fields_set:
-            gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
-            gen = gate_obj.gen
-            gate_name = gate_obj.name
-            gain = gate_obj.gains.exchange_gain
-            idle_gain = gate_obj.gains.idle_gain
-            time = cfg.times.exchange_time
-            # idle_time = cfg.times.idle_time
-            pulse_name = gate_name + "_" + "pi"
-            if pulse_time_cal == "fine":
-                idle_norm = idle_gain / gain if gain != 0 else 0
-                idata_array = dac_pulses.generate_baseband(
-                    1, time, gen, prog.soccfg, gain_2=idle_norm, pad_pulse=True
-                )
-            else:
-                idata_array = dac_pulses.generate_baseband(
-                    1, time, gen, prog.soccfg, pad_pulse=False
-                )
-            add_predistorted_envelope(prog, gen, "pi", idata=idata_array)
-            prog.add_pulse(
-                gen,
-                pulse_name,
-                style="arb",
-                freq=0,
-                phase=0,
-                gain=gain,
-                envelope="pi",
-                stdysel=qick_utils.Stdysel.LAST,
-                outsel=qick_utils.Outsel.INPUT,
-            )
-            add_predistorted_envelope(
-                prog,
-                gen,
-                "idle_return",
-                idata=dac_pulses.generate_baseband(
-                    1, cfg.times.idle_time, gen, prog.soccfg, min_pulse=True
-                ),
-            )
-            return_name = gate_name + "_" + "idle_return"
-            if return_name not in prog.pulses:
-                prog.add_pulse(
-                    gen,
-                    return_name,
-                    style="arb",
-                    freq=0,
-                    phase=0,
-                    gain=idle_gain,
-                    envelope="idle_return",
-                    stdysel=qick_utils.Stdysel.LAST,
-                    outsel=qick_utils.Outsel.INPUT,
-                )
-
-
-def play_pi(
-    prog: asm_v2.QickProgramV2,
-    exchange_axis: Literal["n", "z", "m"],
-    qubit_cfg: qubit_models.Eo1Qubit,
-    t: float = 0,
-):
-    """play pi pulse programmed by setup_pi_pulse"""
-    cfg = getattr(qubit_cfg, exchange_axis)
-    for gate in cfg.gates.model_fields_set:
-        # gate = "x"
+        gate = "x"
         gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
         gen = gate_obj.gen
         gate_name = gate_obj.name
-        pulse_name = gate_name + "_" + "pi"
-        prog.pulse(gen, pulse_name, t=t)
-    for gate in cfg.gates.model_fields_set:
+        gain = gate_obj.gains.exchange_gain
+        idle_gain = gate_obj.gains.idle_gain
+        time = cfg.times.exchange_time
+        idle_time = cfg.times.idle_time
+        pulse_name = gate_name + "_" + "pi_" + axis
+        if pulse_time_cal == "fine":
+            idata_array = dac_pulses.baseband_centered(
+                gain, idle_gain, time, idle_time, gen, prog.soccfg
+            )
+            awg_pulse.add_arb_wf(
+                prog,
+                gen,
+                pulse_name,
+                1,
+                idata_array,
+                predistort=True,
+                filter_sandwich=False,
+            )
+        else:
+            idata_array = dac_pulses.generate_baseband(
+                1, time, gen, prog.soccfg, pad_pulse=False
+            )
+            awg_pulse.add_arb_wf(
+                prog,
+                gen,
+                pulse_name,
+                1,
+                idata_array,
+                predistort=False,
+                filter_sandwich=False,
+            )
+        return_name = gate_name + "_" + "idle_return"
+        if return_name not in prog.pulses:
+            idle = dac_pulses.generate_baseband(
+                1, cfg.times.idle_time, gen, prog.soccfg, min_pulse=True
+            )
+            awg_pulse.add_arb_wf(
+                prog,
+                gen,
+                return_name,
+                idle_gain,
+                idle,
+                predistort=False,
+                filter_sandwich=False,
+            )
+
+
+def play_pi(
+    prog: asm_v2.AsmV2,
+    exchange_axis: spinqick_enums.ExchangeAxis,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    t: float = 0,
+    t_res: Literal["course", "fine"] = "course",
+):
+    """Play pi pulse programmed by setup_pi_pulse.
+
+    :param t: time in program to play pulse (in microseconds). This goes directly into the qick api
+        "pulse" command.
+    :param t_res: if "course", function assumes that the calibration was performed with pulse time
+        rounded to the nearest fabric clock cycle. In this case, the script plays a pulse directly
+        after the pi pulse which is at the idle voltage amplitude. If "fine", pulse times are
+        defined and rounded to the nearest dac clock cycle.
+    """
+
+    cfg = getattr(qubit_cfg, exchange_axis)
+    gate = "x"
+    gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
+    gen = gate_obj.gen
+    gate_name = gate_obj.name
+    pulse_name = gate_name + "_pi_" + exchange_axis
+    prog.pulse(gen, pulse_name, t=t)  # type: ignore
+    if t_res == "course":
+        gate = "x"
         gate_obj = getattr(cfg.gates, gate)
         gen = gate_obj.gen
         gate_name = gate_obj.name
         return_name = gate_name + "_" + "idle_return"
-        prog.pulse(gen, return_name, t="auto")
+        prog.pulse(gen, return_name, t="auto")  # type: ignore
 
 
 def setup_evol_sweep(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    exchange_axis: List[Literal["n", "z", "m"]],
+    exchange_axis: List[spinqick_enums.ExchangeAxis],
     sweep_dict: dict,
 ):
     """Set up an evol pulse for one or both axes of a qubit.
+
     This automatically rounds the pulse times up to the nearest dac fabric cycle
-    :param sweep_dict:  {axis: {gate: {sweep: 1dqicksweep}} specify gates to sweep and supply a 1dqicksweep object
+    :param sweep_dict: {axis: {gate: {sweep: 1dqicksweep}} dictionary to specify gates to sweep and
+        supply a 1dqicksweep object.
     """
     for axis in exchange_axis:
         cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
@@ -191,14 +201,12 @@ def setup_evol_sweep(
             idle = dac_pulses.generate_baseband(
                 1, cfg.times.idle_time, gen, prog.soccfg
             )
-            add_predistorted_envelope(
-                prog,
+            prog.add_envelope(
                 gen,
                 "evol",
                 idata=env,
             )
-            add_predistorted_envelope(
-                prog,
+            prog.add_envelope(
                 gen,
                 "idle_return",
                 idata=idle,
@@ -211,8 +219,8 @@ def setup_evol_sweep(
                 phase=0,
                 gain=exchange_gain,
                 envelope="evol",
-                stdysel=qick_utils.Stdysel.LAST,
-                outsel=qick_utils.Outsel.INPUT,
+                stdysel=qick_enums.Stdysel.LAST,
+                outsel=qick_enums.Outsel.INPUT,
             )
             if return_name not in prog.pulses:
                 prog.add_pulse(
@@ -223,23 +231,27 @@ def setup_evol_sweep(
                     phase=0,
                     gain=idle_gain,
                     envelope="idle_return",
-                    stdysel=qick_utils.Stdysel.LAST,
-                    outsel=qick_utils.Outsel.INPUT,
+                    stdysel=qick_enums.Stdysel.LAST,
+                    outsel=qick_enums.Outsel.INPUT,
                 )
 
 
 def setup_evol(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    exchange_axis: list[Literal["n", "z", "m"]],
+    exchange_axis: list[spinqick_enums.ExchangeAxis],
     n_pulses: int = 10,
     ptime_res: Literal["fabric", "fs"] = "fabric",
     sweep_dict: dict | None = None,
 ):
-    """setup an evol pulse for one axis of a qubit
-    :param ptime_res: time resolution of pulse time. If fs, set to sampling rate of dac,
-    and pad end of pulse with idle_gain values. If fabric, round pulse length up to next
-    fabric clock length
+    """Setup an exchange pulse for one axis of a qubit .
+
+    :param n_pulses: program n_pulses to play in a row, if ptime_res is set to "fs"
+    :param ptime_res: time resolution of pulse time. If "fs", set to sampling rate of dac, and pad
+        end of pulse with idle_gain values. If "fabric", round pulse length up to next fabric clock
+        length.
+    :param sweep_dict: {axis: {gate: gain} dictionary to specify gates to modulate when applying
+        exchange and supply a gain for each gate.
     """
     for axis in exchange_axis:
         cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
@@ -264,35 +276,122 @@ def setup_evol(
                     gen,
                     prog.soccfg,
                 )
+                awg_pulse.add_predistorted_envelope(
+                    prog,
+                    gen,
+                    "evol",
+                    idata=env,
+                )
             else:
                 env = dac_pulses.generate_baseband(
-                    1, cfg.times.exchange_time, gen, prog.soccfg, pad_pulse=False
+                    exchange_gain,
+                    cfg.times.exchange_time,
+                    gen,
+                    prog.soccfg,
+                    pad_pulse=False,
                 )
-            idle = dac_pulses.generate_baseband(
-                1, cfg.times.idle_time, gen, prog.soccfg, min_pulse=True
-            )
-            add_predistorted_envelope(
-                prog,
-                gen,
-                "evol",
-                idata=env,
-            )
-            add_predistorted_envelope(
-                prog,
-                gen,
-                "idle_return",
-                idata=idle,
-            )
+                idle = dac_pulses.generate_baseband(
+                    idle_gain, cfg.times.idle_time, gen, prog.soccfg, min_pulse=True
+                )
+                prog.add_envelope(
+                    gen,
+                    "evol",
+                    idata=env,
+                )
+                prog.add_envelope(
+                    gen,
+                    "idle_return",
+                    idata=idle,
+                )
+                if return_name not in prog.pulses:
+                    prog.add_pulse(
+                        gen,
+                        return_name,
+                        style="arb",
+                        freq=0,
+                        phase=0,
+                        gain=idle_gain,
+                        envelope="idle_return",
+                        stdysel=qick_enums.Stdysel.LAST,
+                        outsel=qick_enums.Outsel.INPUT,
+                    )
             prog.add_pulse(
                 gen,
                 pulse_name,
                 style="arb",
                 freq=0,
                 phase=0,
-                gain=exchange_gain if ptime_res == "fabric" else 1,
+                gain=1,
                 envelope="evol",
-                stdysel=qick_utils.Stdysel.LAST,
-                outsel=qick_utils.Outsel.INPUT,
+                stdysel=qick_enums.Stdysel.LAST,
+                outsel=qick_enums.Outsel.INPUT,
+            )
+
+
+def setup_evol_comp(
+    prog: asm_v2.QickProgramV2,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    exchange_axis: list[spinqick_enums.ExchangeAxis],
+    n_pulses: int = 10,
+    ptime_res: Literal["fabric", "fs"] = "fs",
+    sweep_dict: dict | None = None,
+):
+    """Setup an evol pulse for one axis of a qubit.  This assumes that the user is using the
+    compensation firmware to pulse along the exchange axis, so it only commands the x-gate to pulse
+    during an exchange pulse.
+
+    :param n_pulses: program n_pulses to play in a row, if ptime_res is set to "fs"
+    :param ptime_res: time resolution of pulse time. If "fs", set to sampling rate of dac, and pad
+        end of pulse with idle_gain values. If "fabric", round pulse length up to next fabric clock
+        length.
+    :param sweep_dict: {axis: {gate: gain} dictionary to specify gates to modulate when applying
+        exchange and supply a gain for each gate.
+    """
+    for axis in exchange_axis:
+        cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
+        gate = "x"
+        gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
+        gen = gate_obj.gen
+        gate_name = gate_obj.name
+        if sweep_dict is not None and axis in sweep_dict.keys():
+            exchange_gain = sweep_dict[axis][gate]
+        else:
+            exchange_gain = gate_obj.gains.exchange_gain
+        idle_gain = gate_obj.gains.idle_gain
+        pulse_name = gate_name + "_" + axis + "_evol"
+        return_name = gate_name + "_" + "idle_return"
+        if ptime_res == "fs":
+            env = dac_pulses.baseband_pulse_train(
+                0.9,
+                0,
+                cfg.times.exchange_time,
+                cfg.times.idle_time,
+                n_pulses,
+                gen,
+                prog.soccfg,
+            )
+            awg_pulse.add_predistorted_envelope(
+                prog,
+                gen,
+                "evol",
+                idata=env,
+            )
+        else:
+            env = dac_pulses.generate_baseband(
+                0.9, cfg.times.exchange_time, gen, prog.soccfg, pad_pulse=False
+            )
+            idle = dac_pulses.generate_baseband(
+                0.9, cfg.times.idle_time, gen, prog.soccfg, min_pulse=True
+            )
+            prog.add_envelope(
+                gen,
+                "evol",
+                idata=env,
+            )
+            prog.add_envelope(
+                gen,
+                "idle_return",
+                idata=idle,
             )
             if return_name not in prog.pulses:
                 prog.add_pulse(
@@ -301,37 +400,118 @@ def setup_evol(
                     style="arb",
                     freq=0,
                     phase=0,
-                    gain=idle_gain,
+                    gain=idle_gain / 0.9,
                     envelope="idle_return",
-                    stdysel=qick_utils.Stdysel.LAST,
-                    outsel=qick_utils.Outsel.INPUT,
+                    stdysel=qick_enums.Stdysel.LAST,
+                    outsel=qick_enums.Outsel.INPUT,
                 )
+        prog.add_pulse(
+            gen,
+            pulse_name,
+            style="arb",
+            freq=0,
+            phase=0,
+            gain=exchange_gain / 0.9,
+            envelope="evol",
+            stdysel=qick_enums.Stdysel.LAST,
+            outsel=qick_enums.Outsel.INPUT,
+        )
+
+
+def setup_evol_sweep_comp(
+    prog: asm_v2.QickProgramV2,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    exchange_axis: List[spinqick_enums.ExchangeAxis],
+    sweep_dict: dict,
+    n_pulses: int,
+):
+    """Set up an evol pulse for one or more axes of a qubit.This automatically rounds the pulse
+    times up to the nearest dac fabric cycle.
+
+    :param n_pulses: program n_pulses to play in a row, if ptime_res is set to "fs"
+    :param ptime_res: time resolution of pulse time. If "fs", set to sampling rate of dac, and pad
+        end of pulse with idle_gain values. If "fabric", round pulse length up to next fabric clock
+        length.
+    :param sweep_dict: {axis: {gate: {sweep: 1dqicksweep}} specify gates to sweep and supply a
+        1dqicksweep object describing the sweep.
+    """
+    for axis in exchange_axis:
+        cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
+        if axis in sweep_dict.keys():
+            for gate in sweep_dict[axis].keys():
+                exchange_gain = sweep_dict[axis][gate]
+                gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
+                gen = gate_obj.gen
+                gate_name = gate_obj.name
+                pulse_name = gate_name + "_" + axis + "_evol"
+                env = dac_pulses.baseband_pulse_train(
+                    0.9,
+                    0,
+                    cfg.times.exchange_time,
+                    cfg.times.idle_time,
+                    n_pulses,
+                    gen,
+                    prog.soccfg,
+                )
+                awg_pulse.add_predistorted_envelope(
+                    prog,
+                    gen,
+                    "evol",
+                    idata=env,
+                )
+                prog.add_pulse(
+                    gen,
+                    pulse_name,
+                    style="arb",
+                    freq=0,
+                    phase=0,
+                    gain=exchange_gain / 0.9,
+                    envelope="evol",
+                    stdysel=qick_enums.Stdysel.LAST,
+                    outsel=qick_enums.Outsel.INPUT,
+                )
+        else:
+            exchange_gain = gate_obj.gains.exchange_gain
 
 
 def play_evol_fine(
-    prog: asm_v2.QickProgramV2,
-    exchange_axis: Literal["n", "z", "m"],
+    prog: asm_v2.AsmV2,
+    exchange_axis: spinqick_enums.ExchangeAxis,
     qubit_cfg: qubit_models.Eo1Qubit,
     t: float = 0,
+    comp: bool = False,
 ):
-    """play evol pulses programmed by setup_evol"""
+    """Play evol pulses programmed by setup_evol."""
+
     cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, exchange_axis)
-    for gate in cfg.gates.model_fields_set:
+    if comp:
+        gate = "x"
         gate_obj = getattr(cfg.gates, gate)
         gen = gate_obj.gen
         gate_name = gate_obj.name
         pulse_name = gate_name + "_" + exchange_axis + "_evol"
-        prog.pulse(gen, pulse_name, t=t)
+        prog.pulse(gen, pulse_name, t=t)  # type: ignore
+    else:
+        for gate in cfg.gates.model_fields_set:
+            gate_obj = getattr(cfg.gates, gate)
+            gen = gate_obj.gen
+            gate_name = gate_obj.name
+            pulse_name = gate_name + "_" + exchange_axis + "_evol"
+            prog.pulse(gen, pulse_name, t=t)  # type: ignore
 
 
 def play_evol_course(
-    prog: asm_v2.QickProgramV2,
-    exchange_axis: Literal["n", "z", "m"],
+    prog: asm_v2.AsmV2,
+    exchange_axis: spinqick_enums.ExchangeAxis,
     qubit_cfg: qubit_models.Eo1Qubit,
     t: float = 0,
     n_pulses: int = 1,
 ):
-    """play evol pulses programmed by setup_evol_sweep or setup_evol"""
+    """Play evol pulses programmed by setup_evol_sweep or setup_evol.
+
+    :param comp: if using pulse compensation firmware, only play a pulse on x-gate
+    """
+
     cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, exchange_axis)
     t_pulse_interval = cfg.times.idle_time + cfg.times.exchange_time
     t_play = t
@@ -341,24 +521,162 @@ def play_evol_course(
             gen = gate_obj.gen
             gate_name = gate_obj.name
             pulse_name = gate_name + "_" + exchange_axis + "_evol"
-            prog.pulse(gen, pulse_name, t=t_play)
+            prog.pulse(gen, pulse_name, t=t_play)  # type: ignore
         for gate in cfg.gates.model_fields_set:
             gate_obj = getattr(cfg.gates, gate)
-            # ex_time = cfg.times.exchange_time
             gen = gate_obj.gen
             gate_name = gate_obj.name
             return_name = gate_name + "_" + "idle_return"
-            prog.pulse(gen, return_name, t="auto")
+            prog.pulse(gen, return_name, t="auto")  # type: ignore
         t_play += t_pulse_interval
+
+
+def theta_to_x_gain(
+    exchange_axis: spinqick_enums.ExchangeAxis,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    theta: float,
+    x_gate_conversion: float,
+):
+    """Convert desired angle to x-gate gain.  This assumes the user is using the crosstalk
+    compensation firmware.
+
+    :param theta: desired angle in radians.
+    :param x_gate_conversion: specify the conversion from voltage to dac units
+    """
+
+    cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, exchange_axis)
+    exchange_cal = cfg.exchange_cal
+    assert exchange_cal is not None
+    cal = exchange_cal.cal_parameters
+    tlist = cal.theta_list
+    glist = (
+        cal.volt_list
+    )  # volts are converted to gain in the config stored on dot experiment
+    assert tlist
+    assert glist
+    if theta != 0:
+        exchange_v = eo_analysis.fine_cal_voltage(
+            theta, tlist, glist, cal.A, cal.B, cal.theta_max
+        )
+    else:
+        exchange_v = 0
+    exchange_gain = exchange_v * x_gate_conversion
+    return exchange_gain
+
+
+def dumb_1q_compiler(
+    prog: asm_v2.QickProgramV2,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    n_recipe: List,
+    z_recipe: List,
+    x_n_conversion: float,
+    x_z_conversion: float,
+):
+    """Takes a list of angles on z and n axes, and converts them into waveforms.  It assumes that.
+
+    :param x_n_conversion: specify the conversion from voltage to dac units for the n axis
+    :param x_z_conversion: specify the conversion from voltage to dac units for the z axis
+    """
+
+    time = qubit_cfg.n.times.exchange_time
+    idle_time = qubit_cfg.n.times.idle_time
+    n_x = qubit_cfg.n.gates.x
+    z_x = qubit_cfg.z.gates.x
+    assert isinstance(n_x, qubit_models.ExchangeGate)
+    assert isinstance(z_x, qubit_models.ExchangeGate)
+    z_wf = np.array([])
+    n_wf = np.array([])
+    for theta in z_recipe:
+        zgain = theta_to_x_gain(
+            spinqick_enums.ExchangeAxis.Z, qubit_cfg, theta, x_z_conversion
+        )
+        wf = dac_pulses.baseband_pulse_train(
+            zgain, 0, time, idle_time, 1, z_x.gen, prog.soccfg
+        )
+        z_wf = np.append(z_wf, wf)
+    for theta in n_recipe:
+        ngain = theta_to_x_gain(
+            spinqick_enums.ExchangeAxis.N, qubit_cfg, theta, x_n_conversion
+        )
+        wf = dac_pulses.baseband_pulse_train(
+            ngain, 0, time, idle_time, 1, n_x.gen, prog.soccfg
+        )
+        n_wf = np.append(n_wf, wf)
+    return n_wf, z_wf
+
+
+def clifford_to_recipe(clifford: str):
+    """Return separate lists of angles for the n and z axes for a given clifford.
+
+    This uses the one qubit clifford definitions listed above in CLIFFORD_1Q.
+    """
+
+    c_list = CLIFFORDS_1Q[clifford]
+    z_recipe = [c_list[0], 0, c_list[2], 0]
+    n_recipe = [0, c_list[1], 0, c_list[3]]
+    return n_recipe, z_recipe
+
+
+def setup_1q_cliffords(
+    prog: asm_v2.QickProgramV2,
+    qubit_cfg: qubit_models.Eo1Qubit,
+    cliffords: List[str],
+    x_n_conversion: float,
+    x_z_conversion: float,
+):
+    """Setup pulses for a series of single qubit cliffords.
+
+    :param cliffords: list of strings describing clifford gates from CLIFFORD_1Q.
+    :param x_n_conversion: specify the conversion from voltage to dac units for the n axis
+    :param x_z_conversion: specify the conversion from voltage to dac units for the z axis
+    """
+
+    n_x = qubit_cfg.n.gates.x
+    z_x = qubit_cfg.z.gates.x
+    assert isinstance(n_x, qubit_models.ExchangeGate)
+    assert isinstance(z_x, qubit_models.ExchangeGate)
+    label = ""
+    n_wf_total = np.array([])
+    z_wf_total = np.array([])
+    for clifford in cliffords:
+        nr, zr = clifford_to_recipe(clifford)
+        n_wf, z_wf = dumb_1q_compiler(
+            prog, qubit_cfg, nr, zr, x_n_conversion, x_z_conversion
+        )
+        n_wf_total = np.append(n_wf_total, n_wf)
+        z_wf_total = np.append(z_wf_total, z_wf)
+        label = label + clifford
+    if label + "_n" not in prog.pulses:
+        awg_pulse.add_arb_wf(
+            prog, n_x.gen, label + "_n", 1, n_wf_total, predistort=True
+        )
+    if label + "_z" not in prog.pulses:
+        awg_pulse.add_arb_wf(
+            prog, z_x.gen, label + "_z", 1, z_wf_total, predistort=True
+        )
 
 
 def play_1q_clifford(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    gate: str,
+    cliffords: List[str],
     t: float = 0,
 ):
-    """play a single qubit clifford
-    :param gate: string describing clifford gate from CLIFFORD_1Q
+    """Play a single qubit clifford.
+
+    :param cliffords: a list of strings specifying clifford gates from CLIFFORD_1Q.
+    :param t: time in qickprogram to execute the cliffords in microseconds.
     """
-    # TODO play pulse sequence from the clifford dictionary above using finecal in qubit config
+
+    ncfg = getattr(qubit_cfg, "n")
+    ngate_obj: qubit_models.ExchangeGate = getattr(ncfg.gates, "x")
+    n_gen = ngate_obj.gen
+
+    zcfg = getattr(qubit_cfg, "z")
+    zgate_obj: qubit_models.ExchangeGate = getattr(zcfg.gates, "x")
+    z_gen = zgate_obj.gen
+    label = ""
+    for clifford in cliffords:
+        label = label + clifford
+    prog.pulse(n_gen, label + "_n", t=t)  # type: ignore
+    prog.pulse(z_gen, label + "_z", t=t)  # type: ignore

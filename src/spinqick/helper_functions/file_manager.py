@@ -1,36 +1,34 @@
-"""
-Helper functions for managing configs and file saving
-"""
+"""Helper functions for managing configs and file saving."""
 
 import datetime
 import glob
+import json
 import logging
 import os
 import time
 from pathlib import Path
 from typing import Any
-import json
+
 import matplotlib.pyplot as plt
 import netCDF4
 import numpy as np
-import yaml
 import pydantic
-
+import yaml
+from qick import QickConfig, asm_v2, helpers
 from qick.qick_asm import AbsQickProgram
-from qick import helpers, asm_v2, QickConfig
-from spinqick.settings import file_settings
-from spinqick.models import hardware_config_models
 
+from spinqick.models import hardware_config_models
+from spinqick.settings import file_settings
 
 logger = logging.getLogger(__name__)
 DATA_DIRECTORY = file_settings.data_directory
 
 
 def get_data_dir(datadir: str = DATA_DIRECTORY) -> str:
-    """get the data directory for today's date. If it doesn't exist, make the directory.
+    """Get the data directory for today's date. If it doesn't exist, make the directory.
 
-    :param datadir: general data directory where you want to store
-    data from your experiments.  Also where you store the config files for spinqick.
+    :param datadir: general data directory where you want to store data from your experiments. Also
+        where you store the config files for spinqick.
     :return: path to the directory
     """
     date = datetime.date.today()
@@ -50,7 +48,7 @@ def get_data_dir(datadir: str = DATA_DIRECTORY) -> str:
 
 def check_configs_exist():
     """Check if readout and hardware configs exist."""
-    # ro_cfg_path = file_settings.dcs_config
+
     ro_cfg_path = file_settings.dot_experiment_config
     if os.path.isfile(ro_cfg_path):
         logger.info("experiment config exists, using this file: %s", ro_cfg_path)
@@ -65,7 +63,7 @@ def check_configs_exist():
 
 
 def get_new_timestamp(datadir: str = DATA_DIRECTORY) -> tuple[str, int]:
-    """Set up a data folder for today's date and get a current timestamp
+    """Set up a data folder for today's date and get a current timestamp.
 
     :param datadir: general data directory where you want to store
         data from your experiments.  Also where you store the config files for spinqick.
@@ -79,7 +77,7 @@ def get_new_timestamp(datadir: str = DATA_DIRECTORY) -> tuple[str, int]:
 
 
 def get_new_filename(suffix: str, data_path: str, timestamp: int) -> str:
-    """Create a new filename from data path and timestamp
+    """Create a new filename from data path and timestamp.
 
     :param datapath: file directory
     :param timestamp: time in seconds
@@ -90,7 +88,7 @@ def get_new_filename(suffix: str, data_path: str, timestamp: int) -> str:
 
 
 def load_config_yaml(filename: str) -> dict:
-    """load a config from yaml file format
+    """Load a config from yaml file format.
 
     :param filename: config file name
     :return: config dictionary
@@ -107,14 +105,14 @@ def load_config_yaml(filename: str) -> dict:
 
 
 def load_config_json(filename: str, config_model):
-    """load config from json"""
+    """Load config from json."""
     json_string = Path(filename).read_text()
     config = config_model.model_validate_json(json_string)
     return config
 
 
 def save_config_yaml(config: dict, filename: str):
-    """save a config to a yaml file
+    """Save a config to a yaml file.
 
     :param config: dictionary
     :param filename: config file name
@@ -126,17 +124,17 @@ def save_config_yaml(config: dict, filename: str):
 
 
 def save_config_json(config: pydantic.BaseModel, filename: str):
-    """save pydantic model object to json file"""
+    """Save pydantic model object to json file."""
     json_string = config.model_dump(mode="json")
     with open(filename, "w", encoding="utf8") as f:
         json.dump(json_string, f, ensure_ascii=False, indent=4)
 
 
 def load_hardware_config() -> hardware_config_models.HardwareConfig:
-    """load hardware config file
+    """Load hardware config file.
 
-    :param datadir: general data directory where you want to store
-        data from your experiments.  Also where you store the config files for spinqick.
+    :param datadir: general data directory where you want to store data from your experiments. Also
+        where you store the config files for spinqick.
     :return: hardware config dictionary
     """
     return load_config_json(
@@ -145,7 +143,7 @@ def load_hardware_config() -> hardware_config_models.HardwareConfig:
 
 
 def save_prog(prog: AbsQickProgram, filename: str):
-    """save a qickprogram to json"""
+    """Save a qickprogram to json."""
     prog_dict = prog.dump_prog()
     prog_json = helpers.progs2json(prog_dict)
     with open(filename, "w", encoding="utf8") as f:
@@ -153,7 +151,10 @@ def save_prog(prog: AbsQickProgram, filename: str):
 
 
 def load_qickprogram(fname: str, soccfg: QickConfig):
-    """loads a qickprogram from json.  Requires the soccfg used to run the program"""
+    """Loads a qickprogram from json.
+
+    This requires the soccfg used to run the program.
+    """
     with open(fname, "r", encoding="utf8") as f:
         prog_json_string = json.load(f)
     prog_dict = helpers.json2progs(prog_json_string)
@@ -164,8 +165,11 @@ def load_qickprogram(fname: str, soccfg: QickConfig):
 
 # pylint: disable = no-member
 class SaveData(netCDF4.Dataset):
-    """Save data in netcdf4 format. Check out their documentation for information at
-    https://unidata.github.io/netcdf4-python/.  Don't forget to run .close()
+    """Save data in netcdf4 format.
+
+    Check out their documentation for information at
+    https://unidata.github.io/netcdf4-python/.
+    Don't forget to run .close()
     on the Dataset object after you've finished adding data.
     """
 
@@ -174,7 +178,7 @@ class SaveData(netCDF4.Dataset):
         self.filename_prefix = self.get_filename_prefix()
 
     def get_filename_prefix(self):
-        """returns the filename prefix for the given netcdf object"""
+        """Returns the filename prefix for the given netcdf object."""
         filename = Path(self.filepath())
         filename_stripped = str(filename).split(".")
         return filename_stripped[0]
@@ -186,15 +190,14 @@ class SaveData(netCDF4.Dataset):
         units: str | None = None,
         dtype=np.float32,
     ):
-        """provide axes for the data you want to store. If the axis doesn't
-        have data associated with it (ie I and Q axis) then leave data=None.
-        This sets the axis dimension to unlimited.
+        """Provide axes for the data you want to store. If the axis doesn't have data associated
+        with it (ie I and Q axis) then leave data=None. This sets the axis dimension to unlimited.
 
         :param label: A label for the axis you're providing
-        :param data: If the axis has data associated with it (i.e. time in seconds)
-            you can provide it here
+        :param data: If the axis has data associated with it (i.e. time in seconds) you can provide
+            it here
         :param units: Provide a string that describes the units of this axis
-        :param dtype: datatype of the data provided.  This is in a numpy dtype form.
+        :param dtype: datatype of the data provided. This is in a numpy dtype form.
         """
 
         if isinstance(data, np.ndarray):
@@ -213,7 +216,15 @@ class SaveData(netCDF4.Dataset):
         group_path: str | None = None,
         dtype=np.float32,
     ):
-        """adds a dimension to netCDF object which corresponds to multiple swept variables"""
+        """Adds a dimension to netCDF object which corresponds to multiple swept variables.
+
+        :param dim_label: name of the dimension associate with this axis
+        :param sweep_dict: provide the axis dictionary. This needs to be in the format that is used
+            for spinqickdata axis dictionaries.
+        :param group_path: if the dataset is in a specific folder within the netcdf file, specify
+            the name of this folder.
+        :param dtype: datatype of the data provided. This is in a numpy dtype form.
+        """
         dim = dim_label + "_dim"
         if dim not in self.dimensions:
             self.createDimension(dim, sweep_dict["size"])
@@ -237,14 +248,15 @@ class SaveData(netCDF4.Dataset):
         group_path: str | None = None,
         dtype=np.float32,
     ):
-        """add your data array.  Axes needs the be a list of the values
+        """Adds a data array to the netcdf object.  Axes needs the be a list of axis values.
 
         :param label: A label for the data you're providing
         :param axes: Provide a list of the axes you made which reflects the shape of the data array
         :param data: Data in array form
         :param units: Provide a string that describes the units of this axis
-        :param dtype: datatype of the data provided.  This is in a numpy dtype form.
-
+        :param group_path: if the dataset is in a specific folder within the netcdf file, specify
+            the name of this folder.
+        :param dtype: datatype of the data provided. This is in a numpy dtype form.
         """
 
         ax_labels = (axis + "_dim" for axis in axes)
@@ -258,7 +270,7 @@ class SaveData(netCDF4.Dataset):
             variable.units = units
 
     def save_last_plot(self, fignum=None):
-        """saves your figure as a .png with the same filename as the data"""
+        """Saves a figure as a .png with the same filename as the data."""
         if fignum is None:
             plt.gcf()
         else:
@@ -278,13 +290,13 @@ class SaveData(netCDF4.Dataset):
         plt.savefig(plotname)
 
     def save_config_json(self, full_config: pydantic.BaseModel):
-        """saves your pydantic model as a json file"""
+        """Saves a pydantic model as a json file."""
         config_file = self.filename_prefix + "_cfg.json"
         save_config_json(full_config, config_file)
         logger.info("saved config at %s", config_file)
 
     def save_prog_json(self, prog: AbsQickProgram):
-        """save qick program to a json file"""
+        """Saves a qick program to a json file."""
         prog_file = self.filename_prefix + "_prog.json"
         save_prog(prog, prog_file)
         logger.info("saved program at %s", prog_file)
