@@ -14,7 +14,6 @@ SpinQICK is designed to operate the Xilinx ZCU216 evaluation board. This kit pro
 
 .. figure:: ../graphics/spinQICK_setup.png
     :alt: spinQICK Setup
-    :scale: 40%
     :align: center
 
     Figure 1: Standard measurement setup for spinQICK applications

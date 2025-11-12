@@ -1,3 +1,8 @@
+v2.0.3
+======
+- editing docs formatting
+- added experiment diagram back in to repo so docs can compile
+
 v2.0.2
 ======
 - readthedocs.yaml added
