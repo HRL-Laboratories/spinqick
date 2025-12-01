@@ -890,8 +890,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the precision DAC steps in voltage and
-             QICK starts a DCS measurement.
+        :param measure_buffer: time in microseconds between when the precision DAC steps in voltage
+            and QICK starts a DCS measurement.
         """
 
         # setup the slow_dac step length
@@ -1136,8 +1136,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the precision DC DAC steps in voltage 
-            and QICK starts a DCS measurement.
+        :param measure_buffer: time in microseconds between when the precision DC DAC steps in
+            voltage and QICK starts a DCS measurement.
         """
 
         sqd_obj = self.sweep_1d(
