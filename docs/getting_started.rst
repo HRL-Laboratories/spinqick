@@ -50,15 +50,24 @@ Navigate to your local spinqick repository and run
 
     conda env create -f environment.yml
     conda activate spinqick
-    pip install setup.py .
+    pip install .
 
 now navigate to the qick repository and run
 
 ::
 
-    pip install setup.py .
+    pip install .
 
-Once you've set up your board, you will be ready to try the demo notebooks in spinqick/demo_notebooks.
+You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
+the demo notebooks folder of the repository. You can also simply run:
+
+::
+
+    from spinqick.make_config import make_default_filesettings
+    make_default_filesettings(cfg_dir=<directory to store experiment configuration files>, data_dir=<directory to autosave data>, make_experiment_cfg=True, make_hw_cfg=True)
+
+in an ipython terminal within your spinqick environment, which will make a `.spinqick` folder in your home directory containing a file with general spinqick settings, and will set the locations of a directory to autosave data
+and a directory that will store config files pertaining to your specific experiment. You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!
 
 
 ========
@@ -71,7 +80,7 @@ use the `standard tprocv2 firmware <https://s3df.slac.stanford.edu/people/meeg/q
 
 You will need to copy the firmware and the fork of qick onto the board, as described in the qick quickstart guide.
 
-If using the crosstalk compensation firmware, you must initialize the XtalkSoc object in place of QickSoc.  When you start your pyro server, it will look something like this:
+If using the crosstalk compensation firmware, you must initialize the XtalkSoc object in place of QickSoc.  To start your pyro server, it will look something like this:
 
 ::
 
