@@ -10,8 +10,7 @@ from typing import List, Protocol
 import numpy as np
 import yaml
 
-from spinqick import settings
-from spinqick.helper_functions import file_manager
+from spinqick.helper_functions import file_manager, spinqick_enums
 from spinqick.models import hardware_config_models as hcm
 
 logger = logging.getLogger(__name__)
@@ -87,7 +86,7 @@ class DCSource:
             voltage_dict[gate] = self.get_dc_voltage(gate)
         return voltage_dict
 
-    def get_dc_voltage(self, gate: settings.GateNames) -> float:
+    def get_dc_voltage(self, gate: spinqick_enums.GateNames) -> float:
         """Get voltage at gate.  Values are converted via the dc_conversion_factor parameter which
         is stored in the hardware config.
 
@@ -106,7 +105,7 @@ class DCSource:
         self.vsource.close()
         return vreturn
 
-    def set_dc_voltage(self, volts: float, gate: settings.GateNames):
+    def set_dc_voltage(self, volts: float, gate: spinqick_enums.GateNames):
         """Sets gate voltage.
 
         :param volts: Voltage in units of volts at the gate
@@ -128,8 +127,8 @@ class DCSource:
     def calculate_compensated_voltage(
         self,
         delta_v: list[float],
-        gates: list[settings.GateNames],
-        iso_gates: List[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
+        iso_gates: List[spinqick_enums.GateNames],
     ):
         """Given crosscoupling parameters in hardware_config and desired voltages at gates,
         calculate voltages to apply.
@@ -164,8 +163,8 @@ class DCSource:
     def set_dc_voltage_compensate(
         self,
         volts: float | List[float],
-        gates: settings.GateNames | List[settings.GateNames],
-        iso_gates: settings.GateNames | List[settings.GateNames],
+        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
     ):
         """Set gate voltage while compensating on iso_gates.
 
@@ -203,7 +202,7 @@ class DCSource:
         vstop: float,
         tstep: float,
         nsteps: int,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
     ):
         """Program a fast sweep on DCSource.  Needs to be followed with arm and trigger.
 
@@ -242,8 +241,8 @@ class DCSource:
         vstop: float | List[float],
         tstep: float,
         nsteps: int,
-        gates: settings.GateNames | List[settings.GateNames],
-        iso_gates: settings.GateNames | List[settings.GateNames],
+        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
     ):
         """Program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be
         followed with arm and trigger.
@@ -301,7 +300,7 @@ class DCSource:
                 gate,
             )
 
-    def digital_trigger(self, gate: settings.GateNames):
+    def digital_trigger(self, gate: spinqick_enums.GateNames):
         """Trigger the fast sweep on DCSource digitally.
 
         :param gate: Gate to trigger
@@ -313,7 +312,7 @@ class DCSource:
         self.vsource.trigger(ch=ch)
         self.vsource.close()
 
-    def arm_sweep(self, gate: settings.GateNames):
+    def arm_sweep(self, gate: spinqick_enums.GateNames):
         """Arm sleeperdac sweep.
 
         :param gate: Gate to arm sweep on

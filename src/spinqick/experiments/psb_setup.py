@@ -11,7 +11,6 @@ from qick import QickConfig
 from scipy import optimize
 from scipy.stats import norm
 
-from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models
@@ -229,7 +228,7 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def idle_cell_scan(
         self,
-        p_gates: Tuple[settings.GateNames, settings.GateNames],
+        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
         point_avgs: int = 10,
         full_avgs: int = 10,
@@ -346,7 +345,7 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def flush_window_scan(
         self,
-        p_gates: Tuple[settings.GateNames, settings.GateNames],
+        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
         point_avgs: int = 10,
         full_avgs: int = 10,
@@ -457,7 +456,7 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def meas_window_scan(
         self,
-        p_gates: Tuple[settings.GateNames, settings.GateNames],
+        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
         step_time: float,
         point_avgs: int = 10,

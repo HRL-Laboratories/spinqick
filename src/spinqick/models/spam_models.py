@@ -4,7 +4,7 @@ from typing import Mapping, Union
 
 import pydantic
 
-from spinqick import settings
+from spinqick.helper_functions import spinqick_enums
 from spinqick.models import dcs_model
 
 
@@ -38,7 +38,7 @@ class SpamStep(pydantic.BaseModel):
 
     duration: float  # pulse durations in microseconds
     gate_list: Mapping[
-        settings.GateNames, Union[SpamPulse, SpamRamp]
+        spinqick_enums.GateNames, Union[SpamPulse, SpamRamp]
     ]  # supply a dict of SpamPulse objects and corresponding gate names
 
 
@@ -46,7 +46,7 @@ class SpamStepDac(pydantic.BaseModel):
     """Spam step definition in DAC units."""
 
     duration: float  # pulse durations in microseconds
-    gate_list: Mapping[settings.GateNames, Union[SpamPulseDac, SpamRampDac]]
+    gate_list: Mapping[spinqick_enums.GateNames, Union[SpamPulseDac, SpamRampDac]]
 
 
 class DefaultSpam(pydantic.BaseModel):

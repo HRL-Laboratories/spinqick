@@ -1,7 +1,7 @@
 """Functions for interfacing with crosstalk parameter registers."""
 
+from spinqick.helper_functions.spinqick_enums import GateNames
 from spinqick.models import hardware_config_models
-from spinqick.settings import GateNames
 
 
 def gen_to_xtalk_ch(gen: int):

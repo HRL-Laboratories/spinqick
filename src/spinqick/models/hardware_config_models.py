@@ -4,7 +4,7 @@ from typing import Dict, List, Literal, Union
 
 import pydantic
 
-from spinqick import settings
+import spinqick.helper_functions.spinqick_enums
 
 
 class VoltageSourceType:
@@ -34,8 +34,10 @@ class SlowGate(pydantic.BaseModel):
     slow_dac_address: str
     slow_dac_channel: int
     max_v: float
-    gate_type: settings.GateTypes
-    crosscoupling: Dict[settings.GateNames, float] | None = None  # crosscoupling between gates
+    gate_type: spinqick.helper_functions.spinqick_enums.GateTypes
+    crosscoupling: Dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None = (
+        None  # crosscoupling between gates
+    )
 
 
 class FastGate(SlowGate):
@@ -70,7 +72,10 @@ class HardwareConfig(pydantic.BaseModel):
     rf_gen: int | None = None
     rf_trig_pin: int | None = None  # trigger pin for the RF switch
     ac_gate: SourceDrainIn | None = None  # gate used to apply ac signal for transconductance
-    channels: Dict[settings.GateNames, Union[FastGate, SlowGate, HemtGate, AuxGate]]
+    channels: Dict[
+        spinqick.helper_functions.spinqick_enums.GateNames,
+        Union[FastGate, SlowGate, HemtGate, AuxGate],
+    ]
     voltage_source: Literal["test", "slow_dac"] | None = (
         "test"  # specify the type of dc supply you're using for DCSource class
     )

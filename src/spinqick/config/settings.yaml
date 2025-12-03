@@ -1,0 +1,15 @@
+file_settings:
+  data_directory_path: ""
+  hardware_config_path: ""
+  dot_experiment_config_path: ""
+
+dac_settings:
+  t_min_slow_dac: 3.0  # minimum slow dac sweep step in microseconds
+  trig_length: 0.2  # time that dac trigger is set high in microseconds
+  trig_pin: 0  # trigger pin to use when calling the trigger function
+
+filter_settings:
+    iir_taps: None
+    iir_2_taps: None
+    fir_taps: None
+    apply_filter: None

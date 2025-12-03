@@ -9,9 +9,8 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.signal import periodogram
 
-from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import analysis, hardware_manager, plot_tools
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models
 from spinqick.qick_code_v2 import measure_noise_programs_v2, tune_electrostatics_programs_v2
 from spinqick.settings import dac_settings
@@ -39,7 +38,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def readout_noise_at_bias(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_bias: float,
         measure_buffer: float,
         time_steps: int = 1000,
@@ -137,7 +136,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def dcs_stability(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_range: Tuple[float, float, int],
         measure_buffer: float,
         time_steps: int = 1000,

@@ -13,9 +13,8 @@ import pydantic
 from lmfit import models
 from qick.asm_v2 import QickProgramV2
 
-from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import analysis, hardware_manager, plot_tools
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models
 from spinqick.qick_code_v2 import system_calibrations_programs_v2, tune_electrostatics_programs_v2
 from spinqick.settings import dac_settings
@@ -182,7 +181,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_baseband(
         self,
-        g_gates: tuple[settings.GateNames, settings.GateNames],
+        g_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
     ) -> spinqick_data.SpinqickData:
@@ -268,10 +267,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         prog: QickProgramV2,
         expt_name: str,
         cfg: pydantic.BaseModel,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         save_data: bool = False,
@@ -518,10 +517,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_dc(
         self,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
@@ -569,13 +568,13 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_pat(
         self,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
         pat_freq: float,
         pat_gain: float,
         pat_gen: int,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
@@ -635,12 +634,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def get_cross_caps(
         self,
-        x_gate: settings.GateNames,
-        y_gate: settings.GateNames,
+        x_gate: spinqick_enums.GateNames,
+        y_gate: spinqick_enums.GateNames,
         x_range: Tuple[float, float, int],
         y_range: Tuple[float, float, int],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
     ) -> spinqick_data.SpinqickData:
@@ -717,7 +716,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
     def tune_mz(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_range: tuple[float, float, int],
         z_range: tuple[float, float, int],
         measure_buffer: float,
@@ -735,9 +734,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         """
 
         if m_dot == "M1":
-            z_dots = [settings.GateNames.Z1, settings.GateNames.Z2]
+            z_dots = [spinqick_enums.GateNames.Z1, spinqick_enums.GateNames.Z2]
         else:
-            z_dots = [settings.GateNames.Z3, settings.GateNames.Z4]
+            z_dots = [spinqick_enums.GateNames.Z3, spinqick_enums.GateNames.Z4]
 
         if tune_type == "common":
             z_sweep_vector = [1, 1]
@@ -757,7 +756,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def retune_dcs(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_range: tuple[float, float, int],
         measure_buffer: float,
         set_v=False,
@@ -878,7 +877,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gate_action(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         max_v: float,
         num_points: int,
         measure_buffer: float,
@@ -1011,10 +1010,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def sweep_1d(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         g_range: tuple[float, float, int],
         measure_buffer: float = 50,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: list[int] | None = None,
         filename_tag: str | None = None,
         mode: Literal["sd_chop", "trans"] = "sd_chop",
@@ -1125,7 +1124,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
     def gate_turn_on(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         max_v: float,
         num_points: int,
         measure_buffer: float,
@@ -1152,7 +1151,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def calibrate_baseband_voltage(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         gate_pulse_range: Tuple[float, float, int],
         gate_step: float,
@@ -1276,7 +1275,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def measure_bandwidth(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         gate_freq_range: Tuple[float, float, int],
         gate_step: float,
@@ -1403,7 +1402,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def tune_hsa(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         pulse_time: float,
         pulse_gain: float,
