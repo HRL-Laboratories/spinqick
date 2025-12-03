@@ -8,7 +8,7 @@ FSETTING_PATH = os.path.expanduser("~/.spinqick/settings.yaml")
 FSETTING_DIR = os.path.dirname(FSETTING_PATH)
 
 
-def make_default_filesettings(
+def make_default_settings(
     cfg_dir=FSETTING_DIR,
     data_dir=os.path.join(FSETTING_DIR, "data"),
     make_hw_cfg=True,
