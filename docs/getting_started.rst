@@ -59,12 +59,22 @@ now navigate to the qick repository and run
     pip install .
 
 You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
-the demo notebooks folder of the repository. You can also simply run:
+the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinqick where to look for your specific configuration files.  In windows, this entails running these commands in command prompt:
 
 ::
 
-    from spinqick.make_config import make_default_filesettings
-    make_default_filesettings(cfg_dir=<directory to store experiment configuration files>, data_dir=<directory to autosave data>, make_experiment_cfg=True, make_hw_cfg=True)
+    setx SPINQICK_DATA_DIRECTORY "your directory path"
+    setx SPINQICK_HARDWARE_CONFIG "your hardware config path"
+    setx SPINQICK_EXPERIMENT_CONFIG "your experiment config path"
+    setx SPINQICK_FILTER_CONFIG "your filter config path"
+
+
+After these variables are set, you can run:
+
+::
+
+    from spinqick.make_config import make_default_configs
+    make_default_configs()
 
 in an ipython terminal within your spinqick environment, which will make a `.spinqick` folder in your home directory containing a file with general spinqick settings, and will set the locations of a directory to autosave data
 and a directory that will store config files pertaining to your specific experiment. You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!

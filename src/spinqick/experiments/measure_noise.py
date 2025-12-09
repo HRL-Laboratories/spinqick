@@ -13,7 +13,6 @@ from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models
 from spinqick.qick_code_v2 import measure_noise_programs_v2, tune_electrostatics_programs_v2
-from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +54,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
         )
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=time_steps,
             dcs_cfg=self.dcs_config,
@@ -170,8 +169,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=n_vm,
             dcs_cfg=self.dcs_config,

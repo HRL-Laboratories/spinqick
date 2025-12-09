@@ -56,15 +56,23 @@ class SourceDrainIn(pydantic.BaseModel):
 
 
 class SourceDrainOut(pydantic.BaseModel):
-    """Model describign the output readout signal from the device."""
+    """Model describing the output readout signal from the device."""
 
     qick_adc: int  # adc channel
     unit_conversion: float
     adc_units: str
 
 
-class HardwareConfig(pydantic.BaseModel):
-    """Model for the full hardware config."""
+class DacSettings(pydantic.BaseModel):
+    """Specific settings pertaining to slow speed DACs."""
+
+    t_min_slow_dac: float = 3.0
+    trig_length: float = 0.2
+    trig_pin: int = 0
+
+
+class HardwareConfigBase(pydantic.BaseModel):
+    """Model for the hardware config in versions < 2.0.2 ."""
 
     sd_in: SourceDrainIn
     m1_readout: List[SourceDrainOut]
@@ -79,3 +87,9 @@ class HardwareConfig(pydantic.BaseModel):
     voltage_source: Literal["test", "slow_dac"] | None = (
         "test"  # specify the type of dc supply you're using for DCSource class
     )
+
+
+class HardwareConfig(HardwareConfigBase):
+    """Model for the full hardware config."""
+
+    dac_settings: DacSettings = DacSettings()

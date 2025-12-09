@@ -17,7 +17,6 @@ from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models
 from spinqick.qick_code_v2 import system_calibrations_programs_v2, tune_electrostatics_programs_v2
-from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
 
@@ -355,8 +354,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         step_length = self.dcs_config.length + 2 * measure_buffer
-        if step_length < dac_settings.t_min_slow_dac:
-            slow_dac_step_len = dac_settings.t_min_slow_dac
+        if step_length < self.hardware_config.dac_settings.t_min_slow_dac:
+            slow_dac_step_len = self.hardware_config.dac_settings.t_min_slow_dac
         else:
             slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
@@ -436,22 +435,34 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         for k, gx_gate in enumerate(gx_gates):
             v_final = self.vdc.get_dc_voltage(gx_gate)
             self.vdc.program_ramp(
-                v_final, vx_0[k], dac_settings.t_min_slow_dac * 1e-6, n_vx, gx_gate
+                v_final,
+                vx_0[k],
+                self.hardware_config.dac_settings.t_min_slow_dac * 1e-6,
+                n_vx,
+                gx_gate,
             )
             self.vdc.arm_sweep(gx_gate)
             self.vdc.digital_trigger(gx_gate)
-            time.sleep(dac_settings.t_min_slow_dac * n_vx * 1e-6)  # leave some time to ramp down
+            time.sleep(
+                self.hardware_config.dac_settings.t_min_slow_dac * n_vx * 1e-6
+            )  # leave some time to ramp down
         for k, gy_gate in enumerate(gy_gates):
             v_final = self.vdc.get_dc_voltage(gy_gate)
             self.vdc.program_ramp(
-                v_final, vy_0[k], dac_settings.t_min_slow_dac * 1e-6, n_vy, gy_gate
+                v_final,
+                vy_0[k],
+                self.hardware_config.dac_settings.t_min_slow_dac * 1e-6,
+                n_vy,
+                gy_gate,
             )
             self.vdc.arm_sweep(gy_gate)
             self.vdc.digital_trigger(gy_gate)
             time.sleep(slow_dac_step_len * 1e-6 * n_vy)  # leave some time to ramp down
         if isinstance(compensate, str):
             vm = self.vdc.get_dc_voltage(compensate)
-            self.vdc.program_ramp(vm, vm_0, dac_settings.t_min_slow_dac * 1e-6, n_vy, compensate)
+            self.vdc.program_ramp(
+                vm, vm_0, self.hardware_config.dac_settings.t_min_slow_dac * 1e-6, n_vy, compensate
+            )
             self.vdc.arm_sweep(compensate)
             self.vdc.digital_trigger(compensate)
             time.sleep(slow_dac_step_len * 1e-6 * n_vy)  # leave some time to ramp down
@@ -539,11 +550,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         """
         _, g_range_y = g_range
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=g_range_y[2],
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             mode=mode,
         )
 
@@ -603,11 +614,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         )
 
         gvg_cfg = experiment_models.GvgPatConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=gy_range[2],
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             pat_cfg=pat_cfg,
         )
 
@@ -661,11 +672,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         _, _, n_vy = y_range
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=n_vy,
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             mode=mode,
         )
 
@@ -785,8 +796,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=n_vm,
             dcs_cfg=self.dcs_config,
@@ -816,7 +827,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             analysis.calculate_transconductance(data_obj, self.adc_unit_conversions)
 
         # Ramp Vy voltage back down to the starting value
-        return_step_time = dac_settings.t_min_slow_dac
+        return_step_time = self.hardware_config.dac_settings.t_min_slow_dac
         self.vdc.program_ramp(vm_stop, m_bias, return_step_time * 1e-6, n_vm, m_dot)
         self.vdc.digital_trigger(m_dot)
         time.sleep(return_step_time * 1e-6 * n_vm)
@@ -896,8 +907,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         # setup the slow_dac step length
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=num_points,
             dcs_cfg=self.dcs_config,
@@ -1040,8 +1051,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         else:
             experiment_str = "_1d_sweep"
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=num_points,
             dcs_cfg=self.dcs_config,
@@ -1195,11 +1206,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             raw_list.append(raw)
         for i, pulse_gain in enumerate(pulse_gain_sweep):
             bb_cal_config = experiment_models.LineSplitting(
-                trig_pin=dac_settings.trig_pin,
+                trig_pin=self.hardware_config.dac_settings.trig_pin,
                 measure_buffer=measure_buffer,
                 points=p_dc_npts,
                 dcs_cfg=self.dcs_config,
-                trig_length=dac_settings.trig_length,
+                trig_length=self.hardware_config.dac_settings.trig_length,
                 mode="sd_chop",
                 differential_channel=gate_gen,
                 differential_ac_freq=gate_freq,
@@ -1322,11 +1333,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             raw_list.append(raw)
         for i, pulse_freq in enumerate(pulse_freq_sweep):
             bb_cal_config = experiment_models.LineSplitting(
-                trig_pin=dac_settings.trig_pin,
+                trig_pin=self.hardware_config.dac_settings.trig_pin,
                 measure_buffer=measure_buffer,
                 points=p_dc_npts,
                 dcs_cfg=self.dcs_config,
-                trig_length=dac_settings.trig_length,
+                trig_length=self.hardware_config.dac_settings.trig_length,
                 mode="sd_chop",
                 differential_channel=gate_gen,
                 differential_ac_freq=pulse_freq,
