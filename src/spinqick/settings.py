@@ -18,10 +18,10 @@ class FileSettings(pydantic_settings.BaseSettings):
     """
 
     model_config = pydantic_settings.SettingsConfigDict(env_prefix="SPINQICK_")
-    data_directory: str
-    hardware_config: str
-    dot_experiment_config: str
-    filter_config: Optional[str]
+    data_directory: str = ""
+    hardware_config: str = ""
+    dot_experiment_config: str = ""
+    filter_config: Optional[str] = None
 
 
 class FilterSettings(pydantic_settings.BaseSettings):
@@ -31,7 +31,7 @@ class FilterSettings(pydantic_settings.BaseSettings):
     apply_filter: Literal["both", "iir_1", "fir"] | None = None
 
 
-file_settings = FileSettings()  # type: ignore
+file_settings = FileSettings()
 if file_settings.filter_config is not None:
     json_string = Path(file_settings.filter_config).read_text()
     filter_settings = FilterSettings.model_validate_json(json_string)
