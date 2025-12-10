@@ -76,8 +76,8 @@ After these variables are set, you can run:
     from spinqick.make_config import make_default_configs
     make_default_configs()
 
-in an ipython terminal within your spinqick environment, which will make a `.spinqick` folder in your home directory containing a file with general spinqick settings, and will set the locations of a directory to autosave data
-and a directory that will store config files pertaining to your specific experiment. You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!
+in an ipython terminal within your spinqick environment, which will copy a set of default config files to the file paths specified by `SPINQICK_HARDWARE_CONFIG`, `SPINQICK_EXPERIMENT_CONFIG` and `SPINQICK_FILTER_CONFIG`.
+You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!
 
 
 ========
