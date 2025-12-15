@@ -1,0 +1,23 @@
+{
+    "m1_readout": {
+        "adc_trig_offset": 0.0,
+        "dds_freq": 1.0,
+        "readout_freq": 1.0,
+        "length": 10.0,
+        "readout_length": 10.0,
+        "pulse_gain_readout": 0.9,
+        "slack_delay": 0.0,
+        "ac_gate_gain": null
+    },
+    "m2_readout": {
+        "adc_trig_offset": 0.0,
+        "dds_freq": 1.0,
+        "readout_freq": 1.0,
+        "length": 10.0,
+        "readout_length": 10.0,
+        "pulse_gain_readout": 0.9,
+        "slack_delay": 0.0,
+        "ac_gate_gain": null
+    },
+    "qubit_configs": null
+}

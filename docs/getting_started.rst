@@ -14,7 +14,6 @@ SpinQICK is designed to operate the Xilinx ZCU216 evaluation board. This kit pro
 
 .. figure:: ../graphics/spinQICK_setup.png
     :alt: spinQICK Setup
-    :scale: 40%
     :align: center
 
     Figure 1: Standard measurement setup for spinQICK applications
@@ -51,15 +50,34 @@ Navigate to your local spinqick repository and run
 
     conda env create -f environment.yml
     conda activate spinqick
-    pip install setup.py .
+    pip install .
 
 now navigate to the qick repository and run
 
 ::
 
-    pip install setup.py .
+    pip install .
 
-Once you've set up your board, you will be ready to try the demo notebooks in spinqick/demo_notebooks.
+You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
+the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinqick where to look for your specific configuration files.  In windows, this entails running these commands in command prompt:
+
+::
+
+    setx SPINQICK_DATA_DIRECTORY "your directory path"
+    setx SPINQICK_HARDWARE_CONFIG "your hardware config path"
+    setx SPINQICK_EXPERIMENT_CONFIG "your experiment config path"
+    setx SPINQICK_FILTER_CONFIG "your filter config path"
+
+
+After these variables are set, you can run:
+
+::
+
+    from spinqick.make_config import make_default_configs
+    make_default_configs()
+
+in an ipython terminal within your spinqick environment, which will copy a set of default config files to the file paths specified by `SPINQICK_HARDWARE_CONFIG`, `SPINQICK_EXPERIMENT_CONFIG` and `SPINQICK_FILTER_CONFIG`.
+You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!
 
 
 ========
@@ -72,7 +90,7 @@ use the `standard tprocv2 firmware <https://s3df.slac.stanford.edu/people/meeg/q
 
 You will need to copy the firmware and the fork of qick onto the board, as described in the qick quickstart guide.
 
-If using the crosstalk compensation firmware, you must initialize the XtalkSoc object in place of QickSoc.  When you start your pyro server, it will look something like this:
+If using the crosstalk compensation firmware, you must initialize the XtalkSoc object in place of QickSoc.  To start your pyro server, it will look something like this:
 
 ::
 

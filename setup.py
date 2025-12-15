@@ -1,3 +1,5 @@
+import os
+
 from setuptools import find_packages, setup
 
 with open("VERSION.txt", "r") as f:
@@ -30,4 +32,5 @@ setup(
         "scikit-learn",
     ],
     python_requires=">=3.10",
+    package_data={"spinqick": ["config/*.yaml", "config/*.json"]},
 )
