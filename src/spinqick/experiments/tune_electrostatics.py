@@ -13,12 +13,10 @@ import pydantic
 from lmfit import models
 from qick.asm_v2 import QickProgramV2
 
-from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import analysis, hardware_manager, plot_tools
+from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models
 from spinqick.qick_code_v2 import system_calibrations_programs_v2, tune_electrostatics_programs_v2
-from spinqick.settings import dac_settings
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +180,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_baseband(
         self,
-        g_gates: tuple[settings.GateNames, settings.GateNames],
+        g_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
     ) -> spinqick_data.SpinqickData:
@@ -268,10 +266,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         prog: QickProgramV2,
         expt_name: str,
         cfg: pydantic.BaseModel,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         save_data: bool = False,
@@ -356,8 +354,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         # setup the slow_dac step length
         step_length = self.dcs_config.length + 2 * measure_buffer
-        if step_length < dac_settings.t_min_slow_dac:
-            slow_dac_step_len = dac_settings.t_min_slow_dac
+        if step_length < self.hardware_config.dac_settings.t_min_slow_dac:
+            slow_dac_step_len = self.hardware_config.dac_settings.t_min_slow_dac
         else:
             slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
@@ -437,22 +435,34 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         for k, gx_gate in enumerate(gx_gates):
             v_final = self.vdc.get_dc_voltage(gx_gate)
             self.vdc.program_ramp(
-                v_final, vx_0[k], dac_settings.t_min_slow_dac * 1e-6, n_vx, gx_gate
+                v_final,
+                vx_0[k],
+                self.hardware_config.dac_settings.t_min_slow_dac * 1e-6,
+                n_vx,
+                gx_gate,
             )
             self.vdc.arm_sweep(gx_gate)
             self.vdc.digital_trigger(gx_gate)
-            time.sleep(dac_settings.t_min_slow_dac * n_vx * 1e-6)  # leave some time to ramp down
+            time.sleep(
+                self.hardware_config.dac_settings.t_min_slow_dac * n_vx * 1e-6
+            )  # leave some time to ramp down
         for k, gy_gate in enumerate(gy_gates):
             v_final = self.vdc.get_dc_voltage(gy_gate)
             self.vdc.program_ramp(
-                v_final, vy_0[k], dac_settings.t_min_slow_dac * 1e-6, n_vy, gy_gate
+                v_final,
+                vy_0[k],
+                self.hardware_config.dac_settings.t_min_slow_dac * 1e-6,
+                n_vy,
+                gy_gate,
             )
             self.vdc.arm_sweep(gy_gate)
             self.vdc.digital_trigger(gy_gate)
             time.sleep(slow_dac_step_len * 1e-6 * n_vy)  # leave some time to ramp down
         if isinstance(compensate, str):
             vm = self.vdc.get_dc_voltage(compensate)
-            self.vdc.program_ramp(vm, vm_0, dac_settings.t_min_slow_dac * 1e-6, n_vy, compensate)
+            self.vdc.program_ramp(
+                vm, vm_0, self.hardware_config.dac_settings.t_min_slow_dac * 1e-6, n_vy, compensate
+            )
             self.vdc.arm_sweep(compensate)
             self.vdc.digital_trigger(compensate)
             time.sleep(slow_dac_step_len * 1e-6 * n_vy)  # leave some time to ramp down
@@ -518,10 +528,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_dc(
         self,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
@@ -540,11 +550,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         """
         _, g_range_y = g_range
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=g_range_y[2],
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             mode=mode,
         )
 
@@ -569,13 +579,13 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gvg_pat(
         self,
-        g_gates: tuple[list[settings.GateNames], list[settings.GateNames]],
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
         g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         measure_buffer: float,
         pat_freq: float,
         pat_gain: float,
         pat_gen: int,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: tuple[list[int], list[int]] | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
     ) -> spinqick_data.SpinqickData:
@@ -604,11 +614,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         )
 
         gvg_cfg = experiment_models.GvgPatConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=gy_range[2],
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             pat_cfg=pat_cfg,
         )
 
@@ -635,12 +645,12 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def get_cross_caps(
         self,
-        x_gate: settings.GateNames,
-        y_gate: settings.GateNames,
+        x_gate: spinqick_enums.GateNames,
+        y_gate: spinqick_enums.GateNames,
         x_range: Tuple[float, float, int],
         y_range: Tuple[float, float, int],
         measure_buffer: float,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
     ) -> spinqick_data.SpinqickData:
@@ -662,11 +672,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         _, _, n_vy = y_range
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
             measure_buffer=measure_buffer,
             points=n_vy,
             dcs_cfg=self.dcs_config,
-            trig_length=dac_settings.trig_length,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             mode=mode,
         )
 
@@ -717,7 +727,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
     def tune_mz(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_range: tuple[float, float, int],
         z_range: tuple[float, float, int],
         measure_buffer: float,
@@ -735,9 +745,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         """
 
         if m_dot == "M1":
-            z_dots = [settings.GateNames.Z1, settings.GateNames.Z2]
+            z_dots = [spinqick_enums.GateNames.Z1, spinqick_enums.GateNames.Z2]
         else:
-            z_dots = [settings.GateNames.Z3, settings.GateNames.Z4]
+            z_dots = [spinqick_enums.GateNames.Z3, spinqick_enums.GateNames.Z4]
 
         if tune_type == "common":
             z_sweep_vector = [1, 1]
@@ -757,7 +767,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def retune_dcs(
         self,
-        m_dot: settings.GateNames,
+        m_dot: spinqick_enums.GateNames,
         m_range: tuple[float, float, int],
         measure_buffer: float,
         set_v=False,
@@ -786,8 +796,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=n_vm,
             dcs_cfg=self.dcs_config,
@@ -817,7 +827,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             analysis.calculate_transconductance(data_obj, self.adc_unit_conversions)
 
         # Ramp Vy voltage back down to the starting value
-        return_step_time = dac_settings.t_min_slow_dac
+        return_step_time = self.hardware_config.dac_settings.t_min_slow_dac
         self.vdc.program_ramp(vm_stop, m_bias, return_step_time * 1e-6, n_vm, m_dot)
         self.vdc.digital_trigger(m_dot)
         time.sleep(return_step_time * 1e-6 * n_vm)
@@ -878,7 +888,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def gate_action(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         max_v: float,
         num_points: int,
         measure_buffer: float,
@@ -890,15 +900,15 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
-            the QICK starts a DCS measurement.
+        :param measure_buffer: time in microseconds between when the precision DAC steps in voltage
+            and QICK starts a DCS measurement.
         """
 
         # setup the slow_dac step length
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=num_points,
             dcs_cfg=self.dcs_config,
@@ -1011,10 +1021,10 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def sweep_1d(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         g_range: tuple[float, float, int],
         measure_buffer: float = 50,
-        compensate: settings.GateNames | None = None,
+        compensate: spinqick_enums.GateNames | None = None,
         sweep_direction: list[int] | None = None,
         filename_tag: str | None = None,
         mode: Literal["sd_chop", "trans"] = "sd_chop",
@@ -1041,8 +1051,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         else:
             experiment_str = "_1d_sweep"
         gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=dac_settings.trig_pin,
-            trig_length=dac_settings.trig_length,
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            trig_length=self.hardware_config.dac_settings.trig_length,
             measure_buffer=measure_buffer,
             points=num_points,
             dcs_cfg=self.dcs_config,
@@ -1125,7 +1135,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
     def gate_turn_on(
         self,
-        gates: list[settings.GateNames],
+        gates: list[spinqick_enums.GateNames],
         max_v: float,
         num_points: int,
         measure_buffer: float,
@@ -1136,8 +1146,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         :param gates: list of gates to sweep
         :param max_v: voltage to sweep up to
         :param num_points: points in each sweep direction
-        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
-            the QICK starts a DCS measurement.
+        :param measure_buffer: time in microseconds between when the precision DC DAC steps in
+            voltage and QICK starts a DCS measurement.
         """
 
         sqd_obj = self.sweep_1d(
@@ -1152,7 +1162,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def calibrate_baseband_voltage(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         gate_pulse_range: Tuple[float, float, int],
         gate_step: float,
@@ -1196,11 +1206,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             raw_list.append(raw)
         for i, pulse_gain in enumerate(pulse_gain_sweep):
             bb_cal_config = experiment_models.LineSplitting(
-                trig_pin=dac_settings.trig_pin,
+                trig_pin=self.hardware_config.dac_settings.trig_pin,
                 measure_buffer=measure_buffer,
                 points=p_dc_npts,
                 dcs_cfg=self.dcs_config,
-                trig_length=dac_settings.trig_length,
+                trig_length=self.hardware_config.dac_settings.trig_length,
                 mode="sd_chop",
                 differential_channel=gate_gen,
                 differential_ac_freq=gate_freq,
@@ -1276,7 +1286,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def measure_bandwidth(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         gate_freq_range: Tuple[float, float, int],
         gate_step: float,
@@ -1323,11 +1333,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             raw_list.append(raw)
         for i, pulse_freq in enumerate(pulse_freq_sweep):
             bb_cal_config = experiment_models.LineSplitting(
-                trig_pin=dac_settings.trig_pin,
+                trig_pin=self.hardware_config.dac_settings.trig_pin,
                 measure_buffer=measure_buffer,
                 points=p_dc_npts,
                 dcs_cfg=self.dcs_config,
-                trig_length=dac_settings.trig_length,
+                trig_length=self.hardware_config.dac_settings.trig_length,
                 mode="sd_chop",
                 differential_channel=gate_gen,
                 differential_ac_freq=pulse_freq,
@@ -1403,7 +1413,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def tune_hsa(
         self,
-        gate: settings.GateNames,
+        gate: spinqick_enums.GateNames,
         gate_dc_range: Tuple[float, float, int],
         pulse_time: float,
         pulse_gain: float,

@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import pydantic
 
-from spinqick import settings
+from spinqick.helper_functions import spinqick_enums
 from spinqick.models import spam_models
 
 
@@ -30,14 +30,14 @@ class ExchangeTimes(pydantic.BaseModel):
 class ExchangeGateParams(pydantic.BaseModel):
     """Generalized template for each gate in ExchangeConfig."""
 
-    name: settings.GateNames  # name of gate, e.g. P1
+    name: spinqick_enums.GateNames  # name of gate, e.g. P1
     gate_voltages: ExchangeVoltages  # associated coordinates for common sequencing
 
 
 class ExchangeGate(pydantic.BaseModel):
     """Generalized template for each gate in ExchangeConfig."""
 
-    name: settings.GateNames  # name of gate, e.g. P1
+    name: spinqick_enums.GateNames  # name of gate, e.g. P1
     gains: ExchangeGains  # associated coordinates for common sequencing
     gen: int  # should be chosen off hardware_cfg.yml file.
 

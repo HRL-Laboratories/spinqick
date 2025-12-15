@@ -4,6 +4,9 @@
  <img src="graphics/spinQICKv2_logo.png" alt="spinQICK logo" width=40% height=auto>
 </p>
 
+## Read the docs
+Full spinqick documentation is online [here](https://spinqick.readthedocs.io/en/latest/)
+
 ## Description
 Welcome to spinQICK, an open-source extension to the [Quantum Instrumentation Control Kit](https://github.com/openquantumhardware/qick) (QICK) designed to control electrostatically confined solid-state spin-qubits! SpinQICK enables researchers to use low-cost off-the-shelf Xilinx Radio Frequency System-on-Chip (RFSoC) Field Programmable Gate Arrays (FPGAs) to rapidly develop novel application specific experimental hardware and software for controlling spin-qubits.
 

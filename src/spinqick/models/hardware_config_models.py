@@ -4,7 +4,7 @@ from typing import Dict, List, Literal, Union
 
 import pydantic
 
-from spinqick import settings
+import spinqick.helper_functions.spinqick_enums
 
 
 class VoltageSourceType:
@@ -34,8 +34,10 @@ class SlowGate(pydantic.BaseModel):
     slow_dac_address: str
     slow_dac_channel: int
     max_v: float
-    gate_type: settings.GateTypes
-    crosscoupling: Dict[settings.GateNames, float] | None = None  # crosscoupling between gates
+    gate_type: spinqick.helper_functions.spinqick_enums.GateTypes
+    crosscoupling: Dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None = (
+        None  # crosscoupling between gates
+    )
 
 
 class FastGate(SlowGate):
@@ -54,15 +56,23 @@ class SourceDrainIn(pydantic.BaseModel):
 
 
 class SourceDrainOut(pydantic.BaseModel):
-    """Model describign the output readout signal from the device."""
+    """Model describing the output readout signal from the device."""
 
     qick_adc: int  # adc channel
     unit_conversion: float
     adc_units: str
 
 
-class HardwareConfig(pydantic.BaseModel):
-    """Model for the full hardware config."""
+class DacSettings(pydantic.BaseModel):
+    """Specific settings pertaining to slow speed DACs."""
+
+    t_min_slow_dac: float = 3.0
+    trig_length: float = 0.2
+    trig_pin: int = 0
+
+
+class HardwareConfigBase(pydantic.BaseModel):
+    """Model for the hardware config in versions < 2.0.2 ."""
 
     sd_in: SourceDrainIn
     m1_readout: List[SourceDrainOut]
@@ -70,7 +80,16 @@ class HardwareConfig(pydantic.BaseModel):
     rf_gen: int | None = None
     rf_trig_pin: int | None = None  # trigger pin for the RF switch
     ac_gate: SourceDrainIn | None = None  # gate used to apply ac signal for transconductance
-    channels: Dict[settings.GateNames, Union[FastGate, SlowGate, HemtGate, AuxGate]]
+    channels: Dict[
+        spinqick.helper_functions.spinqick_enums.GateNames,
+        Union[FastGate, SlowGate, HemtGate, AuxGate],
+    ]
     voltage_source: Literal["test", "slow_dac"] | None = (
         "test"  # specify the type of dc supply you're using for DCSource class
     )
+
+
+class HardwareConfig(HardwareConfigBase):
+    """Model for the full hardware config."""
+
+    dac_settings: DacSettings = DacSettings()

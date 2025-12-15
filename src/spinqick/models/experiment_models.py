@@ -4,16 +4,15 @@ from typing import List, Literal
 
 import pydantic
 
-from spinqick import settings
 from spinqick.helper_functions import spinqick_enums
 from spinqick.models import dcs_model, ld_qubit_models, qubit_models, spam_models
 
 
 class SweepTwoConfig(pydantic.BaseModel):
     gx_gen: int
-    gx_gate: settings.GateNames
+    gx_gate: spinqick_enums.GateNames
     gy_gen: int
-    gy_gate: settings.GateNames
+    gy_gate: spinqick_enums.GateNames
     gx_start: float  # specify range (-1,1) on these
     gx_stop: float
     gx_expts: int

@@ -1,3 +1,11 @@
+v2.0.3
+======
+- editing docs formatting
+- added experiment diagram back in to repo so docs can compile
+- iterated on demo notebooks, and added make_configs notebooks for automatically generating settings and configuration files
+- modified settings.py to rely on a file external to spinqick, so that users not using an editable install can easily modify settings
+- created make_config.py with a method to automatically generate the settings file and copy default experimental configuration files to a location of the user's choosing.
+
 v2.0.2
 ======
 - readthedocs.yaml added

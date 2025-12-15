@@ -10,8 +10,7 @@ from typing import Literal, TypeVar, Union
 
 import numpy as np
 
-from spinqick import settings
-from spinqick.helper_functions import file_manager
+from spinqick.helper_functions import file_manager, spinqick_enums
 from spinqick.models import (
     dcs_model,
     full_experiment_model,
@@ -63,10 +62,10 @@ def convert_spam_to_rfsoc(
         duration = getattr(spam_config, spamstep).duration
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
-            settings.GateNames, Union[spam_models.SpamRampDac, spam_models.SpamPulseDac]
+            spinqick_enums.GateNames, Union[spam_models.SpamRampDac, spam_models.SpamPulseDac]
         ] = {}
         for gate in gate_list:
-            assert isinstance(gate, settings.GateNames)
+            assert isinstance(gate, spinqick_enums.GateNames)
             gate_cfg = hardware_config.channels[gate]
             if isinstance(gate_cfg, hardware_config_models.FastGate):
                 gen = gate_cfg.qick_gen
@@ -109,7 +108,7 @@ def convert_spam_to_voltage(
         duration = getattr(spam_config, spamstep).duration
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
-            settings.GateNames, Union[spam_models.SpamRamp, spam_models.SpamPulse]
+            spinqick_enums.GateNames, Union[spam_models.SpamRamp, spam_models.SpamPulse]
         ] = {}
         for gate in gate_list:
             pulse_gain = gate_list[gate].coordinate
@@ -246,7 +245,7 @@ def convert_experiment_to_rfsoc(
 
 def volts2dacunits(
     volts: G,
-    gate: settings.GateNames,
+    gate: spinqick_enums.GateNames,
     hardware_config: hardware_config_models.HardwareConfig,
 ) -> G:
     """Convert voltage out of qick frontend to dac units.
@@ -266,7 +265,7 @@ def volts2dacunits(
 
 def dacunits2volts(
     dacunits: G,
-    gate: settings.GateNames,
+    gate: spinqick_enums.GateNames,
     hardware_config: hardware_config_models.HardwareConfig,
 ) -> G:
     """Convert dac units to voltage out of RFSoC front end.
@@ -380,7 +379,7 @@ class DotExperiment:
         )
         logger.info("updated local params")
 
-    def volts2dac(self, volts: G, gate: settings.GateNames) -> G:
+    def volts2dac(self, volts: G, gate: spinqick_enums.GateNames) -> G:
         """Convert voltage out of qick frontend to dac units.
 
         :param volts: voltage to convert
@@ -389,7 +388,7 @@ class DotExperiment:
         """
         return volts2dacunits(volts, gate, self.hardware_config)
 
-    def dac2volts(self, dacunits: G, gate: settings.GateNames) -> G:
+    def dac2volts(self, dacunits: G, gate: spinqick_enums.GateNames) -> G:
         """Convert dac units to voltage out of RFSoC front end.
 
         :param dacunits: DAC units

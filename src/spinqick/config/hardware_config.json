@@ -1,0 +1,101 @@
+{
+    "sd_in": {
+        "qick_gen": 0,
+        "unit_conversion": 1.0,
+        "sd_units": "dac_units"
+    },
+    "m1_readout": [
+        {
+            "qick_adc": 0,
+            "unit_conversion": 1.0,
+            "adc_units": "adc_units"
+        }
+    ],
+    "m2_readout": [
+        {
+            "qick_adc": 1,
+            "unit_conversion": 1.0,
+            "adc_units": "adc_units"
+        }
+    ],
+    "rf_gen": 1,
+    "rf_trig_pin": null,
+    "ac_gate": null,
+    "channels": {
+        "P1": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 1,
+            "max_v": 2.0,
+            "gate_type": "plunger",
+            "crosscoupling": null,
+            "dac_conversion_factor": 1.0,
+            "qick_gen": 5
+        },
+        "X1": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 2,
+            "max_v": 2.0,
+            "gate_type": "exchange",
+            "crosscoupling": null,
+            "dac_conversion_factor": 1.0,
+            "qick_gen": 6
+        },
+        "P2": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 3,
+            "max_v": 2.0,
+            "gate_type": "plunger",
+            "crosscoupling": null,
+            "dac_conversion_factor": 1.0,
+            "qick_gen": 7
+        },
+        "X2": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 4,
+            "max_v": 2.0,
+            "gate_type": "exchange",
+            "crosscoupling": null,
+            "dac_conversion_factor": 1.0,
+            "qick_gen": 8
+        },
+        "P3": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 5,
+            "max_v": 2.0,
+            "gate_type": "plunger",
+            "crosscoupling": null,
+            "dac_conversion_factor": 1.0,
+            "qick_gen": 9
+        },
+        "M1": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 6,
+            "max_v": 2.0,
+            "gate_type": "aux",
+            "crosscoupling": null
+        },
+        "Z1": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 7,
+            "max_v": 2.0,
+            "gate_type": "aux",
+            "crosscoupling": null
+        },
+        "Z2": {
+            "dc_conversion_factor": 4.0,
+            "slow_dac_address": "slow_dac_address",
+            "slow_dac_channel": 8,
+            "max_v": 2.0,
+            "gate_type": "aux",
+            "crosscoupling": null
+        }
+    },
+    "voltage_source": "test"
+}

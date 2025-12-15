@@ -6,7 +6,6 @@ from typing import Tuple
 import numpy as np
 from matplotlib import pyplot as plt
 
-from spinqick import settings
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
 from spinqick.models import experiment_models, hardware_config_models, ld_qubit_models
@@ -36,7 +35,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def idle_cell_scan_with_rf(
         self,
-        p_gates: Tuple[settings.GateNames, settings.GateNames],
+        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
         p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
         rf_gain: int,
         rf_freq: float,
