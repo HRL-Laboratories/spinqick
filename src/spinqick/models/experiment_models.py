@@ -41,6 +41,20 @@ class GvgDcConfig(pydantic.BaseModel):
     mode: Literal["transdc", "sd_chop"] = "sd_chop"
 
 
+class Quack2DConfig(pydantic.BaseModel):
+    x_points: int
+    x_gens: list[int]
+    x_starts: list[float]
+    x_steps: list[float]
+    y_points: int
+    y_gens: list[int]
+    y_starts: list[float]
+    y_steps: list[float]
+    measure_buffer: float
+    dcs_cfg: dcs_model.DcsConfig
+    mode: Literal["transdc", "sd_chop"] = "sd_chop"
+
+
 class GvgPatConfig(GvgDcConfig):
     pat_cfg: PatConfig
 
