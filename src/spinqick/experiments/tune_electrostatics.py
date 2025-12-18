@@ -5,7 +5,7 @@ Converted to tprocv2 compatibility.
 
 import logging
 import time
-from typing import List, Literal, Tuple
+from typing import List, Literal, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -251,6 +251,163 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 gx_gate,
                 gy_gate,
                 adc_units=self.adc_units[0],
+            )
+
+        if self.save_data:
+            save_obj = data_obj.save_data()
+            if self.plot:
+                save_obj.save_last_plot()
+            save_obj.close()
+
+        return data_obj
+
+    @dot_experiment.updater
+    def gvg_quack(
+        self,
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
+        g_vals: tuple[tuple[list[float], list[float], int], tuple[list[float], list[float], int]],
+        measure_buffer: float,
+        mode: Literal["sd_chop", "transdc"] = "sd_chop",
+    ) -> spinqick_data.SpinqickData:
+        """Perform a basic PvP or PvT by baseband pulsing with the RFSoC.
+
+        :param g_gates: list of gates to sweep on x and y axes. i.e. (['P1'], ['P2', 'P3'])
+        :param g_vals: voltage values to sweep x and y, and step size for each. THIS IS DIFFERENT
+            THAN TYPICAL SPINQICK RANGE FORMAT. Its not relative to current setpoint.
+        :param measure_buffer: sets the delay time between measurements. The actual measurement is
+            sandwiched between two measure_buffer delays
+        :return: SpinqickData object
+        """
+
+        gx_gates, gy_gates = g_gates
+        gx_starts, gx_steps, gx_expts = g_vals[0]
+        gy_starts, gy_steps, gy_expts = g_vals[1]
+
+        gx_cfgs = [self.hardware_config.channels[gx_gate] for gx_gate in gx_gates]
+        gy_cfgs = [self.hardware_config.channels[gy_gate] for gy_gate in gy_gates]
+        x_conversions = []
+        x_gens = []
+        for gx_cfg in gx_cfgs:
+            assert isinstance(
+                gx_cfg,
+                Union[hardware_config_models.FastGate, hardware_config_models.SlowGate],
+            )
+            gx_convert = gx_cfg.dc_conversion_factor
+            gx_gen = gx_cfg.slow_dac_channel
+            x_conversions.append(gx_convert)
+            x_gens.append(gx_gen)
+
+        y_conversions = []
+        y_gens = []
+        for gy_cfg in gy_cfgs:
+            assert isinstance(
+                gy_cfg,
+                Union[hardware_config_models.FastGate, hardware_config_models.SlowGate],
+            )
+            gy_convert = gy_cfg.dc_conversion_factor
+            gy_gen = gy_cfg.slow_dac_channel
+            y_conversions.append(gy_convert)
+            y_gens.append(gy_gen)
+
+        # create a pydantic model and fill it in
+        gvg_cfg = experiment_models.Quack2DConfig(
+            measure_buffer=measure_buffer,
+            x_gens=x_gens,
+            y_gens=y_gens,
+            x_starts=[gx_starts[i] / x_conversions[i] for i in range(len(x_gens))],
+            x_steps=[gx_steps[i] / x_conversions[i] for i in range(len(x_gens))],
+            x_points=gx_expts,
+            y_starts=[gy_starts[i] / y_conversions[i] for i in range(len(y_gens))],
+            y_steps=[gy_steps[i] / y_conversions[i] for i in range(len(y_gens))],
+            y_points=gy_expts,
+            dcs_cfg=self.dcs_config,
+            mode=mode,
+        )
+        pin_list = self.soccfg["tprocs"][0]["output_pins"]
+        if len(pin_list) < 8:
+            pin_list.append(("trig", 7, 0, "trigger_pmod"))
+        self.soc.clear_dac_regs()
+        self.soc.setup_quack_sweep(
+            loop_0_cfg={
+                "start": gvg_cfg.y_starts,
+                "step": gvg_cfg.y_steps,
+                "channels": gvg_cfg.y_gens,
+                "loop_size": gvg_cfg.y_points,
+            },
+            loop_1_cfg={
+                "start": gvg_cfg.x_starts,
+                "step": gvg_cfg.x_steps,
+                "channels": gvg_cfg.x_gens,
+                "loop_size": gvg_cfg.x_points,
+            },
+            dwell_cycles=100
+            * (
+                gvg_cfg.dcs_cfg.readout_length + gvg_cfg.measure_buffer
+            ),  # 100MHz clock, this defines time after trigger plays
+        )
+
+        self.soc.set_trigger_source("qick")
+        meas = tune_electrostatics_programs_v2.Quack_2D(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
+        data = meas.acquire(self.soc, progress=True)
+        self.soc.reset_gens()
+        self.soc.quit_pvp()  # make sure it actually quits
+
+        x_pts = [
+            np.arange(gx_starts[i], gx_steps[i] * gx_expts, gx_steps[i])
+            for i in range(len(gx_gates))
+        ]
+        y_pts = [
+            np.arange(gy_starts[i], gy_steps[i] * gy_expts, gy_steps[i])
+            for i in range(len(gy_gates))
+        ]
+        assert data is not None
+        data_obj = spinqick_data.SpinqickData(
+            data,
+            gvg_cfg,
+            1,
+            1,
+            "_gvg_quack",
+            voltage_state=self.vdc.all_voltages,
+            prog=meas,
+        )
+        data_obj.add_axis(
+            [x_pts[i] for i in range(len(gx_gates))],
+            "x",
+            gx_gates,
+            gx_expts,
+            loop_no=0,
+            units=["V" for i in range(len(gx_gates))],
+        )
+        data_obj.add_axis(
+            [y_pts[i] for i in range(len(gy_gates))],
+            "y",
+            gy_gates,
+            gy_expts,
+            loop_no=1,
+            units=["V" for i in range(len(gy_gates))],
+        )
+
+        analysis.calculate_conductance(data_obj, self.adc_unit_conversions)
+
+        # plot the data
+        if self.plot:
+            x_label = ""
+            for gate in gx_gates:
+                x_label = x_label + " " + gate + ","
+            y_label = ""
+            for gate in gy_gates:
+                y_label = y_label + " " + gate + ","
+            plot_gvg_2d(
+                data_obj,
+                gx_gates[
+                    0
+                ],  # TODO figure out a better way to plot axes so its accurate for all gates
+                gy_gates[0],
+                x_label,
+                y_label,
+                adc_units=self.adc_units,
             )
 
         if self.save_data:

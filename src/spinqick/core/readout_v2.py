@@ -55,14 +55,18 @@ def readout_dcs(
     prog: asm_v2.QickProgramV2,
     cfg: dcs_model.DcsConfig,
     mode: Literal["sd_chop", "transdc"] = "sd_chop",
+    t_readout: float = 0,
+    pins: list[int] | None = None,
 ):
     """Basic dcs readout.
 
     Plays an AC signal and triggers the ADC to read out the signal.
     """
     ro_gen = cfg.sd_gen if mode == "sd_chop" else cfg.ac_gate_gen
-    prog.pulse(ch=ro_gen, name="sourcedrain", t=0)  # readout pulse
-    prog.trigger(ros=cfg.ro_chs, t=cfg.adc_trig_offset)  # trigger ADC #type: ignore
+    prog.pulse(ch=ro_gen, name="sourcedrain", t=t_readout)  # readout pulse
+    prog.trigger(
+        ros=cfg.ro_chs, t=cfg.adc_trig_offset + t_readout, pins=pins
+    )  # trigger ADC #type: ignore
     prog.delay_auto(cfg.slack_delay, gens=True, ros=True)  # type: ignore
 
 

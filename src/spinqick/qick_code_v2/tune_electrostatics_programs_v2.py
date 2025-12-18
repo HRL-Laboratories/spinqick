@@ -67,6 +67,26 @@ class GvG(asm_v2.AveragerProgramV2):
         self.wait_auto(t=0)
 
 
+class Quack_2D(asm_v2.AveragerProgramV2):
+    """To be used with QuACK precision voltage source setup."""
+
+    def _initialize(self, cfg: experiment_models.Quack2DConfig):
+        readout_v2.init_dcs(self, cfg.dcs_cfg, cfg.mode)
+
+        ### setup QuACK dacs here! ###
+        self.add_loop("x", cfg.x_points)
+        self.add_loop("y", cfg.y_points)
+        self.trigger(pins=[7], t=0)
+        self.delay_auto(cfg.dcs_cfg.readout_length + cfg.measure_buffer)  # type: ignore
+
+    def _body(self, cfg: experiment_models.Quack2DConfig):
+        readout_v2.readout_dcs(
+            self, cfg.dcs_cfg, mode=cfg.mode, t_readout=cfg.measure_buffer, pins=[7]
+        )
+        self.delay_auto(cfg.measure_buffer)  # type: ignore
+        self.wait_auto()  # in case the readout is still running at the end of the loop
+
+
 class GvGPat(asm_v2.AveragerProgramV2):
     """Runs GvG with an RF pulse on each step."""
 
