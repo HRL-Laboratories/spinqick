@@ -310,7 +310,7 @@ def add_wf_filter(
         wf_filt = signal.filtfilt(b, a, wf_filt_1)
         if filter_settings.fir_taps is not None:
             wf_filt = signal.convolve(wf_filt_1, filter_settings.fir_taps, mode="same")
-    elif filter_mode == "both":
+    elif filter_mode == "iir_2":
         if filter_settings.iir_2_taps is not None:
             iir_b, iir_a = filter_settings.iir_2_taps
         else:
