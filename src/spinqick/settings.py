@@ -28,7 +28,7 @@ class FilterSettings(pydantic_settings.BaseSettings):
     iir_taps: Tuple[List[float], List[float]] | None = None
     iir_2_taps: Tuple[List[float], List[float]] | None = None
     fir_taps: np.ndarray | None = None
-    apply_filter: Literal["both", "iir_1", "fir"] | None = None
+    apply_filter: Literal["both", "iir_1", "iir_2", "fir"] | None = None
 
 
 file_settings = FileSettings()
