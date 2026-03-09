@@ -4,9 +4,6 @@ import logging
 
 import numpy as np
 from qick import QickConfig
-from scipy import signal
-
-from spinqick.settings import filter_settings
 
 MIN_LENGTH = 3
 MAX_DAC_GAIN = 32766
