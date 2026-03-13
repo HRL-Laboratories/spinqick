@@ -1,6 +1,7 @@
 """Helpful functions and enums for commonly used key word arguements within spinqick functions."""
 
-from enum import StrEnum, Enum, auto
+from enum import Enum, StrEnum, auto
+
 from spinqick.helper_functions.filter_bank import (
     FilterBessel,
     FilterButterworth,

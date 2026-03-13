@@ -1,5 +1,4 @@
-"""
-File for managing filter types/settings and applying them to waveforms.
+"""File for managing filter types/settings and applying them to waveforms.
 
 Unit convention
 ~~~~~~~~~~~~~~~
@@ -71,10 +70,11 @@ class FilterPath:
     """Class that manages the filtering path for waveforms."""
 
     def __init__(self, filter_conf: list[dict] = None):
-        """
-        Instantiates a Filter_Path object that applies the sequence of
-        filters specified in the filter_config.
-        :param filter_conf: A list of dictionaries specifying the filters to apply and their settings.
+        """Instantiates a Filter_Path object that applies the sequence of filters specified in the
+        filter_config.
+
+        :param filter_conf: A list of dictionaries specifying the filters to apply and their
+            settings.
         """
         self.filter_path = []
         if filter_conf is not None:
@@ -91,10 +91,8 @@ class FilterPath:
         return f"{header}\n{steps}"
 
     def _create_filter(self, filter_dict: dict) -> Filter:
-        """
-        Takes the filter dictionary passed from the filter_config and instantiates a Filter class
-        representing that filter.
-        """
+        """Takes the filter dictionary passed from the filter_config and instantiates a Filter class
+        representing that filter."""
         from spinqick.helper_functions.spinqick_enums import FilterTypes
 
         params = filter_dict.copy()
@@ -106,9 +104,9 @@ class FilterPath:
             raise ValueError(f"Filter type {filter_type} not recognized.")
 
     def apply(self, wf, pre=None, post=None, **kwargs):
-        """
-        Applies the filter path to the waveform. It will optionally prepend and postpend
-        repeats of the wf to mitigate edge effects. The number of repeats is determined by the length of the longest filter in the path.
+        """Applies the filter path to the waveform. It will optionally prepend and postpend repeats
+        of the wf to mitigate edge effects. The number of repeats is determined by the length of the
+        longest filter in the path.
 
         The input waveform is expected in DAC counts (peak ≈ MAX_DAC_GAIN).
         It is normalised to [-1, 1] before the filter chain and scaled
@@ -159,8 +157,8 @@ class FilterPath:
 def load_filter_config() -> dict:
     """Read the filter config JSON from disk into the module-level cache.
 
-    Call this in DotExperiment.__init__ and update_local() so changes to
-    filter_config.json are picked up at each experiment run.
+    Call this in DotExperiment.__init__ and update_local() so changes to filter_config.json are
+    picked up at each experiment run.
     """
     global _filter_config
     if file_settings.filter_config is not None:
@@ -273,7 +271,10 @@ class FilterBessel(Filter):
         super().__init__(**kwargs)
 
     def apply(self, wf, **kwargs):
-        """Apply the Bessel filter.  Requires ``fs`` in Hz via kwargs."""
+        """Apply the Bessel filter.
+
+        Requires ``fs`` in Hz via kwargs.
+        """
         fs = kwargs.get("fs")
         if fs is None:
             raise ValueError(
@@ -305,7 +306,10 @@ class FilterButterworth(Filter):
         super().__init__(**kwargs)
 
     def apply(self, wf, **kwargs):
-        """Apply the Butterworth filter.  Requires ``fs`` in Hz via kwargs."""
+        """Apply the Butterworth filter.
+
+        Requires ``fs`` in Hz via kwargs.
+        """
         fs = kwargs.get("fs")
         if fs is None:
             raise ValueError(
@@ -385,7 +389,10 @@ class FilterFractionalDelay(Filter):
         super().__init__(**kwargs)
 
     def apply(self, wf, **kwargs):
-        """Apply the fractional delay.  Requires ``fs`` in Hz via kwargs."""
+        """Apply the fractional delay.
+
+        Requires ``fs`` in Hz via kwargs.
+        """
         fs = kwargs.get("fs")
         if fs is None:
             raise ValueError(
