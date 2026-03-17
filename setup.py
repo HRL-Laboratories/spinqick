@@ -1,5 +1,3 @@
-import os
-
 from setuptools import find_packages, setup
 
 with open("VERSION.txt", "r") as f:

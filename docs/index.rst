@@ -27,3 +27,4 @@ And our github `here <https://github.com/HRL-Laboratories/spinqick>`__
 
    getting_started
    qickquack
+   developers_guide
