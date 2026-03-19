@@ -4,7 +4,6 @@ import logging
 from typing import Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import (
@@ -97,15 +96,14 @@ class SystemCalibrations(dot_experiment.DotExperiment):
                         delay_sweep,
                         data_obj.analyzed_data[adc_idx][0],
                         data_obj.timestamp,
+                        title="adc %d" % adc_idx,
+                        ylabel="conductance (arbs)",
+                        xlabel="adc trigger delay (us)",
                     )
-                    plt.title("adc %d" % adc_idx)
-                    plt.ylabel("conductance (arbs)")
-                    plt.xlabel("adc trigger delay (us)")
                     fignums.append(fig.number)
         if self.save_data:
-            nc_file = data_obj.save_data()
+            plot_figs: list[int | str | None] = []
             if self.plot:
-                for num in fignums:
-                    nc_file.save_last_plot(fignum=num)
-            nc_file.close()
+                plot_figs = fignums
+            self.finalize(data_obj, fignums=plot_figs if plot_figs else None)
         return data_obj
