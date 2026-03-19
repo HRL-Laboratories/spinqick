@@ -10,6 +10,8 @@ from typing import Literal, TypeVar, Union
 
 import numpy as np
 
+from spinqick.backends import get_backend
+from spinqick.backends.data_protocols import DataHandler
 from spinqick.helper_functions import file_manager, spinqick_enums
 from spinqick.helper_functions.filter_bank import build_filter_map, load_filter_config
 from spinqick.models import (
@@ -307,10 +309,12 @@ class DotExperiment:
         datadir: str = file_settings.data_directory,
         save_data: bool = True,
         plot: bool = True,
+        backend: DataHandler | None = None,
     ):
         self.datadir = datadir
         self.save_data = save_data
         self.plot = plot
+        self.backend = backend if backend is not None else get_backend()
         self.data_path = file_manager.get_data_dir(datadir=datadir)
         file_manager.check_configs_exist()
         self.config_path = file_settings.dot_experiment_config
@@ -400,6 +404,34 @@ class DotExperiment:
         load_filter_config()
         build_filter_map(self.hardware_config)
         logger.info("updated local params")
+
+    def finalize(
+        self,
+        data,
+        fignums: list[int | str | None] | None = None,
+    ) -> None:
+        """Save data and plots via the configured backend, then close the handle.
+
+        :param data: A :class:`SpinqickData` or :class:`CompositeSpinqickData` to persist.
+        :param fignums: Optional list of matplotlib figure numbers to save alongside
+            the data.  ``None`` entries are passed through (backend saves the current
+            figure).  When *fignums* is ``None`` and ``self.plot`` is ``True``, a single
+            ``None`` fignum is saved (i.e. the current figure).
+        """
+        if not self.save_data:
+            return
+
+        backend = self.backend
+        handle = backend.save(data)
+
+        if self.plot:
+            if fignums is None:
+                backend.save_plot(handle, None)
+            else:
+                for fig in fignums:
+                    backend.save_plot(handle, fig)
+
+        backend.close(handle)
 
     def volts2dac(self, volts: G, gate: spinqick_enums.GateNames) -> G:
         """Convert voltage out of qick frontend to dac units.
