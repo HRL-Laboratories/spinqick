@@ -1,3 +1,9 @@
+v2.0.4
+======
+- fixed bug in make_config.py that places default filter_config.json in
+data directory
+- fixed filter mode logic for missed case: iir2
+
 v2.0.3
 ======
 - editing docs formatting
