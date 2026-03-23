@@ -29,7 +29,9 @@ class VoltageSource(Protocol):
     def set_voltage(self, ch: int, volts: float):
         pass
 
-    def set_sweep(self, ch: int, start: float, stop: float, length: float, num_steps: int):
+    def set_sweep(
+        self, ch: int, start: float, stop: float, length: float, num_steps: int
+    ):
         pass
 
     def trigger(self, ch: int):
@@ -52,7 +54,9 @@ class DummyDCSource:
     def set_voltage(self, ch: int, volts: float):
         pass
 
-    def set_sweep(self, ch: int, start: float, stop: float, length: float, num_steps: int):
+    def set_sweep(
+        self, ch: int, start: float, stop: float, length: float, num_steps: int
+    ):
         pass
 
     def trigger(self, ch: int):
@@ -221,10 +225,14 @@ class DCSource:
         conversion = channel_cfg.dc_conversion_factor
         vstart_converted = vstart * conversion
         if vstart > channel_cfg.max_v:
-            raise Exception("requested ramp start voltage would exceed max_v on gate %s" % gate)
+            raise Exception(
+                "requested ramp start voltage would exceed max_v on gate %s" % gate
+            )
         vstop_converted = vstop * conversion
         if vstart > channel_cfg.max_v:
-            raise Exception("requested ramp end voltage would exceed max_v on gate %s" % gate)
+            raise Exception(
+                "requested ramp end voltage would exceed max_v on gate %s" % gate
+            )
         else:
             self.vsource.set_sweep(
                 ch=ch,

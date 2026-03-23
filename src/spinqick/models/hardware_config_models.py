@@ -35,9 +35,9 @@ class SlowGate(pydantic.BaseModel):
     slow_dac_channel: int
     max_v: float
     gate_type: spinqick.helper_functions.spinqick_enums.GateTypes
-    crosscoupling: Dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None = (
-        None  # crosscoupling between gates
-    )
+    crosscoupling: (
+        Dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None
+    ) = None  # crosscoupling between gates
 
 
 class FastGate(SlowGate):
@@ -79,7 +79,9 @@ class HardwareConfigBase(pydantic.BaseModel):
     m2_readout: List[SourceDrainOut]
     rf_gen: int | None = None
     rf_trig_pin: int | None = None  # trigger pin for the RF switch
-    ac_gate: SourceDrainIn | None = None  # gate used to apply ac signal for transconductance
+    ac_gate: SourceDrainIn | None = (
+        None  # gate used to apply ac signal for transconductance
+    )
     channels: Dict[
         spinqick.helper_functions.spinqick_enums.GateNames,
         Union[FastGate, SlowGate, HemtGate, AuxGate],

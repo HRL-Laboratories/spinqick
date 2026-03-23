@@ -35,7 +35,11 @@ def convert_dcs_to_rfsoc(
     sd_gen = hardware_config.sd_in.qick_gen
     readout = getattr(hardware_config, readout_label)
     readout_channels = [r.qick_adc for r in readout]
-    ac_gen = hardware_config.ac_gate.qick_gen if hardware_config.ac_gate is not None else None
+    ac_gen = (
+        hardware_config.ac_gate.qick_gen
+        if hardware_config.ac_gate is not None
+        else None
+    )
     if dcs_config.ac_gate_gain is not None and hardware_config.ac_gate is not None:
         ac_gain = dcs_config.ac_gate_gain * hardware_config.ac_gate.unit_conversion
     else:
@@ -62,7 +66,8 @@ def convert_spam_to_rfsoc(
         duration = getattr(spam_config, spamstep).duration
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
-            spinqick_enums.GateNames, Union[spam_models.SpamRampDac, spam_models.SpamPulseDac]
+            spinqick_enums.GateNames,
+            Union[spam_models.SpamRampDac, spam_models.SpamPulseDac],
         ] = {}
         for gate in gate_list:
             assert isinstance(gate, spinqick_enums.GateNames)
@@ -83,7 +88,9 @@ def convert_spam_to_rfsoc(
             else:
                 new_pulse = spam_models.SpamPulseDac(gen=gen, coordinate=dac_units)
                 temp_gate_dict[gate] = new_pulse
-        new_spamstep = spam_models.SpamStepDac(duration=duration, gate_list=temp_gate_dict)
+        new_spamstep = spam_models.SpamStepDac(
+            duration=duration, gate_list=temp_gate_dict
+        )
         # new_dict[spamstep] = new_spamstep.model_dump()
         new_dict[spamstep] = new_spamstep
     # return spam_models.DefaultSpamDac(**new_dict)
@@ -149,7 +156,9 @@ def convert_exchange_gate_to_rfsoc(
         exchange_gate.name,
         hardware_config,
     )
-    eo_gains = qubit_models.ExchangeGains(idle_gain=idle_gain, exchange_gain=exchange_gain)
+    eo_gains = qubit_models.ExchangeGains(
+        idle_gain=idle_gain, exchange_gain=exchange_gain
+    )
     gate_config = hardware_config.channels[exchange_gate.name]
     assert isinstance(gate_config, hardware_config_models.FastGate)
     gen = gate_config.qick_gen
@@ -311,8 +320,10 @@ class DotExperiment:
                 full_experiment_model.ExperimentConfig,
             )
         )
-        self.hardware_config: hardware_config_models.HardwareConfig = file_manager.load_config_json(
-            self.hardware_path, hardware_config_models.HardwareConfig
+        self.hardware_config: hardware_config_models.HardwareConfig = (
+            file_manager.load_config_json(
+                self.hardware_path, hardware_config_models.HardwareConfig
+            )
         )
         self.dcs: Literal["M1", "M2"] = "M1"  # selects which M gate is being used
         self.qubit: str = ""  # select which qubit the user is currently measuring
@@ -320,7 +331,9 @@ class DotExperiment:
     @property
     def experiment_config(self):
         """Experiment config in rfsoc units and including generator numbers."""
-        return convert_experiment_to_rfsoc(self.experiment_config_params, self.hardware_config)
+        return convert_experiment_to_rfsoc(
+            self.experiment_config_params, self.hardware_config
+        )
 
     # TODO implement setter
 
@@ -354,7 +367,9 @@ class DotExperiment:
     def adc_units(self):
         """Returns a list of units."""
         sd_list = (
-            self.hardware_config.m1_readout if self.dcs == "M1" else self.hardware_config.m2_readout
+            self.hardware_config.m1_readout
+            if self.dcs == "M1"
+            else self.hardware_config.m2_readout
         )
         units = [s.adc_units for s in sd_list]
         return units
@@ -363,7 +378,9 @@ class DotExperiment:
     def adc_unit_conversions(self):
         """Returns a list of unit conversions."""
         sd_list = (
-            self.hardware_config.m1_readout if self.dcs == "M1" else self.hardware_config.m2_readout
+            self.hardware_config.m1_readout
+            if self.dcs == "M1"
+            else self.hardware_config.m2_readout
         )
         units = [s.unit_conversion for s in sd_list]
         return units

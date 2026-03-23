@@ -17,7 +17,7 @@ def make_default_configs(
     exp_path = os.environ["SPINQICK_DOT_EXPERIMENT_CONFIG"]
     data_dir = os.environ["SPINQICK_DATA_DIRECTORY"]
     if os.environ["SPINQICK_FILTER_CONFIG"]:
-        filter_path = os.environ["SPINQICK_DATA_DIRECTORY"]
+        filter_path = os.environ["SPINQICK_FILTER_CONFIG"]
     else:
         filter_path = None
     ### copy the default files into the specified config directory

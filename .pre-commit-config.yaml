@@ -1,70 +1,71 @@
 repos:
   - repo: local
     hooks:
-      - id: black
-        name: black
-        description: "Black: The uncompromising Python code formatter"
-        entry: black
+      - id: ruff
+        name: ruff
+        description: "Run 'ruff' for extremely fast Python linting"
+        entry: ruff check --force-exclude
         language: system
+        types_or: [python, pyi, jupyter]
+        args: []
         require_serial: true
-        types: [python]
-      - id: docformatter
-        name: docformatter
-        description: 'Formats docstrings to follow PEP 257.'
-        entry: docformatter
-        args: [-i]
+      - id: ruff-format
+        name: ruff-format
+        description: "Run 'ruff format' for extremely fast Python formatting"
+        entry: ruff format --force-exclude
         language: system
-        types: [python]
-      - id: isort
-        name: isort
-        entry: isort
+        types_or: [python, pyi, jupyter]
+        args: []
         require_serial: true
+      - id: mypy
+        name: mypy
+        description: Run mypy
+        entry: mypy
         language: system
-        types: [python]
-        args: ['--filter-files']
+        types_or: [python, pyi]
+        args: ["--scripts-are-modules"]
+        require_serial: true
       - id: check-merge-conflict
-        name: Check for merge conflicts
+        name: check-merge-conflict
         description: Check for files that contain merge conflict strings.
         entry: check-merge-conflict
         language: system
         types: [text]
       - id: check-json
-        name: Check JSON
-        description: This hook checks json files for parseable syntax.
+        name: check-json
+        description: This hook checks json files for parsable syntax.
         entry: check-json
         language: system
         types: [json]
       - id: check-toml
-        name: Check Toml
-        description: This hook checks toml files for parseable syntax.
+        name: check-toml
+        description: This hook checks toml files for parsable syntax.
         entry: check-toml
         language: system
         types: [toml]
       - id: check-yaml
-        name: Check Yaml
-        description: This hook checks yaml files for parseable syntax.
+        name: check-yaml
+        description: This hook checks yaml files for parsable syntax.
         entry: check-yaml
         language: system
         types: [yaml]
-        exclude: 'conda/meta.yaml'
-        args: [--unsafe]
+        args: [--allow-multiple-documents, --unsafe]
+        exclude: "conda/meta.yaml"
       - id: end-of-file-fixer
-        name: Fix End of Files
+        name: end-of-file-fixer
         description: Ensures that a file is either empty, or ends with one newline.
         entry: end-of-file-fixer
         language: system
         types: [text]
-        stages: [pre-commit, pre-push, manual]
       - id: mixed-line-ending
-        name: Mixed line ending
+        name: mixed-line-ending
         description: Replaces or checks mixed line ending
         entry: mixed-line-ending
         language: system
         types: [text]
       - id: trailing-whitespace
-        name: Trim Trailing Whitespace
+        name: trailing-whitespace
         description: This hook trims trailing whitespace.
         entry: trailing-whitespace-fixer
         language: system
         types: [text]
-        stages: [pre-commit, pre-push, manual]

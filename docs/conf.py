@@ -7,13 +7,18 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "spinQICK"
-copyright = "2025, HRL Laboratories"
-author = "HRL Laboratories"
+copyright = "2026, HRL Laboratories LLC"
+author = "HRL Laboratories LLC"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["autoapi.extension", "sphinx.ext.napoleon", "sphinx_rtd_theme"]
+extensions = [
+    "autoapi.extension",
+    "sphinx.ext.napoleon",
+    "sphinx_rtd_theme",
+    "sphinx_copybutton",
+]
 autodoc_typehints = "description"
 autoapi_dirs = ["../src"]
 templates_path = ["_templates"]

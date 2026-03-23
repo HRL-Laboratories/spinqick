@@ -1,4 +1,4 @@
-name: spinqick
+name: spinqick_dev
 dependencies:
     - lmfit
     - matplotlib

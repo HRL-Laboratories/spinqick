@@ -14,9 +14,17 @@ from lmfit import models
 from qick.asm_v2 import QickProgramV2
 
 from spinqick.core import dot_experiment, spinqick_data
-from spinqick.helper_functions import analysis, hardware_manager, plot_tools, spinqick_enums
+from spinqick.helper_functions import (
+    analysis,
+    hardware_manager,
+    plot_tools,
+    spinqick_enums,
+)
 from spinqick.models import experiment_models, hardware_config_models
-from spinqick.qick_code_v2 import system_calibrations_programs_v2, tune_electrostatics_programs_v2
+from spinqick.qick_code_v2 import (
+    system_calibrations_programs_v2,
+    tune_electrostatics_programs_v2,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +86,9 @@ def plot_g_1d(
         for i, adc_data in enumerate(data.analyzed_data):
             x_data = data.axes["x"]["sweeps"][gate]["data"]
             y_data = adc_data
-            fig = plot_tools.plot1_simple(x_data, y_data[0], data.timestamp, dset_label=dset_label)
+            fig = plot_tools.plot1_simple(
+                x_data, y_data[0], data.timestamp, dset_label=dset_label
+            )
             plt.xlabel(x_label)
             plt.ylabel(y_label)
             plt.title(" adc %d" % i)
@@ -144,9 +154,13 @@ def analyze_cross_caps(
         elif fit_type == "abs_min":
             center_data[x_pt] = xdata[np.argmin(ydata)]
     line = models.LinearModel()
-    pars = line.guess(center_data, x=data_obj.axes["x"]["sweeps"][slow_gate_dict]["data"])
+    pars = line.guess(
+        center_data, x=data_obj.axes["x"]["sweeps"][slow_gate_dict]["data"]
+    )
     try:
-        out = line.fit(center_data, pars, x=data_obj.axes["x"]["sweeps"][slow_gate_dict]["data"])
+        out = line.fit(
+            center_data, pars, x=data_obj.axes["x"]["sweeps"][slow_gate_dict]["data"]
+        )
         slope = out.params["slope"].value
         logger.info("slope is %f", slope)
     except Exception as exc:
@@ -171,7 +185,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         voltage state each time data is saved.
     """
 
-    def __init__(self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs):
+    def __init__(
+        self, soccfg, soc, voltage_source: hardware_manager.VoltageSource, **kwargs
+    ):
         super().__init__(**kwargs)
         self.soccfg = soccfg
         self.soc = soc
@@ -327,7 +343,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 [compensate],
             )
             _, delta_vm_start, _ = self.vdc.calculate_compensated_voltage(
-                [gx_start for i in range(len(gx_gates))] + [gy_start for i in range(len(gy_gates))],
+                [gx_start for i in range(len(gx_gates))]
+                + [gy_start for i in range(len(gy_gates))],
                 gx_gates + gy_gates,
                 [compensate],
             )
@@ -430,7 +447,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             for gy_gate in gy_gates:
                 self.vdc.arm_sweep(gy_gate)
                 self.vdc.digital_trigger(gy_gate)
-                time.sleep(slow_dac_step_len * 1e-6 * n_vy)  # leave some time to ramp down
+                time.sleep(
+                    slow_dac_step_len * 1e-6 * n_vy
+                )  # leave some time to ramp down
 
         for k, gx_gate in enumerate(gx_gates):
             v_final = self.vdc.get_dc_voltage(gx_gate)
@@ -461,7 +480,11 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         if isinstance(compensate, str):
             vm = self.vdc.get_dc_voltage(compensate)
             self.vdc.program_ramp(
-                vm, vm_0, self.hardware_config.dac_settings.t_min_slow_dac * 1e-6, n_vy, compensate
+                vm,
+                vm_0,
+                self.hardware_config.dac_settings.t_min_slow_dac * 1e-6,
+                n_vy,
+                compensate,
             )
             self.vdc.arm_sweep(compensate)
             self.vdc.digital_trigger(compensate)
@@ -558,7 +581,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             mode=mode,
         )
 
-        meas = tune_electrostatics_programs_v2.GvG(self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg)
+        meas = tune_electrostatics_programs_v2.GvG(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
 
         expt_name = "_gvg_dc"
         data_obj = self.gvg_arb_prog(
@@ -680,7 +705,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             mode=mode,
         )
 
-        meas = tune_electrostatics_programs_v2.GvG(self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg)
+        meas = tune_electrostatics_programs_v2.GvG(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
 
         expt_name = "_cross_caps"
         data_obj = self.gvg_arb_prog(
@@ -808,7 +835,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         self.vdc.arm_sweep(m_dot)
 
         # Start a Vy sweep at a Vx increment and store the data
-        meas = tune_electrostatics_programs_v2.GvG(self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg)
+        meas = tune_electrostatics_programs_v2.GvG(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
         data = meas.acquire(self.soc, progress=False)
         assert data
         data_obj = spinqick_data.SpinqickData(
@@ -866,7 +895,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             fwhm = 0
             center = 0
             halfmax = 0
-            logger.error("fit failed, setting m to initial value, error %s", exc, exc_info=True)
+            logger.error(
+                "fit failed, setting m to initial value, error %s", exc, exc_info=True
+            )
 
         if self.plot:
             # plot the data
@@ -923,7 +954,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             v_start: float = 0.0
             v_stop = max_v
             v_sweep_up = np.linspace(v_start, v_stop, num_points)
-            self.vdc.program_ramp(v_start, v_stop, slow_dac_step_len * 1e-6, num_points, gate_label)
+            self.vdc.program_ramp(
+                v_start, v_stop, slow_dac_step_len * 1e-6, num_points, gate_label
+            )
             self.vdc.arm_sweep(gate_label)
 
             # Start a Vy sweep at a Vx increment and store the data
@@ -952,7 +985,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             v_start = max_v
             v_stop = 0
             v_sweep_down = np.linspace(v_start, v_stop, num_points)
-            self.vdc.program_ramp(v_start, v_stop, slow_dac_step_len * 1e-6, num_points, gate_label)
+            self.vdc.program_ramp(
+                v_start, v_stop, slow_dac_step_len * 1e-6, num_points, gate_label
+            )
             self.vdc.arm_sweep(gate_label)
             meas = tune_electrostatics_programs_v2.GvG(
                 self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
@@ -1091,7 +1126,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         for gate_label in gates:
             self.vdc.arm_sweep(gate_label)
 
-        meas = tune_electrostatics_programs_v2.GvG(self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg)
+        meas = tune_electrostatics_programs_v2.GvG(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
         data = meas.acquire(self.soc, progress=False)
         assert data
         qd = spinqick_data.SpinqickData(
@@ -1103,7 +1140,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             voltage_state=self.vdc.all_voltages,
             prog=meas,
         )
-        qd.add_axis(vsweeps, "x", gates, num_points, units=["V" for i in range(len(gates))])
+        qd.add_axis(
+            vsweeps, "x", gates, num_points, units=["V" for i in range(len(gates))]
+        )
         if mode == "sd_chop":
             analysis.calculate_conductance(qd, self.adc_unit_conversions)
         else:
@@ -1220,7 +1259,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
             step_time = 2 * self.dcs_config.length + 4 * measure_buffer
 
-            self.vdc.program_ramp(dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate)
+            self.vdc.program_ramp(
+                dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate
+            )
             self.vdc.arm_sweep(gate)
 
             meas = system_calibrations_programs_v2.BasebandVoltageCalibration(
@@ -1347,7 +1388,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
             step_time = 2 * self.dcs_config.length + 4 * measure_buffer
 
-            self.vdc.program_ramp(dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate)
+            self.vdc.program_ramp(
+                dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate
+            )
             self.vdc.arm_sweep(gate)
 
             meas = system_calibrations_programs_v2.BasebandVoltageCalibration(
@@ -1450,7 +1493,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         step_time = self.dcs_config.length + measure_buffer + pulse_time
 
-        self.vdc.program_ramp(dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate)
+        self.vdc.program_ramp(
+            dc_sweep[0], dc_sweep[-1], step_time * 1e-6, p_dc_npts, gate
+        )
         self.vdc.arm_sweep(gate)
 
         meas = system_calibrations_programs_v2.HSATune(
