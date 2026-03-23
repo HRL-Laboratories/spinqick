@@ -44,7 +44,9 @@ class NonEquilibriumCell(asm_v2.AveragerProgramV2):
         readout_v2.init_psb(self, cfg.qubit.ro_cfg.psb_cfg)
         eo_pulses.setup_eo_gens(self, cfg.qubit)
         if cfg.axis == "z" and not cfg.t1j:
-            eo_pulses.setup_pi_pulse(self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine")
+            eo_pulses.setup_pi_pulse(
+                self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine"
+            )
         eo_pulses.setup_evol_sweep(
             self, cfg.qubit, [cfg.axis], {cfg.axis: {"px": x_gains, "py": y_gains}}
         )
@@ -56,13 +58,17 @@ class NonEquilibriumCell(asm_v2.AveragerProgramV2):
     def _body(self, cfg: experiment_models.NonEquilibriumConfig):
         x_axis_cfg: qubit_models.ExchangeAxisConfig = getattr(cfg.qubit, cfg.axis)
         idle_time = eo_pulses.round_up_pulses(x_axis_cfg.times.idle_time, self.soccfg)
-        exchange_time = eo_pulses.round_up_pulses(x_axis_cfg.times.exchange_time, self.soccfg)
+        exchange_time = eo_pulses.round_up_pulses(
+            x_axis_cfg.times.exchange_time, self.soccfg
+        )
         if cfg.qubit.ro_cfg.reference:
             readout_v2.psb_fm(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.psb_fe(self, cfg.qubit.ro_cfg.psb_cfg)
         self.delay_auto(idle_time / 2)
         if cfg.axis == "z" and not cfg.t1j:
-            eo_pulses.play_pi(self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine")
+            eo_pulses.play_pi(
+                self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine"
+            )
             t_pulse = exchange_time + idle_time * 1.5
         else:
             t_pulse = 0
@@ -134,7 +140,9 @@ class Fingerprint(asm_v2.AveragerProgramV2):
                 [spinqick_enums.ExchangeAxis.N, spinqick_enums.ExchangeAxis.Z],
                 {"z": {"px": px_gains, "py": py_gains, "x": x_gains}},
             )
-            eo_pulses.setup_pi_pulse(self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine")
+            eo_pulses.setup_pi_pulse(
+                self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine"
+            )
         else:
             eo_pulses.setup_evol_sweep(
                 self,
@@ -150,13 +158,17 @@ class Fingerprint(asm_v2.AveragerProgramV2):
     def _body(self, cfg: experiment_models.FingerprintConfig):
         x_axis_cfg: qubit_models.ExchangeAxisConfig = getattr(cfg.qubit, cfg.axis)
         idle_time = eo_pulses.round_up_pulses(x_axis_cfg.times.idle_time, self.soccfg)
-        exchange_time = eo_pulses.round_up_pulses(x_axis_cfg.times.exchange_time, self.soccfg)
+        exchange_time = eo_pulses.round_up_pulses(
+            x_axis_cfg.times.exchange_time, self.soccfg
+        )
         if cfg.qubit.ro_cfg.reference:
             readout_v2.psb_fm(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.psb_fe(self, cfg.qubit.ro_cfg.psb_cfg)
         self.delay_auto(0)
         if cfg.axis == "z":
-            eo_pulses.play_pi(self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine")
+            eo_pulses.play_pi(
+                self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine"
+            )
             t_pulse = exchange_time + idle_time * 1.5
         else:
             t_pulse = 0
@@ -190,7 +202,9 @@ class Nosc(asm_v2.AveragerProgramV2):
         eo_pulses.setup_eo_gens(self, cfg.qubit)
         eo_pulses.setup_evol(self, cfg.qubit, [cfg.axis])
         if cfg.axis == "z":
-            eo_pulses.setup_pi_pulse(self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine")
+            eo_pulses.setup_pi_pulse(
+                self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine"
+            )
         self.add_loop("full_avgs", cfg.full_avgs)
         self.add_loop("pulse_time", cfg.expts)
         self.add_loop("shots", cfg.point_avgs)
@@ -199,7 +213,9 @@ class Nosc(asm_v2.AveragerProgramV2):
         t_sweep = asm_v2.QickSweep1D("pulse_time", cfg.start, cfg.stop)
         axis_cfg: qubit_models.ExchangeAxisConfig = getattr(cfg.qubit, cfg.axis)
         idle_time = eo_pulses.round_up_pulses(axis_cfg.times.idle_time, self.soccfg)
-        exchange_time = eo_pulses.round_up_pulses(axis_cfg.times.exchange_time, self.soccfg)
+        exchange_time = eo_pulses.round_up_pulses(
+            axis_cfg.times.exchange_time, self.soccfg
+        )
         if cfg.qubit.ro_cfg.reference:
             readout_v2.psb_fm(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.psb_fe(self, cfg.qubit.ro_cfg.psb_cfg)
@@ -218,7 +234,9 @@ class Nosc(asm_v2.AveragerProgramV2):
         return_name = gate_name + "_" + "idle_return"
         self.pulse(gen, return_name, t=t_sweep)  # type: ignore
         if cfg.axis == "z":
-            eo_pulses.play_pi(self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=t_sweep + t_pulse)
+            eo_pulses.play_pi(
+                self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=t_sweep + t_pulse
+            )
         self.delay_auto(idle_time)
         readout_v2.psb_em(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
 
@@ -247,7 +265,9 @@ class CourseCalComp(asm_v2.AveragerProgramV2):
                 {"z": {"x": x_gains}},
                 cfg.n_pulses,
             )
-            eo_pulses.setup_pi_pulse(self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine")
+            eo_pulses.setup_pi_pulse(
+                self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine"
+            )
         else:
             eo_pulses.setup_evol_sweep_comp(
                 self, cfg.qubit, [cfg.axis], {cfg.axis: {"x": x_gains}}, cfg.n_pulses
@@ -259,13 +279,17 @@ class CourseCalComp(asm_v2.AveragerProgramV2):
     def _body(self, cfg: experiment_models.CourseCalConfig):
         x_axis_cfg: qubit_models.ExchangeAxisConfig = getattr(cfg.qubit, cfg.axis)
         idle_time = eo_pulses.round_up_pulses(x_axis_cfg.times.idle_time, self.soccfg)
-        exchange_time = eo_pulses.round_up_pulses(x_axis_cfg.times.exchange_time, self.soccfg)
+        exchange_time = eo_pulses.round_up_pulses(
+            x_axis_cfg.times.exchange_time, self.soccfg
+        )
         if cfg.qubit.ro_cfg.reference:
             readout_v2.psb_fm(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.psb_fe(self, cfg.qubit.ro_cfg.psb_cfg)
         self.delay_auto(idle_time / 2)
         if cfg.axis == "z":
-            eo_pulses.play_pi(self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine")
+            eo_pulses.play_pi(
+                self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine"
+            )
             t_pulse = exchange_time + idle_time
         else:
             t_pulse = 0
@@ -305,7 +329,9 @@ class FineCalComp(asm_v2.AveragerProgramV2):
                 n_pulses=cfg.n_pulses,
                 ptime_res=cfg.t_res,
             )
-            eo_pulses.setup_pi_pulse(self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine")
+            eo_pulses.setup_pi_pulse(
+                self, cfg.qubit, [spinqick_enums.ExchangeAxis.N], "fine"
+            )
         else:
             eo_pulses.setup_evol_comp(
                 self,
@@ -320,13 +346,17 @@ class FineCalComp(asm_v2.AveragerProgramV2):
     def _body(self, cfg: experiment_models.FineCalConfig):
         x_axis_cfg: qubit_models.ExchangeAxisConfig = getattr(cfg.qubit, cfg.axis)
         idle_time = eo_pulses.round_up_pulses(x_axis_cfg.times.idle_time, self.soccfg)
-        exchange_time = eo_pulses.round_up_pulses(x_axis_cfg.times.exchange_time, self.soccfg)
+        exchange_time = eo_pulses.round_up_pulses(
+            x_axis_cfg.times.exchange_time, self.soccfg
+        )
         if cfg.qubit.ro_cfg.reference:
             readout_v2.psb_fm(self, cfg.qubit.ro_cfg.psb_cfg, cfg.qubit.ro_cfg.dcs_cfg)
         readout_v2.psb_fe(self, cfg.qubit.ro_cfg.psb_cfg)
         self.delay_auto(idle_time / 2)
         if cfg.axis == "z":
-            eo_pulses.play_pi(self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine")
+            eo_pulses.play_pi(
+                self, spinqick_enums.ExchangeAxis.N, cfg.qubit, t=0, t_res="fine"
+            )
             t_pulse = exchange_time + idle_time
         else:
             t_pulse = 0
