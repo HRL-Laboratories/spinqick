@@ -1,16 +1,13 @@
-v2.0.5
-======
-- Added a developers guide to docs
-- updated pre-commit config to use RUFF, removed Black and Doc Formatter
-- Changed docs requirements.in and requirements.txt to reflect above
-- Added copying to code blocks using sphinx-copybutton
-- Updated copyright date to 2026, fixed a few HRL attributions
-
 v2.0.4
 ======
 - fixed bug in make_config.py that places default filter_config.json in
 data directory
 - fixed filter mode logic for missed case: iir2
+- Added a developers guide to docs
+- updated pre-commit config to use RUFF, removed Black and Doc Formatter
+- Changed docs requirements.in and requirements.txt to reflect above
+- Added copying to code blocks using sphinx-copybutton
+- Updated copyright date to 2026, fixed a few HRL attributions
 
 v2.0.3
 ======
