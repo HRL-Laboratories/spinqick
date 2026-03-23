@@ -2,9 +2,9 @@
 Developers Guide
 ================
 
-While spinQICK is MIT licensed, allowing for unfettered modification and distribution, we do invite those who would like to improve spinQICK to contribute! In addition to standard issues, 
+While spinQICK is MIT licensed, allowing for unfettered modification and distribution, we do invite those who would like to improve spinQICK to contribute! In addition to standard issues,
 this may also include the creation of new submodules, and the addition of tools and features shared across existing modules. This guide will explain the steps and expectations to make contributions
-to spinQICK. These guidelines are based off of the existing best-practices imposed by HRL-Laboratories LLC, and are themselves a combination of established best practices for code contribution. 
+to spinQICK. These guidelines are based off of the existing best-practices imposed by HRL-Laboratories LLC, and are themselves a combination of established best practices for code contribution.
 Before any contribution, there are a few key checks one should make to ensure that spinQICK and any contribution made maintains its open-source status.
 
 
@@ -54,5 +54,3 @@ SpinQICK is setup to automatically provide pre-commit checks using the ``pre-com
 .. code-block:: bash
 
     pre-commit run --all-files
-
-
