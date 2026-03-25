@@ -69,7 +69,7 @@ class Filter(ABC):
 class FilterPath:
     """Class that manages the filtering path for waveforms."""
 
-    def __init__(self, filter_conf: list[dict] = None):
+    def __init__(self, filter_conf: list[dict] | None = None):
         """Instantiates a Filter_Path object that applies the sequence of filters specified in the
         filter_config.
 
@@ -177,7 +177,7 @@ def load_filter_config() -> dict:
 def build_filter_map(hardware_config) -> dict[int, "FilterPath"]:
     """Build a mapping of qick_gen number → FilterPath from the cached filter config.
 
-    Uses three levels of indirection from filter_config.json:
+    Resolves filters through three lookups in filter_config.json:
       - gate_scheme: maps gate names or gate types to a path name
       - paths: maps path names to ordered lists of filter names
       - filters: maps filter names to filter type + params
@@ -187,8 +187,8 @@ def build_filter_map(hardware_config) -> dict[int, "FilterPath"]:
     no filtering for that gate.
 
     Call this after load_filter_config() and after hardware_config is loaded.
-    The resulting map is cached at module level so add_predistorted_envelope
-    can access it via get_filter_path(ch) without parameter threading.
+    The resulting map is cached at module level so it can be accessed
+    via get_filter_path(ch) without parameter threading.
 
     :param hardware_config: HardwareConfig instance with channel definitions.
     :return: dict mapping qick_gen int to FilterPath.
@@ -252,10 +252,6 @@ class FilterBessel(Filter):
     Config example::
 
         {"type": "BESSEL", "order": 4, "cutoff": 500e6, "zero_phase": true}
-
-    Extra keys are forwarded to ``filtfilt``/``lfilter``::
-
-        {"type": "BESSEL", "order": 4, "cutoff": 500e6, "padlen": 100}
 
     :param order: Filter order (default 4).
     :param cutoff: –3 dB cutoff frequency in Hz.
