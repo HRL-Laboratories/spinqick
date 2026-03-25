@@ -187,8 +187,13 @@ Nonlinear corrections
 Building filter paths
 ---------------------
 
-A filter path is an ordered chain of filters.  Order matters — the
-output of each filter feeds into the next.  Here are common patterns.
+A filter path is an ordered chain of filters. Consider finishing the chain
+with renormalization or clipping to ensure the output stays within bounds for filters
+that may produce overshoot.
+Occasionally, filters performed on full-gain waveforms can run into precision
+issues when the gain is checked against max_gain (returning something like 32766
+is greater than 32766), but this is resolved with the clip or renormalization filter.
+Here are common patterns.
 
 Band-limited plunger pulse
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -233,7 +238,7 @@ so the exponential V→J mapping recovers the intended J(t) profile:
 Fractional-delay with pre-smoothing on one gate
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Band-limit first (so the waveform is properly oversampled for the
+Band-limit first (so the waveform edge is properly oversampled for the
 interpolation kernel), then apply the sub-sample shift:
 
 .. code-block:: json
