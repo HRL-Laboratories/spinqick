@@ -102,6 +102,7 @@ def setup_pi_pulse(
                 pulse_name,
                 1,
                 idata_array,
+                stdysel=qick_enums.Stdysel.LAST,
                 predistort=True,
                 filter_sandwich=False,
             )
@@ -115,6 +116,7 @@ def setup_pi_pulse(
                 pulse_name,
                 1,
                 idata_array,
+                stdysel=qick_enums.Stdysel.LAST,
                 predistort=False,
                 filter_sandwich=False,
             )
@@ -129,6 +131,7 @@ def setup_pi_pulse(
                 return_name,
                 idle_gain,
                 idle,
+                stdysel=qick_enums.Stdysel.LAST,
                 predistort=False,
                 filter_sandwich=False,
             )
@@ -648,11 +651,23 @@ def setup_1q_cliffords(
         label = label + clifford
     if label + "_n" not in prog.pulses:
         awg_pulse.add_arb_wf(
-            prog, n_x.gen, label + "_n", 1, n_wf_total, predistort=True
+            prog,
+            n_x.gen,
+            label + "_n",
+            1,
+            n_wf_total,
+            stdysel=qick_enums.Stdysel.LAST,
+            predistort=True,
         )
     if label + "_z" not in prog.pulses:
         awg_pulse.add_arb_wf(
-            prog, z_x.gen, label + "_z", 1, z_wf_total, predistort=True
+            prog,
+            z_x.gen,
+            label + "_z",
+            1,
+            z_wf_total,
+            stdysel=qick_enums.Stdysel.LAST,
+            predistort=True,
         )
 
 
