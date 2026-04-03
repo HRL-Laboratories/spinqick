@@ -1,3 +1,7 @@
+v2.0.5
+======
+- fixed bug in setup_pi_pulse and setup_1q_clifford that defaults stdysel to ZERO instead of LAST
+
 v2.0.4
 ======
 - fixed bug in make_config.py that places default filter_config.json in
