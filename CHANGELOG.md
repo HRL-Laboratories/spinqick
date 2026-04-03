@@ -1,8 +1,12 @@
-v2.0.5
+v2.0.6
 ======
 - software waveform envelope filtering module added as a configurable filter bank
 - example filter_config.json added
 - filtering documented in readthedocs
+
+v2.0.5
+======
+- fixed bug in setup_pi_pulse and setup_1q_clifford that defaults stdysel to ZERO instead of LAST
 
 v2.0.4
 ======
