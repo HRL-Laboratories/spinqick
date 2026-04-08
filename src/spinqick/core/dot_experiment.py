@@ -11,6 +11,7 @@ from typing import Literal, TypeVar, Union
 import numpy as np
 
 from spinqick.helper_functions import file_manager, spinqick_enums
+from spinqick.helper_functions.filter_bank import build_filter_map, load_filter_config
 from spinqick.models import (
     dcs_model,
     full_experiment_model,
@@ -327,6 +328,8 @@ class DotExperiment:
         )
         self.dcs: Literal["M1", "M2"] = "M1"  # selects which M gate is being used
         self.qubit: str = ""  # select which qubit the user is currently measuring
+        load_filter_config()
+        build_filter_map(self.hardware_config)
 
     @property
     def experiment_config(self):
@@ -386,7 +389,7 @@ class DotExperiment:
         return units
 
     def update_local(self):
-        """Update local config parameters from hardware and experiment config files."""
+        """Update local config parameters from hardware, filtering, and experiment config files."""
 
         self.hardware_config = file_manager.load_config_json(
             self.hardware_path, hardware_config_models.HardwareConfig
@@ -394,6 +397,8 @@ class DotExperiment:
         self.experiment_config_params = file_manager.load_config_json(
             self.config_path, full_experiment_model.ExperimentConfig
         )
+        load_filter_config()
+        build_filter_map(self.hardware_config)
         logger.info("updated local params")
 
     def volts2dac(self, volts: G, gate: spinqick_enums.GateNames) -> G:
