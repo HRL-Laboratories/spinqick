@@ -1,6 +1,95 @@
 {
-    "iir_taps": null,
-    "iir_2_taps": null,
-    "fir_taps": null,
-    "apply_filter": null
+    "filters": {
+        "bessel_smooth": {
+            "type": "BESSEL",
+            "order": 4,
+            "cutoff": 500e6,
+            "zero_phase": true
+        },
+        "butterworth_smooth": {
+            "type": "BUTTERWORTH",
+            "order": 2,
+            "cutoff": 500e6,
+            "zero_phase": true
+        },
+        "clip": {
+            "type": "CLIP",
+            "limit": 1.0
+        },
+        "fir_compensate": {
+            "type": "FIR",
+            "taps": [0.1, 0.2, 0.4, 0.2, 0.1]
+        },
+        "fd_shift": {
+            "type": "FRACTIONAL_DELAY",
+            "delay_ns": 0.05,
+            "num_taps": 41,
+            "window": "hamming"
+        },
+        "gaussian_edge": {
+            "type": "GAUSSIAN",
+            "alpha": 0.3,
+            "sigma": 3.0
+        },
+        "gaussian_full": {
+            "type": "GAUSSIAN",
+            "alpha": 1.0,
+            "sigma": 2.5
+        },
+        "iir_predistort": {
+            "type": "IIR",
+            "b": [0.05],
+            "a": [1.0, -0.95]
+        },
+        "log_correction": {
+            "type": "LOG_CORRECTION",
+            "A": 50
+        },
+        "renormalize": {
+            "type": "RENORMALIZE",
+            "target": 1.0
+        },
+        "savgol_smooth": {
+            "type": "SAVITZKY_GOLAY",
+            "window_length": 11,
+            "polyorder": 3
+        },
+        "tukey_window": {
+            "type": "TUKEY",
+            "alpha": 0.25
+        },
+        "tukey_exchange": {
+            "type": "TUKEY",
+            "alpha": 0.5
+        }
+    },
+    "paths": {
+        "plunger_predistort": [
+            "iir_predistort", "butterworth_smooth", "clip"
+        ],
+        "plunger_bandlimit": [
+            "bessel_smooth", "clip"
+        ],
+        "exchange_tukey": [
+            "tukey_exchange", "log_correction", "clip"
+        ],
+        "exchange_gaussian": [
+            "gaussian_edge", "log_correction", "clip"
+        ],
+        "fd_shifted": [
+            "bessel_smooth", "fd_shift", "clip"
+        ],
+        "savgol_only": [
+            "savgol_smooth", "renormalize"
+        ],
+        "windowed": [
+            "tukey_window"
+        ]
+    },
+    "gate_scheme": {
+        "plunger": "plunger_bandlimit",
+        "exchange": "exchange_tukey",
+        "aux": "none",
+        "X2": "windowed"
+    }
 }

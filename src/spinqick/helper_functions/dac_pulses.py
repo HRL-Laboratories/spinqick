@@ -4,9 +4,6 @@ import logging
 
 import numpy as np
 from qick import QickConfig
-from scipy import signal
-
-from spinqick.settings import filter_settings
 
 MIN_LENGTH = 3
 MAX_DAC_GAIN = 32766
@@ -263,77 +260,6 @@ def calculate_ramp_sweep(
     ) / slope  # length of full ramp in microseconds
     ramp = generate_ramp(start_sweep, stop_r_final, np.abs(length_full), gen, soccfg)
     return ramp, envelope_incr
-
-
-def add_wf_filter(
-    wf: np.ndarray,
-    pre: int | None = None,
-    post: int | None = None,
-    iir_butter: float = 1e9,
-    fir_butter: float = 80e6,
-):
-    """Apply filters to the waveforms as specified in file_settings.
-
-    :param wf: waveform to apply filter to
-    :param pre: adds a specified number of identical waveforms before the waveform being filtered,
-        and then applies the filter. The script then removes the extra waveforms.
-    :param post: adds a specified number of identical waveforms after the waveform being filtered,
-        and then applies the filter. The script then removes the extra waveforms.
-    :param iir_butter: apply an additional butterworth filter to the iir filtered data to round the
-        baseband pulse edges
-    :param fir_butter: apply an additional butterworth filter to the fir filtered data to round the
-        baseband pulse edges
-    """
-    wf_full = wf
-    if pre is not None:
-        for n in range(pre):
-            wf_full = np.concatenate((wf, wf_full))
-        if post is not None:
-            for n in range(post):
-                wf_full = np.concatenate((wf_full, wf))
-    elif post is not None:
-        for n in range(post):
-            wf_full = np.concatenate((wf_full, wf))
-    filter_mode = filter_settings.apply_filter
-    if filter_mode is None:
-        wf_filt = wf_full
-    elif filter_mode == "iir_1" or filter_mode == "both":
-        wf_rounded = wf_full
-        if filter_settings.iir_taps is not None:
-            iir_b, iir_a = filter_settings.iir_taps
-        else:
-            raise Exception(" no iir_1 taps specified ")
-        wf_filt_1 = signal.lfilter(iir_b, iir_a, wf_rounded)
-        b, a = signal.butter(
-            1, iir_butter, fs=6.881e9
-        )  # apply a lpf to round the pulse edges
-        wf_filt = signal.filtfilt(b, a, wf_filt_1)
-        if filter_settings.fir_taps is not None:
-            wf_filt = signal.convolve(wf_filt_1, filter_settings.fir_taps, mode="same")
-    elif filter_mode == "iir_2":
-        if filter_settings.iir_2_taps is not None:
-            iir_b, iir_a = filter_settings.iir_2_taps
-        else:
-            raise Exception(" no iir_2 taps specified ")
-        wf_filt = signal.lfilter(iir_b, iir_a, wf_full)
-    elif filter_mode == "fir":
-        if filter_settings.fir_taps is not None:
-            b, a = signal.butter(1, fir_butter, fs=6.881e9)
-            wf_rounded = signal.lfilter(b, a, wf_full)
-            wf_filt = signal.convolve(wf_rounded, filter_settings.fir_taps, mode="same")
-        else:
-            raise Exception(" no fir taps specified ")
-    if pre is not None:
-        pre_length = len(wf) * pre
-    else:
-        pre_length = 0
-    if post is not None:
-        post_length = -1 * len(wf) * post
-        wf_final = wf_filt[pre_length:post_length]
-    else:
-        wf_final = wf_filt[pre_length:]
-
-    return wf_final
 
 
 def offset_sine_wave(

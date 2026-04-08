@@ -1,3 +1,9 @@
+v2.0.5
+======
+- software waveform envelope filtering module added as a configurable filter bank
+- example filter_config.json added
+- filtering documented in readthedocs
+
 v2.0.4
 ======
 - fixed bug in make_config.py that places default filter_config.json in

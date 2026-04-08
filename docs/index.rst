@@ -28,3 +28,9 @@ And our github `here <https://github.com/HRL-Laboratories/spinqick>`__
    getting_started
    qickquack
    developers_guide
+
+.. toctree::
+   :maxdepth: 2
+   :caption: User Guide:
+
+   guides/filter_configuration
