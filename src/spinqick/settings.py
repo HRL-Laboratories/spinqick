@@ -1,10 +1,8 @@
 """User specific settings."""
 
 import logging
-from pathlib import Path
-from typing import List, Literal, Optional, Tuple
+from typing import Optional
 
-import numpy as np
 import pydantic_settings
 
 logger = logging.getLogger(__name__)
@@ -24,16 +22,4 @@ class FileSettings(pydantic_settings.BaseSettings):
     filter_config: Optional[str] = None
 
 
-class FilterSettings(pydantic_settings.BaseSettings):
-    iir_taps: Tuple[List[float], List[float]] | None = None
-    iir_2_taps: Tuple[List[float], List[float]] | None = None
-    fir_taps: np.ndarray | None = None
-    apply_filter: Literal["both", "iir_1", "iir_2", "fir"] | None = None
-
-
 file_settings = FileSettings()
-if file_settings.filter_config is not None:
-    json_string = Path(file_settings.filter_config).read_text()
-    filter_settings = FilterSettings.model_validate_json(json_string)
-else:
-    filter_settings = FilterSettings()

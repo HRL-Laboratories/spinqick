@@ -1,6 +1,20 @@
 """Helpful functions and enums for commonly used key word arguements within spinqick functions."""
 
-from enum import StrEnum, auto
+from enum import Enum, StrEnum, auto
+
+from spinqick.helper_functions.filter_bank import (
+    FilterBessel,
+    FilterButterworth,
+    FilterClip,
+    FilterFIR,
+    FilterFractionalDelay,
+    FilterGaussian,
+    FilterIIR,
+    FilterLogCorrection,
+    FilterRenormalize,
+    FilterSavitzkyGolay,
+    FilterTukey,
+)
 
 
 class AverageLevel(StrEnum):
@@ -13,6 +27,20 @@ class ExchangeAxis(StrEnum):
     N = auto()
     M = auto()
     Z = auto()
+
+
+class FilterTypes(Enum):
+    BESSEL = FilterBessel
+    BUTTERWORTH = FilterButterworth
+    CLIP = FilterClip
+    FIR = FilterFIR
+    FRACTIONAL_DELAY = FilterFractionalDelay
+    GAUSSIAN = FilterGaussian
+    IIR = FilterIIR
+    LOG_CORRECTION = FilterLogCorrection
+    RENORMALIZE = FilterRenormalize
+    SAVITZKY_GOLAY = FilterSavitzkyGolay
+    TUKEY = FilterTukey
 
 
 class GateNames(StrEnum):
