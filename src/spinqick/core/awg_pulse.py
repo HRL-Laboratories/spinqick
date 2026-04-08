@@ -4,6 +4,7 @@ import numpy as np
 from qick import QickConfig, asm_v2
 
 from spinqick.helper_functions import dac_pulses, qick_enums
+from spinqick.helper_functions.filter_bank import get_filter_path
 
 
 def add_predistorted_envelope(
@@ -30,7 +31,14 @@ def add_predistorted_envelope(
     else:
         pre = None
         post = None
-    idata_filt = dac_pulses.add_wf_filter(idata, pre, post)
+
+    filter_path = get_filter_path(ch)
+    if filter_path is not None:
+        fs = prog.soccfg["gens"][ch]["f_dds"]  # get the board's sampling rate
+        idata_filt = filter_path.apply(idata, pre=pre, post=post, fs=fs)
+    else:
+        idata_filt = idata
+
     prog.add_envelope(ch, name, idata_filt)
 
 
