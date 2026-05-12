@@ -1,4 +1,10 @@
-v2.0.6
+v2.0.6-dev1
+======
+- refactored data handling backend to allow for switchable data backends
+- made netcdf4 default data backend and added qcodes backend
+- added documentation on the data structures and backends
+
+v2.0.6-dev0
 ======
 - software waveform envelope filtering module added as a configurable filter bank
 - example filter_config.json added
