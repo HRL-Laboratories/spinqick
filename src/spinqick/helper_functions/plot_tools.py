@@ -110,15 +110,28 @@ def plot2_simple(
     data: np.ndarray,
     timestamp: int,
     cbar_label: str = "DCS conductance, arbs",
+    *,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    title: str | None = None,
 ):
     """Basic 2D plot.
 
     :param data: 2d array of data which matches the dimensions of xarray and yarray
+    :param xlabel: optional x-axis label
+    :param ylabel: optional y-axis label
+    :param title: optional plot title (shown in addition to the timestamp)
     """
     fig = plt.figure()
     plt.pcolormesh(xarray, yarray, data, shading="nearest", cmap="binary_r")
     plt.colorbar(label=cbar_label)
     plt.title("t: %d" % timestamp, loc="right", fontdict={"fontsize": 6})
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if title is not None:
+        plt.title(title)
     return fig
 
 
@@ -128,9 +141,18 @@ def plot1_simple(
     timestamp: int,
     dset_label: str | None = None,
     new_figure: bool = True,
+    *,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    title: str | None = None,
     **kwargs,
 ):
-    """Basic 1D plot."""
+    """Basic 1D plot.
+
+    :param xlabel: optional x-axis label
+    :param ylabel: optional y-axis label
+    :param title: optional plot title (shown in addition to the timestamp)
+    """
     if new_figure:
         fig = plt.figure()
     else:
@@ -140,19 +162,36 @@ def plot1_simple(
     else:
         plt.plot(xarray, data, label=dset_label, **kwargs)
     plt.title("t: %d" % timestamp, loc="right", fontdict={"fontsize": 6})
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    if ylabel is not None:
+        plt.ylabel(ylabel)
+    if title is not None:
+        plt.title(title)
     return fig
 
 
-def plot2_psb(sqd: spinqick_data.PsbData, x_gate: str, y_gate: str):
+def plot2_psb(
+    sqd: spinqick_data.PsbData,
+    x_gate: str,
+    y_gate: str,
+    *,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    title: str | None = None,
+):
     """Plot psb data 2D plot.
 
     :param sqd: the spinqick data object containing the data
     :param x_gate: the name of the swept x-axis parameter from the spinqick.axes dictionary.
     :param y_gate: the name of the swept y-axis parameter from the spinqick.axes dictionary.
+    :param xlabel: optional x-axis label
+    :param ylabel: optional y-axis label
+    :param title: optional plot title
     """
-    xarray = sqd.axes["x"]["sweeps"][x_gate]["data"]
+    xarray = sqd.axes["x"][x_gate]["data"]
     xloop = sqd.axes["x"]["loop_no"]
-    yarray = sqd.axes["y"]["sweeps"][y_gate]["data"]
+    yarray = sqd.axes["y"][y_gate]["data"]
     yloop = sqd.axes["y"]["loop_no"]
     if sqd.threshed_data is not None:
         plot_data = sqd.threshed_data
@@ -170,19 +209,37 @@ def plot2_psb(sqd: spinqick_data.PsbData, x_gate: str, y_gate: str):
         else:
             plot_data_adj = adc_data
         fig = plot2_simple(
-            xarray, yarray, plot_data_adj, sqd.timestamp, cbar_label=plt_type
+            xarray,
+            yarray,
+            plot_data_adj,
+            sqd.timestamp,
+            cbar_label=plt_type,
+            xlabel=xlabel,
+            ylabel=ylabel,
+            title=title,
         )
 
     return fig
 
 
-def plot1_psb(sqd: spinqick_data.PsbData, x_gate: str, **kwargs):
+def plot1_psb(
+    sqd: spinqick_data.PsbData,
+    x_gate: str,
+    *,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    title: str | None = None,
+    **kwargs,
+):
     """Plot psb data 1d plot.
 
     :param sqd: the spinqick data object containing the data
     :param x_gate: the name of the swept x-axis parameter, typically a gate name.
+    :param xlabel: optional x-axis label
+    :param ylabel: optional y-axis label
+    :param title: optional plot title
     """
-    xarray = sqd.axes["x"]["sweeps"][x_gate]["data"]
+    xarray = sqd.axes["x"][x_gate]["data"]
     if sqd.threshed_data is not None:
         plot_data = sqd.threshed_data
     elif sqd.difference_data is not None:
@@ -191,6 +248,14 @@ def plot1_psb(sqd: spinqick_data.PsbData, x_gate: str, **kwargs):
         assert sqd.analyzed_data is not None
         plot_data = [data[0] for data in sqd.analyzed_data]
     for adc_data in plot_data:
-        fig = plot1_simple(xarray, adc_data, sqd.timestamp, **kwargs)
+        fig = plot1_simple(
+            xarray,
+            adc_data,
+            sqd.timestamp,
+            xlabel=xlabel,
+            ylabel=ylabel,
+            title=title,
+            **kwargs,
+        )
 
     return fig

@@ -124,7 +124,13 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         if self.plot:
             fig = plot_tools.plot1_simple(
-                freq, asd_tot, full_dataset.timestamp, marker="."
+                freq,
+                asd_tot,
+                full_dataset.timestamp,
+                marker=".",
+                xlabel="freq (Hz)",
+                ylabel="ADCrms/RtHz",
+                title="mbias = %.4f" % m_bias,
             )
             plt.xscale("log")
             plt.yscale("log")
@@ -137,12 +143,11 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         self.vdc.set_dc_voltage(current_m_bias, m_dot)
         if self.save_data:
-            nc_file = full_dataset.basic_composite_save()
+            plot_figs: list[int | str | None] = []
             if self.plot:
-                nc_file.save_last_plot(fignum=full_plot_num)
-            nc_file.close()
-            logger.info("data saved at %s", full_dataset.data_file)
-        return qd
+                plot_figs.append(full_plot_num)
+            self.finalize(full_dataset, fignums=plot_figs if plot_figs else None)
+        return qd  # TODO: should this be full_dataset?
 
     @dot_experiment.updater
     def dcs_stability(
@@ -311,7 +316,13 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 freq_plot_num = freq_fig.number
         if self.plot:
             fig = plot_tools.plot2_simple(
-                times, vm_sweep, np.transpose(data_array), full_dataset.timestamp
+                times,
+                vm_sweep,
+                np.transpose(data_array),
+                full_dataset.timestamp,
+                title=m_dot,
+                ylabel=" %s voltage (V)" % m_dot,
+                xlabel="time in seconds",
             )
             plt.plot(times, center_data)
             plt.title(m_dot)
@@ -320,13 +331,15 @@ class MeasureNoise(dot_experiment.DotExperiment):
             full_plot_num = fig.number
 
         if self.save_data:
-            nc_file = full_dataset.basic_composite_save()
+            plot_figs_stability: list[int | str | None] = []
             if self.plot:
-                nc_file.save_last_plot(fignum=full_plot_num)
+                plot_figs_stability.append(full_plot_num)
                 if frequency_fit:
-                    nc_file.save_last_plot(fignum=freq_plot_num)
-            nc_file.close()
-            logger.info("data saved at %s", full_dataset.data_file)
+                    plot_figs_stability.append(freq_plot_num)
+            self.finalize(
+                full_dataset,
+                fignums=plot_figs_stability if plot_figs_stability else None,
+            )
         return full_dataset
 
     @dot_experiment.updater
