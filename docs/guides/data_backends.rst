@@ -105,7 +105,7 @@ QCoDeS backend
 
 The :class:`~spinqick.backends.qcodes_backend.QCoDesHandler` stores data in a
 QCoDeS SQLite database.  This enables browsing results in
-`plottr-inspectr <https://github.com/plottr/plottr>`__, which provides an
+`plottr-inspectr <https://github.com/toolsforexperiments/plottr>`__, which provides an
 interactive GUI for filtering and plotting past runs.
 
 **When to use it:**
