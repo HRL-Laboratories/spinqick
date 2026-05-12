@@ -4,7 +4,6 @@ import logging
 from typing import Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import (
@@ -141,13 +140,16 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             assert ro_cfg.threshold
             analysis.calculate_thresholded(sq_data, [ro_cfg.threshold])
         if self.plot:
-            plot_tools.plot2_psb(sq_data, px_gate, py_gate)
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
-        return data
+            plot_tools.plot2_psb(
+                sq_data,
+                px_gate,
+                py_gate,
+                xlabel=f"{px_gate} (DAC units)",
+                ylabel=f"{py_gate} (DAC units)",
+                title="idle scan with RF",
+            )
+        self.finalize(sq_data)
+        return sq_data
 
     @dot_experiment.updater
     def rf_freq_scan(
@@ -220,15 +222,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "frequency")
-            plt.xlabel("applied frequency (MHz)")
-            plt.ylabel("singlet probability")
-            plt.title("frequency scan")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "frequency",
+                xlabel="applied frequency (MHz)",
+                ylabel="singlet probability",
+                title="frequency scan",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -310,15 +311,15 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
-            plot_tools.plot2_psb(sq_data, "frequency", "time")
-            plt.ylabel("time (us)")
-            plt.xlabel("frequency (MHz)")
-            plt.title("rabi chevron")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot2_psb(
+                sq_data,
+                "frequency",
+                "time",
+                xlabel="frequency (MHz)",
+                ylabel="time (us)",
+                title="rabi chevron",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -381,15 +382,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "time")
-            plt.xlabel("evolution time (microseconds)")
-            plt.ylabel("singlet probability")
-            plt.title("time rabi")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "time",
+                xlabel="evolution time (microseconds)",
+                ylabel="singlet probability",
+                title="time rabi",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -453,15 +453,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "gain")
-            plt.xlabel("rf gain (dac units)")
-            plt.ylabel("singlet probability")
-            plt.title("amplitude rabi")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "gain",
+                xlabel="rf gain (dac units)",
+                ylabel="singlet probability",
+                title="amplitude rabi",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -544,15 +543,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "gates")
-            plt.xlabel("gates")
-            plt.ylabel("singlet probability")
-            plt.title("allxy")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "gates",
+                xlabel="gates",
+                ylabel="singlet probability",
+                title="allxy",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -617,15 +615,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "phase")
-            plt.xlabel("applied rf phase offset (radians)")
-            plt.ylabel("singlet probability")
-            plt.title("phase control")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "phase",
+                xlabel="applied rf phase offset (radians)",
+                ylabel="singlet probability",
+                title="phase control",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -687,15 +684,14 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "time")
-            plt.xlabel("pulse delay time (us)")
-            plt.ylabel("singlet probability")
-            plt.title("ramsey fringe")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "time",
+                xlabel="pulse delay time (us)",
+                ylabel="singlet probability",
+                title="ramsey fringe",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -777,15 +773,15 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
-            plot_tools.plot2_psb(sq_data, "frequency", "time")
-            plt.ylabel("time between pulses (us)")
-            plt.xlabel("frequency (MHz)")
-            plt.title("ramsey")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot2_psb(
+                sq_data,
+                "frequency",
+                "time",
+                xlabel="frequency (MHz)",
+                ylabel="time between pulses (us)",
+                title="ramsey",
+            )
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -849,13 +845,12 @@ class LDSingleQubit(dot_experiment.DotExperiment):
             qubit_cfg.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(sq_data, "time")
-            plt.xlabel("evolution time (microseconds)")
-            plt.ylabel("singlet probability")
-            plt.title("spin echo")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+            plot_tools.plot1_psb(
+                sq_data,
+                "time",
+                xlabel="evolution time (microseconds)",
+                ylabel="singlet probability",
+                title="spin echo",
+            )
+        self.finalize(sq_data)
         return sq_data
