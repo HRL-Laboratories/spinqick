@@ -232,11 +232,7 @@ class PsbSetup(dot_experiment.DotExperiment):
                     except RuntimeError:
                         logger.error("fit failed")
 
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+        self.finalize(sq_data)
 
         return sq_data
         """TODO 2d sweep of readout parameters for optimizing SNR."""
@@ -342,20 +338,20 @@ class PsbSetup(dot_experiment.DotExperiment):
                 average_level=spinqick_enums.AverageLevel.BOTH,
             )
         if self.plot:
-            plot_tools.plot2_psb(sq_data, px_gate, py_gate)
-            plt.ylabel(py_gate + "(V)")
-            plt.xlabel(px_gate + "(V)")
-            plt.title("idle cell scan")
+            plot_tools.plot2_psb(
+                sq_data,
+                px_gate,
+                py_gate,
+                xlabel=px_gate + "(V)",
+                ylabel=py_gate + "(V)",
+                title="idle cell scan",
+            )
             qubits = self.experiment_config_params.qubit_configs
             assert qubits is not None
             idle_x = qubits[self.qubit].ro_cfg.psb_cfg.idle.gate_list[px_gate].voltage
             idle_y = qubits[self.qubit].ro_cfg.psb_cfg.idle.gate_list[py_gate].voltage
             plt.plot([idle_x], [idle_y], "o")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -453,20 +449,20 @@ class PsbSetup(dot_experiment.DotExperiment):
             final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
-            plot_tools.plot2_psb(sq_data, px_gate, py_gate)
-            plt.ylabel(py_gate + "(V)")
-            plt.xlabel(px_gate + "(V)")
-            plt.title("flush window scan")
+            plot_tools.plot2_psb(
+                sq_data,
+                px_gate,
+                py_gate,
+                xlabel=px_gate + "(V)",
+                ylabel=py_gate + "(V)",
+                title="flush window scan",
+            )
             qubits = self.experiment_config_params.qubit_configs
             assert qubits is not None
             f_x = qubits[self.qubit].ro_cfg.psb_cfg.flush.gate_list[px_gate].voltage
             f_y = qubits[self.qubit].ro_cfg.psb_cfg.flush.gate_list[py_gate].voltage
             plt.plot([f_x], [f_y], "o")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+        self.finalize(sq_data)
         return sq_data
 
     @dot_experiment.updater
@@ -566,18 +562,18 @@ class PsbSetup(dot_experiment.DotExperiment):
             final_avg_lvl=spinqick_enums.AverageLevel.BOTH,
         )
         if self.plot:
-            plot_tools.plot2_psb(sq_data, px_gate, py_gate)
-            plt.ylabel(py_gate + "(V)")
-            plt.xlabel(px_gate + "(V)")
-            plt.title("meas window scan")
+            plot_tools.plot2_psb(
+                sq_data,
+                px_gate,
+                py_gate,
+                xlabel=px_gate + "(V)",
+                ylabel=py_gate + "(V)",
+                title="meas window scan",
+            )
             qubits = self.experiment_config_params.qubit_configs
             assert qubits is not None
             f_x = qubits[self.qubit].ro_cfg.psb_cfg.meas.gate_list[px_gate].voltage
             f_y = qubits[self.qubit].ro_cfg.psb_cfg.meas.gate_list[py_gate].voltage
             plt.plot([f_x], [f_y], "o")
-        if self.save_data:
-            nc = sq_data.save_data()
-            if self.plot:
-                nc.save_last_plot()
-            nc.close()
+        self.finalize(sq_data)
         return sq_data

@@ -110,7 +110,7 @@ def calculate_electron_temperature(
 ):
     """Calculates the electron temperature from a 1D sweep over a loading line."""
 
-    x_data = data.axes["x"]["sweeps"][plunger_gate]["data"]
+    x_data = data.axes["x"][plunger_gate]["data"]
     y_data = data.analyzed_data
     assert y_data is not None
     sigmoid, out = fit_sigmoid(x_data, y_data[0][0])

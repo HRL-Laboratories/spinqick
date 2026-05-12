@@ -163,19 +163,47 @@ def load_qickprogram(fname: str, soccfg: QickConfig):
     return prog
 
 
+def json_to_qickprog(data_obj, soccfg):
+    """Load a JSON-encoded program stored on a data object into a QickProgramV2.
+
+    :param data_obj: Any object with a ``prog`` attribute containing a JSON string.
+    :param soccfg: The QICK system-on-chip configuration.
+    """
+    try:
+        prog_dict = helpers.json2progs(data_obj.prog)
+        qick_prog = asm_v2.QickProgramV2(soccfg)
+        qick_prog.load_prog(prog_dict)
+        data_obj.prog = qick_prog
+    except TypeError:
+        logger.warning("program attribute is not in json format")
+    except Exception:
+        logger.exception("failed to load qick program from json")
+
+
 # pylint: disable = no-member
 class SaveData(netCDF4.Dataset):
     """Save data in netcdf4 format.
 
     Check out their documentation for information at
     https://unidata.github.io/netcdf4-python/.
-    Don't forget to run .close()
-    on the Dataset object after you've finished adding data.
+
+    Don't forget to run .close() on the Dataset object after
+    you've finished adding data.
+
+    Can be used as a context manager to automatically close
+    the file using a with-statement if it works in your code structure.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.filename_prefix = self.get_filename_prefix()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     def get_filename_prefix(self):
         """Returns the filename prefix for the given netcdf object."""
@@ -219,8 +247,8 @@ class SaveData(netCDF4.Dataset):
         """Adds a dimension to netCDF object which corresponds to multiple swept variables.
 
         :param dim_label: name of the dimension associate with this axis
-        :param sweep_dict: provide the axis dictionary. This needs to be in the format that is used
-            for spinqickdata axis dictionaries.
+        :param sweep_dict: provide the axis dictionary.  Accepts the format produced
+            by :meth:`SpinqickData.add_axis`
         :param group_path: if the dataset is in a specific folder within the netcdf file, specify
             the name of this folder.
         :param dtype: datatype of the data provided. This is in a numpy dtype form.
@@ -228,16 +256,19 @@ class SaveData(netCDF4.Dataset):
         dim = dim_label + "_dim"
         if dim not in self.dimensions:
             self.createDimension(dim, sweep_dict["size"])
-        swept_vars = sweep_dict["sweeps"]
-        for sweep_var in list(swept_vars.keys()):
+        # Extract sweep variable entries: dicts that contain a "data" key
+        swept_vars = {
+            k: v for k, v in sweep_dict.items() if isinstance(v, dict) and "data" in v
+        }
+        for sweep_var, var_info in swept_vars.items():
             if group_path is None:
                 var_obj = self.createVariable(sweep_var, dtype, (dim))
             else:
                 group_obj: netCDF4.Group = self[group_path]
                 var_obj = group_obj.createVariable(sweep_var, dtype, (dim))
-            var_obj[:] = swept_vars[sweep_var]["data"]
-            if swept_vars[sweep_var]["units"] is not None:
-                var_obj.units = swept_vars[sweep_var]["units"]
+            var_obj[:] = var_info["data"]
+            if var_info["units"] is not None:
+                var_obj.units = var_info["units"]
 
     def add_dataset(
         self,
