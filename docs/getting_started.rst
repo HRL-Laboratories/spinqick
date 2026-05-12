@@ -71,7 +71,7 @@ the demo notebooks folder of the repository.  You'll need to set a few environme
     setx SPINQICK_FILTER_CONFIG "your filter config file path"
 
 
-The config variables need to be filenames (they don't necessarily need to exist yet), for example `SPINQICK_HARDWARE_CONFIG` could be :file:C:/data/hardware_cfg.json``. After these variables are set, you'll need to restart the terminal you're using (if you're using a text editor like VS code, you'll need to restart that window as well). Next open an ipython terminal in your spinqick environment and run:
+The config variables need to be filenames (they don't necessarily need to exist yet), for example `SPINQICK_HARDWARE_CONFIG` could be "C:/data/hardware_cfg.json". After these variables are set, you'll need to restart the terminal you're using (if you're using a text editor like VS code, you'll need to restart that window as well). Next open an ipython terminal in your spinqick environment and run:
 
 ::
 
