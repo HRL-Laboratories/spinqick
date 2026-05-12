@@ -66,19 +66,19 @@ the demo notebooks folder of the repository.  You'll need to set a few environme
 ::
 
     setx SPINQICK_DATA_DIRECTORY "your directory path"
-    setx SPINQICK_HARDWARE_CONFIG "your hardware config path"
-    setx SPINQICK_EXPERIMENT_CONFIG "your experiment config path"
-    setx SPINQICK_FILTER_CONFIG "your filter config path"
+    setx SPINQICK_HARDWARE_CONFIG "your hardware config file path"
+    setx SPINQICK_DOT_EXPERIMENT_CONFIG "your experiment config file path"
+    setx SPINQICK_FILTER_CONFIG "your filter config file path"
 
 
-After these variables are set, you can run:
+The config variables need to be filenames (they don't necessarily need to exist yet), for example `SPINQICK_HARDWARE_CONFIG` could be :file:C:/data/hardware_cfg.json``. After these variables are set, you'll need to restart the terminal you're using (if you're using a text editor like VS code, you'll need to restart that window as well). Next open an ipython terminal in your spinqick environment and run:
 
 ::
 
     from spinqick.make_config import make_default_configs
     make_default_configs()
 
-in an ipython terminal within your spinqick environment, which will copy a set of default config files to the file paths specified by `SPINQICK_HARDWARE_CONFIG`, `SPINQICK_EXPERIMENT_CONFIG` and `SPINQICK_FILTER_CONFIG`.
+This will copy a set of default config files to the file paths specified by `SPINQICK_HARDWARE_CONFIG`, `SPINQICK_EXPERIMENT_CONFIG` and `SPINQICK_FILTER_CONFIG`.
 You are now ready to run the rest of the demo notebooks, which will provide more information about the config files and how to set them up!
 
 
