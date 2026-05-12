@@ -291,14 +291,14 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                 average_level=spinqick_enums.AverageLevel.BOTH,
             )
         if self.plot:
-            plot_tools.plot2_psb(
-                sq_data,
-                ne_config.gx_gate,
-                ne_config.gy_gate,
-                xlabel=ne_config.gx_gate + "(V)",
-                ylabel=ne_config.gy_gate + "(V)",
-            )
-        self.finalize(sq_data)
+            plot_tools.plot2_psb(sq_data, ne_config.gx_gate, ne_config.gy_gate)
+            plt.ylabel(ne_config.gy_gate + "(V)")
+            plt.xlabel(ne_config.gx_gate + "(V)")
+        if self.save_data:
+            nc = sq_data.save_data()
+            if self.plot:
+                nc.save_last_plot()
+            nc.close()
         return sq_data
 
     @dot_experiment.updater
@@ -405,15 +405,15 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             )
 
         if self.plot:
-            plot_tools.plot2_psb(
-                sq_data,
-                ne_config.gx_gate,
-                ne_config.gy_gate,
-                xlabel=ne_config.gx_gate + "(V)",
-                ylabel="detuning (V)",
-                title="fingerprint",
-            )
-        self.finalize(sq_data)
+            plot_tools.plot2_psb(sq_data, ne_config.gx_gate, ne_config.gy_gate)
+            plt.ylabel("detuning (V)")
+            plt.xlabel(ne_config.gx_gate + "(V)")
+            plt.title("fingerprint")
+        if self.save_data:
+            nc = sq_data.save_data()
+            if self.plot:
+                nc.save_last_plot()
+            nc.close()
         return sq_data
 
     @dot_experiment.updater
@@ -484,13 +484,14 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         )
 
         if self.plot:
-            plot_tools.plot1_psb(
-                sq_data,
-                "time",
-                xlabel="pulse time (us)",
-                title="time rabi",
-            )
-        self.finalize(sq_data)
+            plot_tools.plot1_psb(sq_data, "time")
+            plt.xlabel("pulse time (us)")
+            plt.title("time rabi")
+        if self.save_data:
+            nc = sq_data.save_data()
+            if self.plot:
+                nc.save_last_plot()
+            nc.close()
         return sq_data
 
     @dot_experiment.updater
@@ -561,14 +562,15 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             eo1qubit.ro_cfg.threshold,
         )
         if self.plot:
-            plot_tools.plot1_psb(
-                sq_data,
-                "time",
-                xlabel="time at idle (us)",
-                ylabel="singlet probability",
-                title="fid",
-            )
-        self.finalize(sq_data)
+            plot_tools.plot1_psb(sq_data, "time")
+            plt.xlabel("time at idle (us)")
+            plt.ylabel("singlet probability")
+            plt.title("fid")
+        if self.save_data:
+            nc = sq_data.save_data()
+            if self.plot:
+                nc.save_last_plot()
+            nc.close()
         return sq_data
 
     @dot_experiment.updater
@@ -656,18 +658,15 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                 eo_analysis.course_cal_fit(sq_data, n_pulses, x_cfg.name)
             )
         if self.plot:
-            fig = plot_tools.plot1_psb(
-                sq_data,
-                x_cfg.name,
-                xlabel=x_cfg.name + "(V)",
-                title="coursecal",
-            )
+            fig = plot_tools.plot1_psb(sq_data, x_cfg.name)
             if fit:
                 plt.plot(
                     np.linspace(start, stop, points), d_filt, label="filtered data"
                 )
                 plt.plot(v_array, p0_array, "*", label="extrema")
                 plt.legend()
+            plt.xlabel(x_cfg.name + "(V)")
+            plt.title("coursecal")
             fignum = fig.number
             if fit:
                 fig = plt.figure()
@@ -678,12 +677,12 @@ class EOSingleQubit(dot_experiment.DotExperiment):
                 plt.xlabel("angle (radians)")
                 fig2 = fig.number
         if self.save_data:
-            plot_figs: list[int | str | None] = []
+            nc = sq_data.save_data()
             if self.plot:
-                plot_figs.append(fignum)
+                nc.save_last_plot(fignum)
                 if fit:
-                    plot_figs.append(fig2)
-            self.finalize(sq_data, fignums=plot_figs if plot_figs else None)
+                    nc.save_last_plot(fig2)
+            nc.close()
         return sq_data
 
     @dot_experiment.updater
@@ -780,5 +779,8 @@ class EOSingleQubit(dot_experiment.DotExperiment):
             theta_array, v_array, avged_data, n_pulses, finecal_composite.timestamp
         )
         finecal_composite.analyzed_data = theta_fit
-        self.finalize(finecal_composite, fignums=list(fignum))
+        if self.save_data:
+            nc = finecal_composite.basic_composite_save()
+            nc.save_last_plot(fignum=fignum[0])
+            nc.save_last_plot(fignum=fignum[1])
         return finecal_composite

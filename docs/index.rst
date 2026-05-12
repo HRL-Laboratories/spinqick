@@ -34,5 +34,3 @@ And our github `here <https://github.com/HRL-Laboratories/spinqick>`__
    :caption: User Guide:
 
    guides/filter_configuration
-   guides/data_backends
-   guides/custom_backends
