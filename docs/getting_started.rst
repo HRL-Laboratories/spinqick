@@ -42,9 +42,9 @@ A complete kit can be customized and purchased `here <https://www.realdigital.or
 Installation
 ============
 
-You will need to clone both `spinqick <https://github.com/HRL-Laboratories/spinqick>`__ and `our fork of qick <https://github.com/HRL-Laboratories/qick>`__ from github.
+You will need to clone both `spinQICK <https://github.com/HRL-Laboratories/spinqick>`__ and `our fork of QICK <https://github.com/HRL-Laboratories/qick>`__ from github.
 
-Navigate to your local spinqick repository and run
+Navigate to your local spinQICK repository and run
 
 ::
 
@@ -52,14 +52,14 @@ Navigate to your local spinqick repository and run
     conda activate spinqick
     pip install .
 
-now navigate to the qick repository and run
+now navigate to the QICK repository and run
 
 ::
 
     pip install .
 
 You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
-the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinqick where to look for your specific configuration files.  In windows, this entails running these commands in command prompt:
+the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinQICK where to look for your specific configuration files.  In windows, this entails running these commands in command prompt (you may need administrative priviledges to set variables depending on your organization's policies):
 
 .. _environment-variables:
 
@@ -86,11 +86,11 @@ You are now ready to run the rest of the demo notebooks, which will provide more
 Firmware
 ========
 
-The recommended firmware bit and hwh files can be found `here <https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-01_216_tprocv2r25_rfbv2_16fullspeed_11xtalk/>`__ .
-This firmware will enable you to use the exchange-only experiments that were recently added to spinqick.  If you need more rf generators and not so many baseband pulsing channels, you can
+The recommended firmware .bit and .hwh files can be found `here <https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-01_216_tprocv2r25_rfbv2_16fullspeed_11xtalk/>`__ .
+This firmware will enable you to use the exchange-only experiments that were recently added to spinqick.  If you need more rf generators and fewer baseband pulsing channels, you can
 use the `standard tprocv2 firmware <https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-10_216_tprocv2r26_standard/>`__.
 
-You will need to copy the firmware and the fork of qick onto the board, as described in the qick quickstart guide.
+You will need to copy the firmware and the fork of QICK onto the board, as described in the `QICK quick-start guide <https://docs.qick.dev/latest/quick_start.html>`__.
 
 If using the crosstalk compensation firmware, you must initialize the XtalkSoc object in place of QickSoc.  To start your pyro server, it will look something like this:
 
