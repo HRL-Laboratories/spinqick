@@ -1,3 +1,8 @@
+v2.0.6-dev2
+======
+- updated details on setting env vars in getting_started.rst for clarity
+- updated demo notebooks 00 and 01 to make them consistent with each other and with the docs
+
 v2.0.6-dev1
 ======
 - refactored data handling backend to allow for switchable data backends
