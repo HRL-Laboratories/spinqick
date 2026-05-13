@@ -1,7 +1,7 @@
 Getting started with spinqick
 =============================
 
-Instructions for installing and setting up spinQICK.  Start by setting up your qick board with the `qick quickstart guide <https://docs.qick.dev/latest/quick_start.html>`__.  Before you
+Instructions for installing and setting up spinQICK.  Start by setting up your qick board with the `QICK quick-start guide <https://docs.qick.dev/latest/quick_start.html>`__.  Before you
 clone qick and copy it to the board, read the instructions below pertaining to the firmware.
 
 ========
