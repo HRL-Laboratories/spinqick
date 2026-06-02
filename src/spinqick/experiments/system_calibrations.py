@@ -66,11 +66,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
         raw_data = prog.acquire(self.soc, progress=True)
         assert raw_data
         data_obj = spinqick_data.SpinqickData(
-            raw_data,
-            sweep_cfg,
-            1,
-            1,
-            "_adc_sweep",
+            raw_data, sweep_cfg, 1, 1, "_adc_sweep", prog=prog
         )
 
         analysis.calculate_conductance(

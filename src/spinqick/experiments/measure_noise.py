@@ -7,7 +7,7 @@ from typing import Literal, Tuple
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-from scipy.signal import periodogram
+from scipy import signal
 
 from spinqick.core import dot_experiment, spinqick_data
 from spinqick.helper_functions import (
@@ -25,6 +25,112 @@ from spinqick.qick_code_v2 import (
 logger = logging.getLogger(__name__)
 
 # TODO create FFT plotting function
+
+
+def _charge_noise_psd(m_dot_slope, side_psd, peak_psd, off_psd, side_g, peak_g):
+    psd_gate = (
+        1
+        / m_dot_slope**2
+        * ((side_psd - off_psd) - side_g**2 / peak_g**2 * (peak_psd - off_psd))
+    )
+    return psd_gate
+
+
+def _process_retune_data(
+    dataset: spinqick_data.SpinqickData, m_dot: str, npts_fit: int
+):
+    peak = dataset.fit_param_dict["center"]
+    sigma = dataset.fit_param_dict["sigma"]
+    side = peak - sigma
+    off = peak - 10 * sigma
+    mbias_points = [peak, side, off]
+    assert dataset.analyzed_data
+    i_adc = dataset.analyzed_data[0][0]
+    i_adc_filt = signal.savgol_filter(i_adc, 50, 2)
+    vdcs = dataset.axes["x"][m_dot]["data"]
+
+    side_pt = np.argmin(np.abs(vdcs - side))
+    peak_i = i_adc_filt[np.argmin(np.abs(vdcs - peak))]
+    side_i = i_adc_filt[side_pt]
+    fit_pts = npts_fit // 2
+    vfit = vdcs[side_pt - fit_pts : side_pt + fit_pts]
+    ifit = i_adc_filt[side_pt - fit_pts : side_pt + fit_pts]
+    linefit = analysis.fit_line(vfit, ifit)
+    slope = linefit.params["slope"].value
+    return mbias_points, side_i, peak_i, slope
+
+
+def _average_charge_noise(
+    times: np.ndarray, dataset: spinqick_data.SpinqickData, num_avgs: int
+):
+    assert dataset.analyzed_data
+    for n in range(num_avgs):
+        centered_data = (
+            dataset.analyzed_data[0][0][n, :] - dataset.analyzed_data[0].mean()
+        )
+        samplerate = len(times) / (times[-1] - times[0])
+        freq, power = signal.periodogram(centered_data, fs=samplerate)
+        if n == 0:
+            power_sum = power
+        else:
+            power_sum += power
+    asd_tot = np.sqrt(power_sum / num_avgs)
+    return freq, asd_tot
+
+
+def _make_charge_noise_plots(
+    freq, charge_noise, peak_asd, side_asd, off_asd, timestamp, integration_cutoff
+):
+    fig1 = plot_tools.plot1_simple(
+        freq,
+        np.sqrt(charge_noise),
+        timestamp,
+        marker=".",
+        xlabel="freq (Hz)",
+        ylabel="Vrms/RtHz",
+        title="gate referred charge noise",
+    )
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.ylim(1e-9, 1e-3)
+
+    fig2 = plot_tools.plot1_simple(
+        freq,
+        peak_asd,
+        timestamp,
+        marker=".",
+        xlabel="freq (Hz)",
+        ylabel="ADCrms/RtHz",
+        title="gate referred charge noise",
+        label="peak",
+    )
+    plt.plot(freq, side_asd, label="side")
+    plt.plot(freq, off_asd, label="off")
+    plt.legend()
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.ylabel("ADCrms/RtHz")
+    plt.xlabel("freq (Hz)")
+    plt.ylim(1e-4, 1)
+
+    df = freq[-1] - freq[-2]
+
+    fig3 = plot_tools.plot1_simple(
+        freq[freq > integration_cutoff],
+        np.sqrt(np.cumsum(charge_noise[freq > integration_cutoff] * df)),
+        timestamp,
+        marker=".",
+        xlabel="freq (Hz)",
+        ylabel="Vrms (V)",
+        title="integrated noise",
+    )
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.ylim(1e-6, 1e-4)
+
+    fignums = [fig1.number, fig2.number, fig3.number]
+    figs = [fig1, fig2, fig3]
+    return figs, fignums
 
 
 class MeasureNoise(dot_experiment.DotExperiment):
@@ -48,12 +154,14 @@ class MeasureNoise(dot_experiment.DotExperiment):
     def readout_noise_at_bias(
         self,
         m_dot: spinqick_enums.GateNames,
-        m_bias: float,
+        retune_data: spinqick_data.SpinqickData,
         measure_buffer: float,
         time_steps: int = 1000,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         num_avgs: int = 1,
-    ) -> spinqick_data.SpinqickData:
+        bias_settle_time: float = 5,
+        npts_fit: int = 20,
+    ):
         """Measure noise spectrum at a specific bias configuration of the device."""
 
         current_m_bias = self.vdc.get_dc_voltage(m_dot)
@@ -63,20 +171,25 @@ class MeasureNoise(dot_experiment.DotExperiment):
             * time_steps
         )
 
-        gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=self.hardware_config.dac_settings.trig_pin,
-            trig_length=self.hardware_config.dac_settings.trig_length,
+        gvg_cfg = experiment_models.StaticConfig(
             measure_buffer=measure_buffer,
             points=time_steps,
+            avgs=num_avgs,
             dcs_cfg=self.dcs_config,
             mode=mode,
         )
-        self.vdc.set_dc_voltage(m_bias, m_dot)
         meas = tune_electrostatics_programs_v2.Static(
             self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
         )
+        m_bias_points, side_i, peak_i, slope = _process_retune_data(
+            retune_data, m_dot, npts_fit
+        )
         data_list = []
-        for n in range(num_avgs):
+        asd_list = []
+        for m_bias in m_bias_points:
+            print(f"going to point {m_bias}")
+            self.vdc.set_dc_voltage(m_bias, m_dot)
+            time.sleep(bias_settle_time)
             data = meas.acquire(self.soc, progress=False)
             assert data
             qd = spinqick_data.SpinqickData(
@@ -88,7 +201,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 voltage_state=self.vdc.all_voltages,
                 prog=meas,
             )
-            qd.add_axis([times], "x", [m_dot], time_steps, units=["us"])
+            qd.add_axis([times], "x", [m_dot], time_steps, units=["us"], loop_no=1)
+            qd.add_axis([np.arange(num_avgs)], "avgs", ["avgs"], num_avgs, loop_no=0)
             if mode == "sd_chop":
                 analysis.calculate_conductance(
                     qd,
@@ -99,55 +213,41 @@ class MeasureNoise(dot_experiment.DotExperiment):
                     qd,
                     self.adc_unit_conversions,
                 )
-            assert qd.analyzed_data
-            centered_data = qd.analyzed_data[0][0] - qd.analyzed_data[0].mean()
-            samplerate = len(times) / (times[-1] - times[0])
-            freq, power = periodogram(centered_data, fs=samplerate)
-            asd = np.sqrt(power)
             data_list.append(qd)
-            if n == 0:
-                asd_sum = asd
-            else:
-                asd_sum += asd
-        dset_labels = [str(freq[i]) for i in range(len(freq))]
-        asd_tot = asd_sum / num_avgs
-        assert isinstance(asd_tot, np.ndarray)
+            freq, asd_avged = _average_charge_noise(times, qd, num_avgs)
+            asd_list.append(asd_avged)
+        self.vdc.set_dc_voltage(current_m_bias, m_dot)
+        [peak, side, off] = m_bias_points
+        [peak_asd, side_asd, off_asd] = asd_list
+        charge_noise = _charge_noise_psd(
+            slope, side_asd**2, peak_asd**2, off_asd**2, side_i, peak_i
+        )
+        dset_labels = ["peak", "side", "off"]
+
         full_dataset = spinqick_data.CompositeSpinqickData(
             data_list,
             dset_labels,
             "_charge_noise",
             dset_coordinates=freq,
-            analyzed_data=asd_tot,
+            analyzed_data=charge_noise,
             dset_coordinate_units="Hz",
         )
         full_dataset.dset_coordinate_units = "Hz"
 
         if self.plot:
-            fig = plot_tools.plot1_simple(
+            _, fignums = _make_charge_noise_plots(
                 freq,
-                asd_tot,
+                charge_noise,
+                peak_asd,
+                side_asd,
+                off_asd,
                 full_dataset.timestamp,
-                marker=".",
-                xlabel="freq (Hz)",
-                ylabel="ADCrms/RtHz",
-                title="mbias = %.4f" % m_bias,
+                20,
             )
-            plt.xscale("log")
-            plt.yscale("log")
-            plt.ylabel("ADCrms/RtHz")
-            plt.xlabel("freq (Hz)")
-            plt.ylim(1e-4, 1)
-            plt.title("mbias = %.4f" % m_bias)
-            full_plot_num = fig.number
-        # TODO implement data and plot saving
-
-        self.vdc.set_dc_voltage(current_m_bias, m_dot)
         if self.save_data:
-            plot_figs: list[int | str | None] = []
-            if self.plot:
-                plot_figs.append(full_plot_num)
-            self.finalize(full_dataset, fignums=plot_figs if plot_figs else None)
-        return qd  # TODO: should this be full_dataset?
+            plot_figs = fignums if self.plot else []
+            self.finalize(full_dataset, fignums=plot_figs)
+        return full_dataset
 
     @dot_experiment.updater
     def dcs_stability(
@@ -278,7 +378,9 @@ class MeasureNoise(dot_experiment.DotExperiment):
         ### get the PSD
         if frequency_fit:
             samplerate = len(times) / (times[-1] - times[0])
-            freq, power = periodogram(center_data - np.mean(center_data), fs=samplerate)
+            freq, power = signal.periodogram(
+                center_data - np.mean(center_data), fs=samplerate
+            )
             asd = np.sqrt(power)
 
             def linfit(f, pwr, a):
@@ -384,10 +486,10 @@ class MeasureNoise(dot_experiment.DotExperiment):
             print("done, average number %d" % n)
             self.soc.reset_gens()
             if n == 0:
-                freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
+                freq, power = signal.periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power
             else:
-                freq, power_fft_single = periodogram(
+                freq, power_fft_single = signal.periodogram(
                     np.abs(complex_iq), fs=1 / clock_tick
                 )
                 power_fft += power_fft_single
@@ -446,10 +548,10 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
             print("done, average number %d" % n)
             if n == 0:
-                freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
+                freq, power = signal.periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power
             else:
-                freq, power_fft_single = periodogram(
+                freq, power_fft_single = signal.periodogram(
                     np.abs(complex_iq), fs=1 / clock_tick
                 )
                 power_fft += power_fft_single

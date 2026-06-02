@@ -23,7 +23,7 @@ def init_dcs(
     ro_gen = cfg.sd_gen if mode == "sd_chop" else cfg.ac_gate_gen
     ro_gain = cfg.pulse_gain_readout if mode == "sd_chop" else cfg.ac_gate_gain
     if prog.soccfg["gens"][ro_gen]["has_mixer"]:
-        prog.declare_gen(ro_gen, nqz=1, mixer_freq=0)
+        prog.declare_gen(ro_gen, nqz=1, mixer_freq=0, ro_ch=cfg.ro_chs[0])
     else:
         prog.declare_gen(ro_gen, nqz=1)
     for ro_ch in cfg.ro_chs:

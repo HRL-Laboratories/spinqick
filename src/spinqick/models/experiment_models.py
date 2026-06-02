@@ -43,6 +43,25 @@ class GvgDcConfig(pydantic.BaseModel):
     mode: Literal["transdc", "sd_chop"] = "sd_chop"
 
 
+class StaticConfig(pydantic.BaseModel):
+    measure_buffer: float
+    points: int
+    avgs: int
+    dcs_cfg: dcs_model.DcsConfig
+    mode: Literal["transdc", "sd_chop"] = "sd_chop"
+
+
+class GvgDc2DConfig(pydantic.BaseModel):
+    trig_pin: int
+    measure_buffer: float
+    outer_loop_delay: float
+    inner_points: int
+    outer_points: int
+    dcs_cfg: dcs_model.DcsConfig
+    trig_length: float  # length of trigger pulse
+    mode: Literal["transdc", "sd_chop"] = "sd_chop"
+
+
 class GvgPatConfig(GvgDcConfig):
     pat_cfg: PatConfig
 

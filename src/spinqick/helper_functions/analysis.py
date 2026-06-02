@@ -180,6 +180,13 @@ def fit_gaussian(x_data, y_data):
     return model, out
 
 
+def fit_line(x_data, y_data):
+    lm = models.LinearModel()
+    pars = lm.make_params()
+    lfit = lm.fit(y_data, pars, x=x_data)
+    return lfit
+
+
 def fit_sigmoid(x_data: np.ndarray, y_data: np.ndarray):
     """Fit data to a sigmoid."""
     sigmoid = models.ThermalDistributionModel(form="fermi")

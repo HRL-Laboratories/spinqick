@@ -5,7 +5,8 @@ We use these DACs to control steady-state operation of the devices.
 """
 
 import logging
-from typing import List, Protocol
+from typing import List, Protocol, Sequence, runtime_checkable
+import time
 
 import numpy as np
 import yaml
@@ -16,29 +17,31 @@ from spinqick.models import hardware_config_models as hcm
 logger = logging.getLogger(__name__)
 
 
+@runtime_checkable
 class VoltageSource(Protocol):
-    def open(self, address: str):
-        pass
+    def open(self, address: str): ...
 
-    def close(self):
-        pass
+    def close(self): ...
 
-    def get_voltage(self, ch: int) -> float:
-        pass
+    def get_voltage(self, ch: int) -> float: ...
 
-    def set_voltage(self, ch: int, volts: float):
-        pass
+    def set_voltage(self, ch: int, volts: float): ...
 
     def set_sweep(
         self, ch: int, start: float, stop: float, length: float, num_steps: int
-    ):
-        pass
+    ): ...
 
-    def trigger(self, ch: int):
-        pass
+    def trigger(self, ch: int): ...
 
-    def arm_sweep(self, ch: int):
-        pass
+    def arm_sweep(self, ch: int): ...
+
+    def disarm_sweep(self, ch: int): ...
+
+
+class VoltageSource2d(VoltageSource):
+    def set_2d_sweep(self, ch: int, vlist: list[float]):
+        """Use this for DC sources that can store a 2d sweep"""
+        ...
 
 
 class DummyDCSource:
@@ -65,6 +68,9 @@ class DummyDCSource:
     def arm_sweep(self, ch: int):
         pass
 
+    def disarm_sweep(self, ch: int):
+        pass
+
 
 class DCSource:
     """Wraps low speed DAC control functions.
@@ -72,7 +78,7 @@ class DCSource:
     User supplies a hardware config file with channel to gate mapping and voltage conversion factors
     """
 
-    def __init__(self, voltage_source: VoltageSource):
+    def __init__(self, voltage_source: VoltageSource | VoltageSource2d):
         """Initializes the DCSource class based on the voltage source of choice.
 
         :param voltage_source: specify the type of voltage source
@@ -83,11 +89,12 @@ class DCSource:
         self.source_type = self.cfg.voltage_source
 
     @property
-    def all_voltages(self):
+    def all_voltages(self) -> dict[str, float]:
         """Get all slow dac voltages."""
         voltage_dict = {}
         for gate in self.cfg.channels:
-            voltage_dict[gate] = self.get_dc_voltage(gate)
+            # print(gate.value)
+            voltage_dict[gate.value] = self.get_dc_voltage(gate)
         return voltage_dict
 
     def get_dc_voltage(self, gate: spinqick_enums.GateNames) -> float:
@@ -107,6 +114,7 @@ class DCSource:
         vreturn = self.vsource.get_voltage(ch) / conversion
         assert isinstance(vreturn, float)
         self.vsource.close()
+        time.sleep(0.1)
         return vreturn
 
     def set_dc_voltage(self, volts: float, gate: spinqick_enums.GateNames):
@@ -130,7 +138,7 @@ class DCSource:
 
     def calculate_compensated_voltage(
         self,
-        delta_v: list[float],
+        delta_v: Sequence[float],
         gates: list[spinqick_enums.GateNames],
         iso_gates: List[spinqick_enums.GateNames],
     ):
@@ -207,6 +215,7 @@ class DCSource:
         tstep: float,
         nsteps: int,
         gate: spinqick_enums.GateNames,
+        **kwargs,
     ):
         """Program a fast sweep on DCSource.  Needs to be followed with arm and trigger.
 
@@ -240,8 +249,112 @@ class DCSource:
                 stop=vstop_converted,
                 length=tstep * nsteps,
                 num_steps=nsteps,
+                **kwargs,
             )
             self.vsource.close()
+
+    def program_2d_sweep(
+        self,
+        slow_sweeps: list[tuple[spinqick_enums.GateNames, Sequence[float]]],
+        fast_sweeps: list[tuple[spinqick_enums.GateNames, Sequence[float]]],
+        iso_gates: list[spinqick_enums.GateNames] | None = None,
+    ):
+        """Program a 2d sweep on DCSource. Needs to be followed with arm and trigger. Designed for qdac
+
+        :param vstart: Ramp start voltage in units of volts at the gate
+        :param vstop: Ramp end voltage in units of volts at the gate
+        :param tstep: time per step in seconds
+        :param nsteps_inner: number of steps in the inner loop
+        :param nsteps_outer: number of steps in the outer loop
+        :param gate: Gate to set voltage on
+        :param loop: sweep is inner or outer loop
+        :param iso_gates: channels to compensate with, or None
+        """
+        assert isinstance(self.vsource, VoltageSource2d)
+        slow_dict = dict(slow_sweeps)
+        fast_dict = dict(fast_sweeps)
+        fixed_channels: list[spinqick_enums.GateNames] = list(slow_dict.keys()) + list(
+            fast_dict.keys()
+        )
+        all_channels: list[spinqick_enums.GateNames] = fixed_channels.copy()
+        if iso_gates:
+            for channel in iso_gates:
+                if channel not in all_channels:
+                    all_channels.append(channel)
+        num_channels = len(all_channels)
+
+        # get initial values
+        initial_values = np.array([])
+        for channel_name in all_channels:
+            initial_values = np.append(
+                initial_values, self.get_dc_voltage(channel_name)
+            )
+
+        num_points_slow = len(slow_sweeps[0][1])
+        num_points_fast = len(fast_sweeps[0][1])
+
+        # create multidimensional array of nominal voltage values
+        uncompensated_sweep_array = np.zeros(
+            (num_points_slow, num_points_fast, num_channels)
+        )
+        for i_s in range(num_points_slow):
+            for i_f in range(num_points_fast):
+                for i_c, channel in enumerate(all_channels):
+                    if channel in slow_dict.keys():
+                        element_value = slow_dict[channel][i_s]
+                    elif channel in fast_dict.keys():
+                        element_value = fast_dict[channel][i_f]
+                    else:
+                        element_value = initial_values[i_c]
+                    uncompensated_sweep_array[i_s, i_f, i_c] = element_value
+
+        def get_compensated_voltages(uncompensated_voltages):
+            delta_V = uncompensated_voltages - initial_values
+            if iso_gates is not None:
+                _, delta_V_compensated, _ = self.calculate_compensated_voltage(
+                    delta_V[: len(fixed_channels)], fixed_channels, iso_gates
+                )
+                compensated_voltages = initial_values + delta_V_compensated
+            else:
+                compensated_voltages = uncompensated_voltages
+            return compensated_voltages
+
+        # apply compensation
+        compensated_sweep_array = np.apply_along_axis(
+            get_compensated_voltages, 2, uncompensated_sweep_array
+        )
+        # convert to DAC voltages
+        compensated_converted_array = np.zeros_like(compensated_sweep_array)
+        for i, channel in enumerate(all_channels):
+            channel_cfg = self.cfg.channels[channel]
+            assert not isinstance(channel_cfg, hcm.AuxGate)
+            conversion = channel_cfg.dc_conversion_factor
+            compensated_converted_array[..., i] = (
+                compensated_sweep_array[..., i] * conversion
+            )
+
+        # flatten and program array
+        flattened_compensated_sweep_array = compensated_converted_array.reshape(
+            num_points_slow * num_points_fast, num_channels
+        )
+        for i, gate in enumerate(all_channels):
+            vlist = flattened_compensated_sweep_array[:, i]
+            address = self.cfg.channels[gate].slow_dac_address
+            self.vsource.open(address=address)
+            ch = self.cfg.channels[gate].slow_dac_channel
+            channel_cfg = self.cfg.channels[gate]
+            assert not isinstance(channel_cfg, hcm.AuxGate)
+            conversion = channel_cfg.dc_conversion_factor
+            mx_v = np.max(vlist) / conversion
+            if mx_v > channel_cfg.max_v:
+                raise Exception(
+                    "requested ramp voltage %f would exceed max_v on gate %s"
+                    % (mx_v, gate)
+                )
+            else:
+                self.vsource.set_2d_sweep(ch=ch, vlist=vlist.tolist())
+                self.vsource.close()
+        return compensated_sweep_array
 
     def program_ramp_compensate(
         self,
@@ -307,6 +420,10 @@ class DCSource:
                 nsteps,
                 gate,
             )
+
+    def disarm(self, gate: spinqick_enums.GateNames):
+        ch = self.cfg.channels[gate].slow_dac_channel
+        self.vsource.disarm_sweep(ch)
 
     def digital_trigger(self, gate: spinqick_enums.GateNames):
         """Trigger the fast sweep on DCSource digitally.

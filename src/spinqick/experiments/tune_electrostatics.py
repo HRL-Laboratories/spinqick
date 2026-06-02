@@ -132,6 +132,7 @@ def analyze_cross_caps(
     data_obj: spinqick_data.SpinqickData,
     adc: int = 0,
     fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
+    transpose: bool = False,
 ):
     """Analysis routine for the cross capacitance experiment."""
     slow_gate_dict = list(get_sweep_vars(data_obj.axes["x"]).keys())[0]
@@ -142,7 +143,10 @@ def analyze_cross_caps(
     assert data_obj.analyzed_data is not None
     for x_pt in range(n_vx):
         xdata = data_obj.axes["y"][fast_gate_dict]["data"]
-        ydata = data_obj.analyzed_data[adc][0][x_pt, :]
+        if transpose:
+            ydata = data_obj.analyzed_data[adc][0][:, x_pt]
+        else:
+            ydata = data_obj.analyzed_data[adc][0][x_pt, :]
         if fit_type == "gaussian":
             try:
                 _, out = analysis.fit_gaussian(xdata, ydata)
@@ -275,6 +279,82 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
         return data_obj
 
+    def make_dc_sweeps(
+        self,
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
+        g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
+        measure_buffer: float,
+        compensate: spinqick_enums.GateNames | None = None,
+        sweep_direction: tuple[list[int], list[int]] | None = None,
+    ):
+
+        gx_gates, gy_gates = g_gates
+        gx_start, gx_stop, n_vx = g_range[0]
+        gy_start, gy_stop, n_vy = g_range[1]
+        # Vx Sweep
+        vx_0 = []
+        vx_sweep = np.zeros((len(gx_gates), n_vx))
+        for i, gx in enumerate(gx_gates):
+            vx_0.append(self.vdc.get_dc_voltage(gx))
+            # sweep backwards if sweep direction is set to -1
+            if sweep_direction is not None:
+                if np.sign(sweep_direction[0][i]) == -1:
+                    vx_start = np.abs(sweep_direction[0][i]) * gx_stop + vx_0[i]
+                    vx_stop = np.abs(sweep_direction[0][i]) * gx_start + vx_0[i]
+                else:
+                    vx_start = np.abs(sweep_direction[0][i]) * gx_start + vx_0[i]
+                    vx_stop = np.abs(sweep_direction[0][i]) * gx_stop + vx_0[i]
+            else:
+                vx_start = gx_start + vx_0[i]
+                vx_stop = gx_stop + vx_0[i]
+            # self.vdc.set_dc_voltage(vx_start, gx)
+            vx_sweep[i, :] = np.linspace(vx_start, vx_stop, n_vx)
+        if compensate:
+            vm_0 = self.vdc.get_dc_voltage(compensate)
+            _, delta_vm, _ = self.vdc.calculate_compensated_voltage(
+                [gx_stop - gx_start for i in range(len(gx_gates))],
+                gx_gates,
+                [compensate],
+            )
+            _, delta_vm_start, _ = self.vdc.calculate_compensated_voltage(
+                [gx_start for i in range(len(gx_gates))]
+                + [gy_start for i in range(len(gy_gates))],
+                gx_gates + gy_gates,
+                [compensate],
+            )
+            vm_start = vm_0 + delta_vm_start[-1]
+            vm_sweep = np.linspace(vm_start, vm_start + delta_vm[-1], n_vx)
+            # self.vdc.set_dc_voltage(vm_start, compensate)
+        else:
+            vm_sweep = None
+            vm_0 = None
+        # Vy Sweep
+        vy_0 = []
+        vy_sweep = np.zeros((len(gy_gates), n_vy))
+        for i, gy in enumerate(gy_gates):
+            vy_0.append(self.vdc.get_dc_voltage(gy))
+            if sweep_direction is not None:
+                if np.sign(sweep_direction[1][i]) == -1:
+                    vy_start = gy_stop + vy_0[i]
+                    vy_stop = gy_start + vy_0[i]
+                else:
+                    vy_start = gy_start + vy_0[i]
+                    vy_stop = gy_stop + vy_0[i]
+            else:
+                vy_start = gy_start + vy_0[i]
+                vy_stop = gy_stop + vy_0[i]
+            vy_sweep[i, :] = np.linspace(vy_start, vy_stop, n_vy)
+            # self.vdc.set_dc_voltage(vy_start, gy)
+
+        # setup the slow_dac step length
+        step_length = self.dcs_config.length + 2 * measure_buffer
+        if step_length < self.hardware_config.dac_settings.t_min_slow_dac:
+            slow_dac_step_len = self.hardware_config.dac_settings.t_min_slow_dac
+        else:
+            slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
+
+        return slow_dac_step_len, vx_sweep, vy_sweep, vm_sweep, vx_0, vy_0, vm_0
+
     def gvg_arb_prog(
         self,
         prog: QickProgramV2,
@@ -312,67 +392,13 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         """
 
         gx_gates, gy_gates = g_gates
-        gx_start, gx_stop, n_vx = g_range[0]
-        gy_start, gy_stop, n_vy = g_range[1]
+        (gx_start, gx_stop, n_vx), (gy_start, gy_stop, n_vy) = g_range
 
-        # Vx Sweep
-        vx_0 = []
-        vx_sweep = np.zeros((len(gx_gates), n_vx))
-        for i, gx in enumerate(gx_gates):
-            vx_0.append(self.vdc.get_dc_voltage(gx))
-            # sweep backwards if sweep direction is set to -1
-            if sweep_direction is not None:
-                if np.sign(sweep_direction[0][i]) == -1:
-                    vx_start = np.abs(sweep_direction[0][i]) * gx_stop + vx_0[i]
-                    vx_stop = np.abs(sweep_direction[0][i]) * gx_start + vx_0[i]
-                else:
-                    vx_start = np.abs(sweep_direction[0][i]) * gx_start + vx_0[i]
-                    vx_stop = np.abs(sweep_direction[0][i]) * gx_stop + vx_0[i]
-            else:
-                vx_start = gx_start + vx_0[i]
-                vx_stop = gx_stop + vx_0[i]
-            # self.vdc.set_dc_voltage(vx_start, gx)
-            vx_sweep[i, :] = np.linspace(vx_start, vx_stop, n_vx)
-        if compensate:
-            vm_0 = self.vdc.get_dc_voltage(compensate)
-            _, delta_vm, _ = self.vdc.calculate_compensated_voltage(
-                [gx_stop - gx_start for i in range(len(gx_gates))],
-                gx_gates,
-                [compensate],
+        slow_dac_step_len, vx_sweep, vy_sweep, vm_sweep, vx_0, vy_0, vm_0 = (
+            self.make_dc_sweeps(
+                g_gates, g_range, measure_buffer, compensate, sweep_direction
             )
-            _, delta_vm_start, _ = self.vdc.calculate_compensated_voltage(
-                [gx_start for i in range(len(gx_gates))]
-                + [gy_start for i in range(len(gy_gates))],
-                gx_gates + gy_gates,
-                [compensate],
-            )
-            vm_start = vm_0 + delta_vm_start[-1]
-            vm_sweep = np.linspace(vm_start, vm_start + delta_vm[-1], n_vx)
-            # self.vdc.set_dc_voltage(vm_start, compensate)
-        # Vy Sweep
-        vy_0 = []
-        vy_sweep = np.zeros((len(gy_gates), n_vy))
-        for i, gy in enumerate(gy_gates):
-            vy_0.append(self.vdc.get_dc_voltage(gy))
-            if sweep_direction is not None:
-                if np.sign(sweep_direction[1][i]) == -1:
-                    vy_start = gy_stop + vy_0[i]
-                    vy_stop = gy_start + vy_0[i]
-                else:
-                    vy_start = gy_start + vy_0[i]
-                    vy_stop = gy_stop + vy_0[i]
-            else:
-                vy_start = gy_start + vy_0[i]
-                vy_stop = gy_stop + vy_0[i]
-            vy_sweep[i, :] = np.linspace(vy_start, vy_stop, n_vy)
-            # self.vdc.set_dc_voltage(vy_start, gy)
-
-        # setup the slow_dac step length
-        step_length = self.dcs_config.length + 2 * measure_buffer
-        if step_length < self.hardware_config.dac_settings.t_min_slow_dac:
-            slow_dac_step_len = self.hardware_config.dac_settings.t_min_slow_dac
-        else:
-            slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
+        )
 
         raw_list = []
         for i in range(len(self.dcs_config.ro_chs)):
@@ -446,7 +472,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 self.vdc.arm_sweep(gy_gate)
                 self.vdc.digital_trigger(gy_gate)
                 time.sleep(
-                    slow_dac_step_len * 1e-6 * n_vy
+                    slow_dac_step_len * 1e-6 * n_vy + 1
                 )  # leave some time to ramp down
 
         for k, gx_gate in enumerate(gx_gates):
@@ -461,7 +487,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             self.vdc.arm_sweep(gx_gate)
             self.vdc.digital_trigger(gx_gate)
             time.sleep(
-                self.hardware_config.dac_settings.t_min_slow_dac * n_vx * 1e-6
+                self.hardware_config.dac_settings.t_min_slow_dac * n_vx * 1e-6 + 1
             )  # leave some time to ramp down
         for k, gy_gate in enumerate(gy_gates):
             v_final = self.vdc.get_dc_voltage(gy_gate)
@@ -672,6 +698,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         compensate: spinqick_enums.GateNames | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
         fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
+        vsource_2d: bool = False,
     ) -> spinqick_data.SpinqickData:
         """Measure cross-capacitance between gates.  This is set to fit a gaussian to a feature as
         it is scanned on the y-axis.
@@ -688,33 +715,38 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             transcoductance mode
         :param fit_type:
         """
-        _, _, n_vy = y_range
+        if vsource_2d:
+            data_obj, gx_gate, gy_gate, sweeps = self.make_2d_sweep(
+                ([x_gate], [y_gate]), (x_range, y_range), measure_buffer
+            )
+        else:
+            _, _, n_vy = y_range
 
-        gvg_cfg = experiment_models.GvgDcConfig(
-            trig_pin=self.hardware_config.dac_settings.trig_pin,
-            measure_buffer=measure_buffer,
-            points=n_vy,
-            dcs_cfg=self.dcs_config,
-            trig_length=self.hardware_config.dac_settings.trig_length,
-            mode=mode,
-        )
+            gvg_cfg = experiment_models.GvgDcConfig(
+                trig_pin=self.hardware_config.dac_settings.trig_pin,
+                measure_buffer=measure_buffer,
+                points=n_vy,
+                dcs_cfg=self.dcs_config,
+                trig_length=self.hardware_config.dac_settings.trig_length,
+                mode=mode,
+            )
 
-        meas = tune_electrostatics_programs_v2.GvG(
-            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
-        )
+            meas = tune_electrostatics_programs_v2.GvG(
+                self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+            )
 
-        expt_name = "_cross_caps"
-        data_obj = self.gvg_arb_prog(
-            meas,
-            expt_name,
-            gvg_cfg,
-            ([x_gate], [y_gate]),
-            (x_range, y_range),
-            measure_buffer,
-            compensate=compensate,
-            save_data=False,
-            mode=mode,
-        )
+            expt_name = "_cross_caps"
+            data_obj = self.gvg_arb_prog(
+                meas,
+                expt_name,
+                gvg_cfg,
+                ([x_gate], [y_gate]),
+                (x_range, y_range),
+                measure_buffer,
+                compensate=compensate,
+                save_data=False,
+                mode=mode,
+            )
         analyze_cross_caps(data_obj, fit_type=fit_type)
         if self.plot:
             plt.plot(
@@ -820,7 +852,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             dcs_cfg=self.dcs_config,
             mode=mode,
         )
-
+        self.vdc.set_dc_voltage(vm_start, m_dot)
         self.vdc.program_ramp(vm_start, vm_stop, slow_dac_step_len * 1e-6, n_vm, m_dot)
         self.vdc.arm_sweep(m_dot)
 
@@ -829,6 +861,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
         )
         data = meas.acquire(self.soc, progress=False)
+        self.vdc.disarm(m_dot)
         assert data
         data_obj = spinqick_data.SpinqickData(
             data,
@@ -1497,6 +1530,159 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         self.vdc.set_dc_voltage(v_p0, gate)
         if self.plot:
             plot_g_1d(qd, gate, " %s voltage (V)" % gate, "conductance")
+
+        self.finalize(qd)
+        return qd
+
+    def make_2d_sweep(
+        self,
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
+        g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
+        measure_buffer: float,
+        compensate: list[spinqick_enums.GateNames] | None = None,
+        sweep_direction: tuple[list[int], list[int]] | None = None,
+        mode: Literal["sd_chop", "transdc"] = "sd_chop",
+        outer_loop_delay: float = 1000,
+    ) -> tuple[
+        spinqick_data.SpinqickData,
+        list[spinqick_enums.GateNames],
+        list[spinqick_enums.GateNames],
+        np.ndarray,
+    ]:
+        gates_x, gates_y = g_gates
+        (_, _, npts_x), (_, _, npts_y) = g_range
+        comp = compensate if compensate is None else compensate[0]
+        _, vx_sweep, vy_sweep, _, vx_0, vy_0, vm_0 = self.make_dc_sweeps(
+            g_gates, g_range, measure_buffer, comp, sweep_direction
+        )
+        slow_sweeps = []
+        fast_sweeps = []
+        for i, gate in enumerate(gates_x):
+            gate_tuple = (gate, vx_sweep[i])
+            slow_sweeps.append(gate_tuple)
+        for i, gate in enumerate(gates_y):
+            gate_tuple = (gate, vy_sweep[i])
+            fast_sweeps.append(gate_tuple)
+
+        gvg_cfg = experiment_models.GvgDc2DConfig(
+            trig_pin=self.hardware_config.dac_settings.trig_pin,
+            measure_buffer=measure_buffer,
+            outer_loop_delay=outer_loop_delay,
+            outer_points=npts_x,
+            inner_points=npts_y,
+            dcs_cfg=self.dcs_config,
+            trig_length=self.hardware_config.dac_settings.trig_length,
+            mode=mode,
+        )
+
+        gates = np.append(gates_x, gates_y)
+
+        if compensate:
+            gates = np.append(gates, compensate[0])
+
+        meas = tune_electrostatics_programs_v2.GvG2D(
+            self.soccfg, reps=1, final_delay=0, cfg=gvg_cfg
+        )
+        sweeps = self.vdc.program_2d_sweep(slow_sweeps, fast_sweeps, compensate)
+        for gate in gates:
+            self.vdc.arm_sweep(gate)
+
+        data = meas.acquire(self.soc, progress=False)
+        for gate in gates:
+            self.vdc.disarm(gate)
+        assert data
+        qd = spinqick_data.SpinqickData(
+            data,
+            gvg_cfg,
+            1,
+            1,
+            "_gvg_dc_2d",
+            voltage_state=self.vdc.all_voltages,
+            prog=meas,
+        )
+
+        vxlist = [single_sweep for single_sweep in vx_sweep]
+        vylist = [single_sweep for single_sweep in vy_sweep]
+        qd.add_axis(
+            vxlist,
+            "x",
+            gates_x,
+            npts_x,
+            units=["V" for i in range(len(gates_x))],
+            loop_no=0,
+        )
+        qd.add_axis(
+            vylist,
+            "y",
+            gates_y,
+            npts_y,
+            units=["V" for i in range(len(gates_y))],
+            loop_no=1,
+        )
+        if mode == "sd_chop":
+            analysis.calculate_conductance(qd, self.adc_unit_conversions)
+        else:
+            analysis.calculate_transconductance(
+                qd,
+                self.adc_unit_conversions,
+            )
+
+        for i, gate_label in enumerate(gates_x):
+            self.vdc.set_dc_voltage(vx_0[i], gate_label)
+        for i, gate_label in enumerate(gates_y):
+            self.vdc.set_dc_voltage(vy_0[i], gate_label)
+        if compensate is not None:
+            self.vdc.set_dc_voltage(vm_0, compensate[0])
+        if self.plot:
+            x_label = ""
+            for gate in gates_x:
+                x_label = x_label + " " + gate + ","
+            y_label = ""
+            for gate in gates_y:
+                y_label = y_label + " " + gate + ","
+            plot_gvg_2d(
+                qd,
+                gates_x[0],
+                gates_y[0],
+                x_label,
+                y_label,
+                adc_units=self.adc_units,
+            )
+        return qd, gates_x, gates_y, sweeps
+
+    @dot_experiment.updater
+    def gvg_dc_2d(
+        self,
+        g_gates: tuple[list[spinqick_enums.GateNames], list[spinqick_enums.GateNames]],
+        g_range: tuple[tuple[float, float, int], tuple[float, float, int]],
+        measure_buffer: float,
+        compensate: list[spinqick_enums.GateNames] | None = None,
+        sweep_direction: tuple[list[int], list[int]] | None = None,
+        mode: Literal["sd_chop", "transdc"] = "sd_chop",
+        loop_delay: float = 1000,
+    ) -> spinqick_data.SpinqickData:
+        """GvG script which sweeps an external DC voltage source and reads out a DCS.
+
+        :param g_gates: gates to sweep on y and x axes. i.e. (['P1'],['P2']). Option to provide a
+            list of gates to sweep on each axis.
+        :param g_range: voltage range to sweep gate x and gate y, and number of points for each.
+        :param compensate: gate to compensate while changing other voltages. i.e. 'M1'
+        :param sweep_direction: Allows user to sweep a gate backwards if desired. Provide a list of
+            positive or negative ones corresponding to each gate in g_gates i.e. ([1,-1], [1]).
+        :param measure_buffer: time in microseconds between when the sleeperdac steps in voltage and
+            the QICK starts a DCS measurement.
+        :param mode: "sdchop" selects typical source drain chop readout, "transdc" is for
+            transcoductance mode
+        """
+        qd, gates_x, gates_y, sweeps = self.make_2d_sweep(
+            g_gates,
+            g_range,
+            measure_buffer,
+            compensate,
+            sweep_direction,
+            mode,
+            outer_loop_delay=loop_delay,
+        )
 
         self.finalize(qd)
         return qd

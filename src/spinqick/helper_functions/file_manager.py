@@ -208,8 +208,8 @@ class SaveData(netCDF4.Dataset):
     def get_filename_prefix(self):
         """Returns the filename prefix for the given netcdf object."""
         filename = Path(self.filepath())
-        filename_stripped = str(filename).split(".")
-        return filename_stripped[0]
+        # filename_stripped = str(filename).split(".")
+        return str(filename.with_suffix(""))
 
     def add_axis(
         self,
@@ -319,6 +319,7 @@ class SaveData(netCDF4.Dataset):
             plotname = self.filename_prefix + "_" + str(ii) + ".png"
         logger.info("saved plot at %s", plotname)
         plt.savefig(plotname)
+        return plt.gcf(), plotname
 
     def save_config_json(self, full_config: pydantic.BaseModel):
         """Saves a pydantic model as a json file."""

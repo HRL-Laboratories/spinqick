@@ -36,12 +36,13 @@ class BasebandPulseGvG(asm_v2.AveragerProgramV2):
 class Static(asm_v2.AveragerProgramV2):
     """Run a series of readout triggers without triggering an external instrument."""
 
-    def _initialize(self, cfg: experiment_models.GvgDcConfig):
+    def _initialize(self, cfg: experiment_models.StaticConfig):
         readout_v2.init_dcs(self, cfg.dcs_cfg, cfg.mode)
         self.delay(1)
+        self.add_loop("avgs", cfg.avgs)
         self.add_loop("shots", cfg.points)
 
-    def _body(self, cfg: experiment_models.GvgDcConfig):
+    def _body(self, cfg: experiment_models.StaticConfig):
         self.delay(cfg.measure_buffer)
         readout_v2.readout_dcs(self, cfg.dcs_cfg, cfg.mode)
         self.delay_auto(cfg.measure_buffer)  # type: ignore
@@ -97,3 +98,25 @@ class GvGPat(asm_v2.AveragerProgramV2):
         readout_v2.readout_dcs(self, cfg.dcs_cfg)
         self.delay_auto(cfg.measure_buffer)  # type: ignore
         self.wait_auto(t=0)
+
+
+class GvG2D(asm_v2.AveragerProgramV2):
+    """2D sweep"""
+
+    def _initialize(self, cfg: experiment_models.GvgDc2DConfig):
+        readout_v2.init_dcs(self, cfg.dcs_cfg, cfg.mode)
+        loop_delay = asm_v2.AsmV2()
+        loop_delay.delay_auto(cfg.outer_loop_delay)  # type: ignore
+        # play a delay before measuring the first point of inner loop sweep
+        self.add_loop("outer_loop", cfg.outer_points, exec_before=loop_delay)
+        self.add_loop("inner_loop", cfg.inner_points)
+        self.delay(1)
+        self.trigger(pins=[cfg.trig_pin], width=cfg.trig_length)
+
+    def _body(self, cfg: experiment_models.GvgDc2DConfig):
+        # self.trigger(pins=[cfg.trig_pin], width=cfg.trig_length)
+        self.delay(cfg.measure_buffer)
+        readout_v2.readout_dcs(self, cfg.dcs_cfg, cfg.mode)
+        self.delay_auto(cfg.measure_buffer)  # type: ignore
+        self.wait_auto(t=0)
+        self.trigger(pins=[cfg.trig_pin], width=cfg.trig_length)
