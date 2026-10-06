@@ -7,6 +7,8 @@ this may also include the creation of new submodules, and the addition of tools 
 to spinQICK. These guidelines are based off of the existing best-practices imposed by HRL-Laboratories LLC, and are themselves a combination of established best practices for code contribution.
 Before any contribution, there are a few key checks one should make to ensure that spinQICK and any contribution made maintains its open-source status.
 
+For responsible disclosure of security vulnerabilities, do not open a public issue. Please follow the process in ``SECURITY.md`` in the repository root.
+
 
 ==========
 Disclaimer
