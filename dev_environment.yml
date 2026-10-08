@@ -3,8 +3,8 @@ dependencies:
     - lmfit
     - matplotlib
     - netcdf4
-    - numpy<2.0
-    - pydantic
+    - numpy>=2.4.6
+    - pydantic>=2.13.4
     - python>=3.10
     - scipy
     - Pyro4
