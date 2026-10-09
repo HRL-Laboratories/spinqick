@@ -5,7 +5,7 @@ We use these DACs to control steady-state operation of the devices.
 """
 
 import logging
-from typing import List, Protocol
+from typing import Protocol
 
 import numpy as np
 import yaml
@@ -122,7 +122,7 @@ class DCSource:
         assert not isinstance(channel_cfg, hcm.AuxGate)
         conversion = channel_cfg.dc_conversion_factor
         vset = volts * conversion
-        if volts > channel_cfg.max_v:
+        if np.abs(volts) > channel_cfg.max_v:
             raise Exception("requested voltage would exceed max_v on gate %s" % gate)
         else:
             self.vsource.set_voltage(ch, vset)
@@ -132,7 +132,7 @@ class DCSource:
         self,
         delta_v: list[float],
         gates: list[spinqick_enums.GateNames],
-        iso_gates: List[spinqick_enums.GateNames],
+        iso_gates: list[spinqick_enums.GateNames],
     ):
         """Given crosscoupling parameters in hardware_config and desired voltages at gates,
         calculate voltages to apply.
@@ -145,7 +145,7 @@ class DCSource:
         gate_list = gates + iso_gates
         g_dim = len(gate_list)
         g_array = np.eye(g_dim)
-        voltage_vector = np.zeros((g_dim))
+        voltage_vector = np.zeros(g_dim)
         voltage_vector[: len(gates)] = delta_v
         for i, gate_i in enumerate(gate_list):
             if gate_i in gates:
@@ -166,9 +166,9 @@ class DCSource:
 
     def set_dc_voltage_compensate(
         self,
-        volts: float | List[float],
-        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
-        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        volts: float | list[float],
+        gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
     ):
         """Set gate voltage while compensating on iso_gates.
 
@@ -229,7 +229,7 @@ class DCSource:
                 "requested ramp start voltage would exceed max_v on gate %s" % gate
             )
         vstop_converted = vstop * conversion
-        if vstart > channel_cfg.max_v:
+        if vstop > channel_cfg.max_v:
             raise Exception(
                 "requested ramp end voltage would exceed max_v on gate %s" % gate
             )
@@ -245,12 +245,12 @@ class DCSource:
 
     def program_ramp_compensate(
         self,
-        vstart: float | List[float],
-        vstop: float | List[float],
+        vstart: float | list[float],
+        vstop: float | list[float],
         tstep: float,
         nsteps: int,
-        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
-        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
     ):
         """Program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be
         followed with arm and trigger.
