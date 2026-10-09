@@ -2,7 +2,6 @@
 
 import logging
 
-import memspectrum
 import numpy as np
 import pylab as plt
 from scipy import optimize, signal
@@ -84,6 +83,19 @@ def course_cal_fit(sqd: spinqick_data.PsbData, n_pulses: int, x_gate: str):
     return angle_array, d_filt, best_fit, popt, v_array, p0_array
 
 
+def _get_memspectrum():
+    """Lazy import for memspectrum."""
+    try:
+        import memspectrum
+
+        return memspectrum
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "memspectrum is required for legacy MESA processing. "
+            "Install it or choose the non-MESA processor."
+        ) from exc
+
+
 def process_fine_cal(
     theta_array: np.ndarray,
     voltage_array: np.ndarray,
@@ -93,6 +105,7 @@ def process_fine_cal(
     plot: bool = True,
 ):
     """fitting procedure for fine calibration from https://doi.org/10.1038/s41565-019-0500-4"""
+    memspectrum = _get_memspectrum()
     mesa = memspectrum.MESA()
     mesa.solve(data_array, method="standard", optimisation_method="FPE")
     extension_length = 5000

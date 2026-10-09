@@ -29,7 +29,6 @@ requirements:
         - qick>=0.2.360
         - scipy
         - scikit-learn
-        - memspectrum
 test:
     requires:
         - pytest
