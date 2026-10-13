@@ -18,6 +18,5 @@ dependencies:
     - mypy
     - pre-commit
     - pre-commit-hooks
-    - pylint
     - pytest
     - ruff
