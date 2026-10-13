@@ -7,9 +7,9 @@ import logging
 import os
 import time
 from collections.abc import Sequence
+from importlib import metadata as importlib_metadata
 from typing import TYPE_CHECKING, Any
 
-import importlib_metadata
 import numpy as np
 import pydantic
 from qick import helpers, qick_asm

@@ -1,6 +1,7 @@
 """Helpful functions and enums for commonly used key word arguements within spinqick functions."""
 
-from enum import Enum, StrEnum, auto
+import sys
+from enum import Enum, auto
 
 from spinqick.helper_functions.filter_bank import (
     FilterBessel,
@@ -15,6 +16,20 @@ from spinqick.helper_functions.filter_bank import (
     FilterSavitzkyGolay,
     FilterTukey,
 )
+
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:  # Python 3.10 compatibility
+
+    class StrEnum(str, Enum):
+        """Backport the standard-library behavior needed by this module."""
+
+        @staticmethod
+        def _generate_next_value_(name, start, count, last_values):
+            return name.lower()
+
+        def __str__(self):
+            return self.value
 
 
 class AverageLevel(StrEnum):
