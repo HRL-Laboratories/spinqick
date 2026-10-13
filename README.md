@@ -40,7 +40,7 @@ The Harvey-Mudd College Quantum Analog Control Kit (QuACK) is an add-on that pro
 - Python 3.10, specific packages can be found in the _dev_environment.yml_ file
 - [QICK](https://github.com/openquantumhardware/qick) version 0.2.360 (later versions will be checked for compatibility)
 - Pynq 2.7 bootloader, QICK standard boot can be found [here](https://github.com/sarafs1926/ZCU216-PYNQ/issues/1)
-- Pyro4 must also be installed on the ZCU216 board, see [QICK demo](https://github.com/openquantumhardware/qick/blob/main/pyro4/00_nameserver.ipynb) for information on running Pyro server on the RFSoC
+- Pyro must also be installed on the ZCU216 board, see [QICK demo](https://github.com/openquantumhardware/qick/blob/main/pyro4/00_nameserver.ipynb) for information on running Pyro server on the RFSoC
 
 ## Package Structure
 All code for the API can be found in `src/spinqick` with demo notebooks illustrating the use of the API and resources for getting started found in `demo_notebooks`. The spinQICK API is organized into five folders as follows.

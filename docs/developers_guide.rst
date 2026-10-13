@@ -44,6 +44,11 @@ It is advised that spinQICK be installed as an editable package. This can be don
 
     pip install -e .
 
+now navigate to the QICK repository and run
+
+.. code-block:: bash
+
+    pip install -e ".[full]"
 
 ======================
 git pre-commit checks

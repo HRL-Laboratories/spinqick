@@ -56,7 +56,7 @@ now navigate to the QICK repository and run
 
 ::
 
-    pip install .
+    pip install -e ".[full]"
 
 You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
 the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinQICK where to look for your specific configuration files.  In windows, this entails running these commands in command prompt (you may need administrative priviledges to set variables depending on your organization's policies):

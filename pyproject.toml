@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings",
     "scipy",
-    "Pyro4",
     "scikit-learn",
     "pyyaml",
 ]
@@ -68,7 +67,7 @@ line_length = 100
 addopts = "--ignore-glob='*@neomake*' --ignore-glob='*__main__.py'  --doctest-modules --doctest-glob='*.md' --doctest-glob='*.rst'"
 testpaths = [
     "src",
-    "test",
+    "tests",
     "doc",
 ]
 markers = [
