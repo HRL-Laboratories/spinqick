@@ -7,7 +7,6 @@ dependencies:
     - pydantic>=2.13.4
     - python>=3.10
     - scipy
-    - Pyro4
     - scikit-learn
     - pyyaml
 
