@@ -422,7 +422,8 @@ class DotExperiment:
         :param fignums: Optional list of matplotlib figure numbers to save alongside
             the data.  ``None`` entries are passed through (backend saves the current
             figure).  When *fignums* is ``None`` and ``self.plot`` is ``True``, a single
-            ``None`` fignum is saved (i.e. the current figure).
+            ``None`` fignum is saved (i.e. the current figure).  An empty list skips
+            plot saving while still saving the data and closing the backend handle.
         """
         if not self.save_data:
             return
@@ -430,14 +431,15 @@ class DotExperiment:
         backend = self.backend
         handle = backend.save(data)
 
-        if self.plot:
-            if fignums is None:
-                backend.save_plot(handle, None)
-            else:
-                for fig in fignums:
-                    backend.save_plot(handle, fig)
-
-        backend.close(handle)
+        try:
+            if self.plot:
+                if fignums is None:
+                    backend.save_plot(handle, None)
+                else:
+                    for fig in fignums:
+                        backend.save_plot(handle, fig)
+        finally:
+            backend.close(handle)
 
     def volts2dac(self, volts: G, gate: spinqick_enums.GateNames) -> G:
         """Convert voltage out of qick frontend to dac units.

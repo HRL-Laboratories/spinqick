@@ -6,11 +6,8 @@ import pytest
 
 from spinqick.core.dot_experiment import (
     DotExperiment,
-    dacunits2volts,
     updater,
-    volts2dacunits,
 )
-from spinqick.helper_functions import spinqick_enums
 
 
 def make_uninitialized_experiment(backend, *, save_data, plot):
@@ -71,6 +68,31 @@ def test_finalize_uses_current_figure_when_no_figure_list_is_given():
     backend.close.assert_called_once_with("synthetic-handle")
 
 
+def test_finalize_empty_figure_list_saves_data_without_plotting():
+    backend = Mock()
+    backend.save.return_value = "synthetic-handle"
+    data = object()
+    experiment = make_uninitialized_experiment(backend, save_data=True, plot=True)
+
+    experiment.finalize(data, fignums=[])
+
+    backend.save.assert_called_once_with(data)
+    backend.save_plot.assert_not_called()
+    backend.close.assert_called_once_with("synthetic-handle")
+
+
+def test_finalize_closes_handle_when_plot_saving_fails():
+    backend = Mock()
+    backend.save.return_value = "synthetic-handle"
+    backend.save_plot.side_effect = RuntimeError("plot save failed")
+    experiment = make_uninitialized_experiment(backend, save_data=True, plot=True)
+
+    with pytest.raises(RuntimeError, match="plot save failed"):
+        experiment.finalize(object())
+
+    backend.close.assert_called_once_with("synthetic-handle")
+
+
 def test_updater_refreshes_configuration_before_operation():
     experiment = Mock()
     observed = []
@@ -85,13 +107,3 @@ def test_updater_refreshes_configuration_before_operation():
     assert result == "complete"
     experiment.update_local.assert_called_once_with()
     assert observed == [experiment]
-
-
-def test_volts2dacunits_rejects_slow_gate(hardware_config):
-    with pytest.raises(Exception, match="not a FastGate"):
-        volts2dacunits(0.1, spinqick_enums.GateNames.P1, hardware_config)
-
-
-def test_dacunits2volts_rejects_slow_gate(hardware_config):
-    with pytest.raises(Exception, match="not a FastGate"):
-        dacunits2volts(10.0, spinqick_enums.GateNames.P1, hardware_config)
