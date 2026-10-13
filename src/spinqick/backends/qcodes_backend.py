@@ -37,7 +37,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
@@ -157,7 +157,7 @@ class QCoDesHandler(DataHandler):
         """
         from qcodes.dataset import new_data_set
         from qcodes.dataset.descriptions.dependencies import InterDependencies_
-        from qcodes.parameters import ParamSpecBase
+        from qcodes.dataset.descriptions.param_spec import ParamSpecBase
 
         from spinqick.core.spinqick_data import PsbData
 
@@ -281,7 +281,9 @@ class QCoDesHandler(DataHandler):
         # --- Create dataset --------------------------------------------------
         dataset = new_data_set(name=data.experiment_name, exp_id=exp.exp_id)
         interdeps = InterDependencies_(
-            dependencies=dependencies if dependencies else None,
+            # The compatibility ParamSpecBase subclasses the newer QCoDeS type,
+            # but mutable dict key types are invariant to static type checkers.
+            dependencies=cast(Any, dependencies) if dependencies else None,
             standalones=tuple(standalone_specs) if standalone_specs else (),
         )
         dataset.set_interdependencies(interdeps)
