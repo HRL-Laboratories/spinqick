@@ -19,6 +19,9 @@ dependencies = [
     "pyyaml",
 ]
 
+[project.optional-dependencies]
+qcodes = ["qcodes"]
+
 [tool.setuptools.dynamic]
 version = {file = ["VERSION.txt"]}
 
