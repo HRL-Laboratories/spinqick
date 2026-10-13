@@ -22,13 +22,14 @@ requirements:
         - lmfit
         - matplotlib-core
         - netcdf4
-        - numpy>=2.4.6
+        - numpy>=1.26,<2
         - pydantic>=2.13.4
         - pydantic-settings
         - python>=3.10
         - qick>=0.2.360
         - scipy
         - scikit-learn
+        - pyyaml
 test:
     requires:
         - pytest

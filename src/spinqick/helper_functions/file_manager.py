@@ -1,7 +1,6 @@
 """Helper functions for managing configs and file saving."""
 
 import datetime
-import glob
 import json
 import logging
 import os
@@ -9,9 +8,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import matplotlib.pyplot as plt
-import netCDF4
-import numpy as np
 import pydantic
 import yaml
 from qick import QickConfig, asm_v2, helpers
@@ -40,7 +36,7 @@ def get_data_dir(datadir: str = DATA_DIRECTORY) -> str:
             os.mkdir(data_path)
         except FileExistsError:
             logger.info("directory already exists")
-        except Exception:
+        except OSError:
             logger.warning("couldn't create today's folder")
 
     return data_path
@@ -178,156 +174,3 @@ def json_to_qickprog(data_obj, soccfg):
         logger.warning("program attribute is not in json format")
     except Exception:
         logger.exception("failed to load qick program from json")
-
-
-# pylint: disable = no-member
-class SaveData(netCDF4.Dataset):
-    """Save data in netcdf4 format.
-
-    Check out their documentation for information at
-    https://unidata.github.io/netcdf4-python/.
-
-    Don't forget to run .close() on the Dataset object after
-    you've finished adding data.
-
-    Can be used as a context manager to automatically close
-    the file using a with-statement if it works in your code structure.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filename_prefix = self.get_filename_prefix()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
-
-    def get_filename_prefix(self):
-        """Returns the filename prefix for the given netcdf object."""
-        filename = Path(self.filepath())
-        filename_stripped = str(filename).split(".")
-        return filename_stripped[0]
-
-    def add_axis(
-        self,
-        label: str,
-        data: np.ndarray | None = None,
-        units: str | None = None,
-        dtype=np.float32,
-    ):
-        """Provide axes for the data you want to store. If the axis doesn't have data associated
-        with it (ie I and Q axis) then leave data=None. This sets the axis dimension to unlimited.
-
-        :param label: A label for the axis you're providing
-        :param data: If the axis has data associated with it (i.e. time in seconds) you can provide
-            it here
-        :param units: Provide a string that describes the units of this axis
-        :param dtype: datatype of the data provided. This is in a numpy dtype form.
-        """
-
-        if isinstance(data, np.ndarray):
-            self.createDimension(label + "_dim", len(data))
-            var_obj = self.createVariable(label, dtype, (label + "_dim"))
-            var_obj[:] = data
-            if units is not None:
-                var_obj.units = units
-        else:
-            self.createDimension(label + "_dim", None)
-
-    def add_multivariable_axis(
-        self,
-        dim_label: str,
-        sweep_dict: dict,
-        group_path: str | None = None,
-        dtype=np.float32,
-    ):
-        """Adds a dimension to netCDF object which corresponds to multiple swept variables.
-
-        :param dim_label: name of the dimension associate with this axis
-        :param sweep_dict: provide the axis dictionary.  Accepts the format produced
-            by :meth:`SpinqickData.add_axis`
-        :param group_path: if the dataset is in a specific folder within the netcdf file, specify
-            the name of this folder.
-        :param dtype: datatype of the data provided. This is in a numpy dtype form.
-        """
-        dim = dim_label + "_dim"
-        if dim not in self.dimensions:
-            self.createDimension(dim, sweep_dict["size"])
-        # Extract sweep variable entries: dicts that contain a "data" key
-        swept_vars = {
-            k: v for k, v in sweep_dict.items() if isinstance(v, dict) and "data" in v
-        }
-        for sweep_var, var_info in swept_vars.items():
-            if group_path is None:
-                var_obj = self.createVariable(sweep_var, dtype, (dim))
-            else:
-                group_obj: netCDF4.Group = self[group_path]
-                var_obj = group_obj.createVariable(sweep_var, dtype, (dim))
-            var_obj[:] = var_info["data"]
-            if var_info["units"] is not None:
-                var_obj.units = var_info["units"]
-
-    def add_dataset(
-        self,
-        label: str,
-        axes: list[str],
-        data: np.ndarray,
-        units: str | None = None,
-        group_path: str | None = None,
-        dtype=np.float32,
-    ):
-        """Adds a data array to the netcdf object.  Axes needs the be a list of axis values.
-
-        :param label: A label for the data you're providing
-        :param axes: Provide a list of the axes you made which reflects the shape of the data array
-        :param data: Data in array form
-        :param units: Provide a string that describes the units of this axis
-        :param group_path: if the dataset is in a specific folder within the netcdf file, specify
-            the name of this folder.
-        :param dtype: datatype of the data provided. This is in a numpy dtype form.
-        """
-
-        ax_labels = (axis + "_dim" for axis in axes)
-        if group_path is None:
-            variable = self.createVariable(label, dtype, ax_labels)
-        else:
-            group_obj: netCDF4.Group = self[group_path]
-            variable = group_obj.createVariable(label, dtype, ax_labels)
-        variable[:] = data
-        if units is not None:
-            variable.units = units
-
-    def save_last_plot(self, fignum=None):
-        """Saves a figure as a .png with the same filename as the data."""
-        if fignum is None:
-            plt.gcf()
-        else:
-            plt.figure(fignum)
-        plotname = self.filename_prefix + ".png"
-        if Path(plotname).is_file():
-            location = os.path.dirname(plotname)
-            base = os.path.join(location, self.filename_prefix)
-            dirlist = glob.glob(str(base) + "*.png")
-            dirlist.sort()
-            try:
-                ii = int(str(dirlist[-1]).split("_")[-1].strip(".png")) + 1
-            except Exception:
-                ii = 2
-            plotname = self.filename_prefix + "_" + str(ii) + ".png"
-        logger.info("saved plot at %s", plotname)
-        plt.savefig(plotname)
-
-    def save_config_json(self, full_config: pydantic.BaseModel):
-        """Saves a pydantic model as a json file."""
-        config_file = self.filename_prefix + "_cfg.json"
-        save_config_json(full_config, config_file)
-        logger.info("saved config at %s", config_file)
-
-    def save_prog_json(self, prog: AbsQickProgram):
-        """Saves a qick program to a json file."""
-        prog_file = self.filename_prefix + "_prog.json"
-        save_prog(prog, prog_file)
-        logger.info("saved program at %s", prog_file)

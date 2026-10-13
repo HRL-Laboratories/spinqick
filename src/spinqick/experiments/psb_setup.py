@@ -2,7 +2,6 @@
 conversion."""
 
 import logging
-from typing import Tuple
 
 import matplotlib.patches as mpl_patches
 import numpy as np
@@ -164,7 +163,7 @@ class PsbSetup(dot_experiment.DotExperiment):
                         ax.plot(x_axis, yaxis0, color="k", ls="--", lw=2)
                         ax.plot(x_axis, yaxis1, color="k", ls="--", lw=2)
                         ax.set_title(
-                            "t: %d" % sq_data.timestamp,
+                            f"t: {sq_data.timestamp}",
                             loc="right",
                             fontdict={"fontsize": 6},
                         )
@@ -221,14 +220,12 @@ class PsbSetup(dot_experiment.DotExperiment):
                         if self.plot:
                             plt.plot(x[:-1], gauss(x[:-1], *popt))
                             plt.xlabel("DCS conductance (arbs)")
-                        print("sigma1: %f, sigma2: %f" % (popt[1], popt[4]))
-                        print(
-                            "fwhm1: %f, fwhm2: %f" % (popt[1] * 2.355, popt[4] * 2.355)
-                        )
-                        print("mu1: %f, mu2: %f" % (popt[2], popt[5]))
-                        print("A1: %f, A2: %f" % (popt[0], popt[3]))
+                        print(f"sigma1: {popt[1]:f}, sigma2: {popt[4]:f}")
+                        print(f"fwhm1: {popt[1] * 2.355:f}, fwhm2: {popt[4] * 2.355:f}")
+                        print(f"mu1: {popt[2]:f}, mu2: {popt[5]:f}")
+                        print(f"A1: {popt[0]:f}, A2: {popt[3]:f}")
                         snr = 2 * np.abs(popt[2] - popt[5]) / (popt[1] + popt[4])
-                        print("SNR: %f" % snr)
+                        print(f"SNR: {snr:f}")
                     except RuntimeError:
                         logger.error("fit failed")
 
@@ -240,8 +237,8 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def idle_cell_scan(
         self,
-        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
-        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
+        p_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
+        p_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ):
@@ -357,8 +354,8 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def flush_window_scan(
         self,
-        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
-        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
+        p_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
+        p_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ):
@@ -468,8 +465,8 @@ class PsbSetup(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def meas_window_scan(
         self,
-        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
-        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
+        p_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
+        p_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         step_time: float,
         point_avgs: int = 10,
         full_avgs: int = 10,

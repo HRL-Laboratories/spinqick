@@ -6,7 +6,7 @@ models.
 """
 
 import logging
-from typing import Literal, TypeVar, Union
+from typing import Literal, TypeVar
 
 import numpy as np
 
@@ -26,6 +26,14 @@ from spinqick.settings import file_settings
 
 logger = logging.getLogger(__name__)
 G = TypeVar("G", float, np.ndarray)
+
+
+class InvalidGateConfiguration(TypeError):
+    """Raised when a conversion requires a fast gate but receives another gate type."""
+
+
+class ExperimentConfigurationError(ValueError):
+    """Raised when an experiment configuration is incomplete or inconsistent."""
 
 
 def convert_dcs_to_rfsoc(
@@ -70,7 +78,7 @@ def convert_spam_to_rfsoc(
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
             spinqick_enums.GateNames,
-            Union[spam_models.SpamRampDac, spam_models.SpamPulseDac],
+            spam_models.SpamRampDac | spam_models.SpamPulseDac,
         ] = {}
         for gate in gate_list:
             assert isinstance(gate, spinqick_enums.GateNames)
@@ -78,7 +86,7 @@ def convert_spam_to_rfsoc(
             if isinstance(gate_cfg, hardware_config_models.FastGate):
                 gen = gate_cfg.qick_gen
             else:
-                raise Exception("gate %s is not a FastGate" % gate)
+                raise InvalidGateConfiguration(f"gate {gate} is not a FastGate")
             pulse_gain_volts = gate_list[gate].voltage
             dac_units = volts2dacunits(pulse_gain_volts, gate, hardware_config)
             if isinstance(gate_list[gate], spam_models.SpamRamp):
@@ -118,7 +126,7 @@ def convert_spam_to_voltage(
         duration = getattr(spam_config, spamstep).duration
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
-            spinqick_enums.GateNames, Union[spam_models.SpamRamp, spam_models.SpamPulse]
+            spinqick_enums.GateNames, spam_models.SpamRamp | spam_models.SpamPulse
         ] = {}
         for gate in gate_list:
             pulse_gain = gate_list[gate].coordinate
@@ -203,11 +211,9 @@ def convert_experiment_to_rfsoc(
     if experiment_config.qubit_configs is not None:
         q_cfg: dict[
             str,
-            Union[
-                ld_qubit_models.Ld1Qubit,
-                qubit_models.Eo1Qubit,
-                full_experiment_model.Ro1Qubit,
-            ],
+            ld_qubit_models.Ld1Qubit
+            | qubit_models.Eo1Qubit
+            | full_experiment_model.Ro1Qubit,
         ] = {}
         for qubit_name, qubit in experiment_config.qubit_configs.items():
             spam = qubit.ro_cfg.psb_cfg
@@ -270,7 +276,7 @@ def volts2dacunits(
     try:
         assert isinstance(gate_config, hardware_config_models.FastGate)
     except AssertionError as exc:
-        raise Exception("gate %s is not a FastGate" % gate) from exc
+        raise InvalidGateConfiguration(f"gate {gate} is not a FastGate") from exc
     conversion = gate_config.dac_conversion_factor
     return volts * conversion
 
@@ -290,7 +296,7 @@ def dacunits2volts(
     try:
         assert isinstance(gate_config, hardware_config_models.FastGate)
     except AssertionError as exc:
-        raise Exception("gate %s is not a FastGate" % gate) from exc
+        raise InvalidGateConfiguration(f"gate {gate} is not a FastGate") from exc
     conversion = gate_config.dac_conversion_factor
     return dacunits / conversion
 
@@ -367,7 +373,7 @@ class DotExperiment:
         if qubit_cfg is not None:
             s2c = qubit_cfg[self.qubit].ro_cfg.psb_cfg
         else:
-            raise Exception("No qubit is defined")
+            raise ExperimentConfigurationError("No qubit is defined")
         return s2c
 
     @property

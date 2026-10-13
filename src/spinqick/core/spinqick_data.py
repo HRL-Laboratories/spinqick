@@ -1,13 +1,15 @@
 """Data handling and saving for spinqick experiments."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import importlib_metadata
-import netCDF4
 import numpy as np
 import pydantic
 from qick import helpers, qick_asm
@@ -15,6 +17,9 @@ from qick import helpers, qick_asm
 from spinqick.helper_functions import file_manager, spinqick_enums
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    import netCDF4
 
 
 def load_analysis_data(
@@ -32,10 +37,9 @@ def load_analysis_data(
             processed.append(data_array)
             if hasattr(ana[d], "units"):
                 analysis_type = ana[d].units
-            if attr_name is not None:
-                if hasattr(ana[d], attr_name):
-                    var_attr = getattr(ana[d], attr_name)
-                    attrs.append(var_attr)
+            if attr_name is not None and hasattr(ana[d], attr_name):
+                var_attr = getattr(ana[d], attr_name)
+                attrs.append(var_attr)
     return processed, analysis_type, attrs
 
 
@@ -57,16 +61,16 @@ class SpinqickData:
 
     def __init__(
         self,
-        raw_data: List[np.ndarray],
+        raw_data: list[np.ndarray],
         cfg: pydantic.BaseModel,
         triggers: int,
         reps: int,
         experiment_name: str,
-        analyzed_data: List[np.ndarray] | None = None,
+        analyzed_data: list[np.ndarray] | None = None,
         timestamp: int | None = None,
         filename: str | None = None,
         prog: qick_asm.AbsQickProgram | str | None = None,
-        voltage_state: Dict[str, float] | None = None,
+        voltage_state: dict[str, float] | None = None,
     ):
         self.raw_data = raw_data
         self.analyzed_data = analyzed_data
@@ -105,12 +109,12 @@ class SpinqickData:
 
     def add_axis(
         self,
-        data: List[np.ndarray],
+        data: list[np.ndarray],
         axis_name: str,
         sweep_names: Sequence[str],
         dim_size: int,
         loop_no: int = 0,
-        units: List[str] | None = None,
+        units: list[str] | None = None,
     ):
         """Add information describing a swept variable or set of variables in your dataset.
 
@@ -189,7 +193,7 @@ class SpinqickData:
         import xarray as xr  # optional dependency
 
         coords: dict[str, np.ndarray] = {}
-        for _axis_name, axis_dict in self.axes.items():
+        for axis_dict in self.axes.values():
             for key, val in axis_dict.items():
                 if isinstance(val, dict) and "data" in val:
                     coords[key] = np.asarray(val["data"])
@@ -274,11 +278,11 @@ class SpinqickData:
 class PsbData(SpinqickData):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.difference_data: List[np.ndarray] | None = None
+        self.difference_data: list[np.ndarray] | None = None
         self.difference_avged: spinqick_enums.AverageLevel | None = None
         self.thresh_avged: spinqick_enums.AverageLevel | None = None
-        self.threshed_data: List[np.ndarray] | None = None
-        self.threshold: List[float] | None = None
+        self.threshed_data: list[np.ndarray] | None = None
+        self.threshold: list[float] | None = None
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -302,7 +306,7 @@ class CompositeSpinqickData:
     def __init__(
         self,
         qdata_array: Sequence[SpinqickData | PsbData],
-        dset_labels: List[str],
+        dset_labels: list[str],
         experiment_name: str,
         dset_coordinates: np.ndarray | None = None,
         dset_coordinate_units: str | None = None,

@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import pydantic
 
 from spinqick.helper_functions import spinqick_enums
@@ -74,8 +72,8 @@ class CalParameters(pydantic.BaseModel):
     A: float
     B: float
     theta_max: float
-    theta_list: List[float] | None  # TODO make this a file path
-    volt_list: List[float] | None
+    theta_list: list[float] | None  # TODO make this a file path
+    volt_list: list[float] | None
 
 
 class ExchangeCalibration(pydantic.BaseModel):
@@ -90,11 +88,11 @@ class ExchangeAxisConfig(pydantic.BaseModel):
     """Configuration parameters for a single exchange axis."""
 
     gates: ExchangeGateMap | ExchangeGateMapParams
-    detuning_vector: Optional[List] = None
-    exchange_vector: Optional[List] = None
-    symmetric_vector: Optional[List] = None
+    detuning_vector: list | None = None
+    exchange_vector: list | None = None
+    symmetric_vector: list | None = None
     times: ExchangeTimes
-    exchange_cal: Optional[ExchangeCalibration] = None
+    exchange_cal: ExchangeCalibration | None = None
 
 
 class Eo1QubitAxes(pydantic.BaseModel):

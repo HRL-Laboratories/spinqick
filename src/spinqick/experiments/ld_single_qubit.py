@@ -1,7 +1,6 @@
 """Defines the LDSingleQubit class, which contains methods for basic single- qubit."""
 
 import logging
-from typing import Tuple
 
 import numpy as np
 
@@ -41,8 +40,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def idle_cell_scan_with_rf(
         self,
-        p_gates: Tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
-        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
+        p_gates: tuple[spinqick_enums.GateNames, spinqick_enums.GateNames],
+        p_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         rf_gain: int,
         rf_freq: float,
         rf_length: float,
@@ -236,8 +235,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def rabi_chevron(
         self,
         rf_gain: int,
-        freq_range: Tuple[float, float, int],
-        time_range: Tuple[float, float, int],
+        freq_range: tuple[float, float, int],
+        time_range: tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
@@ -326,7 +325,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def time_rabi(
         self,
         rf_gain: int,
-        time_range: Tuple[float, float, int],
+        time_range: tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
@@ -396,7 +395,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def amplitude_rabi(
         self,
         rf_time: float,
-        gain_range: Tuple[float, float, int],
+        gain_range: tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 1,
     ) -> spinqick_data.PsbData:
@@ -557,7 +556,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def phase_control(
         self,
         qubit: str,
-        phase_range: Tuple[float, float, int],
+        phase_range: tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
@@ -629,7 +628,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def ramsey_experiment(
         self,
         qubit: str,
-        time_range: Tuple[float, float, int],
+        time_range: tuple[float, float, int],
         point_avgs: int = 10,
         full_avgs: int = 10,
     ) -> spinqick_data.PsbData:
@@ -698,8 +697,8 @@ class LDSingleQubit(dot_experiment.DotExperiment):
     def ramsey_2d(
         self,
         qubit: str,
-        time_range: Tuple[float, float, int],
-        freq_range: Tuple[float, float, int],
+        time_range: tuple[float, float, int],
+        freq_range: tuple[float, float, int],
         full_avgs: int = 10,
         point_avgs: int = 10,
     ) -> spinqick_data.PsbData:
@@ -789,7 +788,7 @@ class LDSingleQubit(dot_experiment.DotExperiment):
         self,
         qubit: str,
         n_echoes: int,
-        time_range: Tuple[float, float, int],
+        time_range: tuple[float, float, int],
         full_avgs: int = 10,
         point_avgs: int = 10,
     ) -> spinqick_data.PsbData:

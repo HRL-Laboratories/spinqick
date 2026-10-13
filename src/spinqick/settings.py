@@ -1,7 +1,6 @@
 """User specific settings."""
 
 import logging
-from typing import Optional
 
 import pydantic_settings
 
@@ -19,7 +18,7 @@ class FileSettings(pydantic_settings.BaseSettings):
     data_directory: str = ""
     hardware_config: str = ""
     dot_experiment_config: str = ""
-    filter_config: Optional[str] = None
+    filter_config: str | None = None
 
 
 file_settings = FileSettings()

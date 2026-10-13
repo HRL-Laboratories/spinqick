@@ -38,7 +38,7 @@ And then activate the ``spinqick_dev`` environment.
 Local editable install
 ======================
 
-It is advised that spinQICK be installed as an editable package. This can be done by first navigating to the location of the setup.py and pyproject.toml files in the main repository directory and running the following PIP command:
+It is advised that spinQICK be installed as an editable package. This can be done by first navigating to the main repository directory, which contains the ``pyproject.toml`` file, and running the following PIP command:
 
 .. code-block:: bash
 

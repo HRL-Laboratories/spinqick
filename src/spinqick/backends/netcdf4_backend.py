@@ -8,10 +8,14 @@ logic previously embedded in :class:`~spinqick.core.spinqick_data.SpinqickData`,
 
 from __future__ import annotations
 
+import glob
 import json
 import logging
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import matplotlib.pyplot as plt
 import netCDF4
 import numpy as np
 import pydantic
@@ -25,6 +29,120 @@ if TYPE_CHECKING:
     from spinqick.core.spinqick_data import CompositeSpinqickData, PsbData, SpinqickData
 
 logger = logging.getLogger(__name__)
+
+
+# pylint: disable = no-member
+class SaveData(netCDF4.Dataset):
+    """NetCDF4 dataset wrapper used by :class:`NetCDF4Handler`."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filename_prefix = self.get_filename_prefix()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
+    def get_filename_prefix(self):
+        """Return the filename prefix for the NetCDF object."""
+        filename = Path(self.filepath())
+        return str(filename).split(".")[0]
+
+    def add_axis(
+        self,
+        label: str,
+        data: np.ndarray | None = None,
+        units: str | None = None,
+        dtype=np.float32,
+    ):
+        """Add a data-bearing or unlimited axis to the NetCDF file."""
+        if isinstance(data, np.ndarray):
+            self.createDimension(label + "_dim", len(data))
+            var_obj = self.createVariable(label, dtype, (label + "_dim"))
+            var_obj[:] = data
+            if units is not None:
+                var_obj.units = units
+        else:
+            self.createDimension(label + "_dim", None)
+
+    def add_multivariable_axis(
+        self,
+        dim_label: str,
+        sweep_dict: dict,
+        group_path: str | None = None,
+        dtype=np.float32,
+    ):
+        """Add a dimension and its swept variables to the NetCDF file."""
+        dim = dim_label + "_dim"
+        if dim not in self.dimensions:
+            self.createDimension(dim, sweep_dict["size"])
+        swept_vars = {
+            k: v for k, v in sweep_dict.items() if isinstance(v, dict) and "data" in v
+        }
+        for sweep_var, var_info in swept_vars.items():
+            if group_path is None:
+                var_obj = self.createVariable(sweep_var, dtype, (dim))
+            else:
+                group_obj: netCDF4.Group = self[group_path]
+                var_obj = group_obj.createVariable(sweep_var, dtype, (dim))
+            var_obj[:] = var_info["data"]
+            if var_info["units"] is not None:
+                var_obj.units = var_info["units"]
+
+    def add_dataset(
+        self,
+        label: str,
+        axes: list[str],
+        data: np.ndarray,
+        units: str | None = None,
+        group_path: str | None = None,
+        dtype=np.float32,
+    ):
+        """Add a data array to the NetCDF file."""
+        ax_labels = (axis + "_dim" for axis in axes)
+        if group_path is None:
+            variable = self.createVariable(label, dtype, ax_labels)
+        else:
+            group_obj: netCDF4.Group = self[group_path]
+            variable = group_obj.createVariable(label, dtype, ax_labels)
+        variable[:] = data
+        if units is not None:
+            variable.units = units
+
+    def save_last_plot(self, fignum=None):
+        """Save the current or specified Matplotlib figure beside the data."""
+        if fignum is None:
+            plt.gcf()
+        else:
+            plt.figure(fignum)
+        plotname = self.filename_prefix + ".png"
+        if Path(plotname).is_file():
+            location = os.path.dirname(plotname)
+            base = os.path.join(location, self.filename_prefix)
+            dirlist = glob.glob(str(base) + "*.png")
+            dirlist.sort()
+            try:
+                ii = int(str(dirlist[-1]).split("_")[-1].strip(".png")) + 1
+            except (IndexError, ValueError):
+                ii = 2
+            plotname = self.filename_prefix + "_" + str(ii) + ".png"
+        logger.info("saved plot at %s", plotname)
+        plt.savefig(plotname)
+
+    def save_config_json(self, full_config: pydantic.BaseModel):
+        """Save a Pydantic model beside the NetCDF file."""
+        config_file = self.filename_prefix + "_cfg.json"
+        file_manager.save_config_json(full_config, config_file)
+        logger.info("saved config at %s", config_file)
+
+    def save_prog_json(self, prog):
+        """Save a QICK program beside the NetCDF file."""
+        prog_file = self.filename_prefix + "_prog.json"
+        file_manager.save_prog(prog, prog_file)
+        logger.info("saved program at %s", prog_file)
 
 
 def _load_analysis_data(
@@ -42,10 +160,9 @@ def _load_analysis_data(
             processed.append(data_array)
             if hasattr(ana[d], "units"):
                 analysis_type = ana[d].units
-            if attr_name is not None:
-                if hasattr(ana[d], attr_name):
-                    var_attr = getattr(ana[d], attr_name)
-                    attrs.append(var_attr)
+            if attr_name is not None and hasattr(ana[d], attr_name):
+                var_attr = getattr(ana[d], attr_name)
+                attrs.append(var_attr)
     return processed, analysis_type, attrs
 
 
@@ -54,7 +171,7 @@ class NetCDF4Handler(DataHandler):
 
     # -- public save methods --------------------------------------------------
 
-    def save(self, data: SpinqickData | CompositeSpinqickData) -> file_manager.SaveData:
+    def save(self, data: SpinqickData | CompositeSpinqickData) -> SaveData:
         """Save data to a netCDF4 file.
 
         Dispatches to :meth:`_save_single` for :class:`SpinqickData` /
@@ -67,16 +184,16 @@ class NetCDF4Handler(DataHandler):
             return self._save_composite(data)
         return self._save_single(data)
 
-    def _save_single(self, data: SpinqickData) -> file_manager.SaveData:
+    def _save_single(self, data: SpinqickData) -> SaveData:
         """Save a SpinqickData or PsbData object to a netCDF4 file.
 
         For PsbData, also writes difference and thresholded data when present.
-        Returns the open :class:`~spinqick.helper_functions.file_manager.SaveData`
+        Returns the open :class:`SaveData`
         handle (useful for ``save_last_plot``).
         """
         from spinqick.core.spinqick_data import PsbData
 
-        nc_file = file_manager.SaveData(data.data_file, "a", format="NETCDF4")
+        nc_file = SaveData(data.data_file, "a", format="NETCDF4")
         self._basic_save(data, nc_file)
         if isinstance(data, PsbData):
             if data.difference_data is not None:
@@ -87,13 +204,13 @@ class NetCDF4Handler(DataHandler):
         logger.info("data saved at %s", data.data_file)
         return nc_file
 
-    def _save_composite(self, data: CompositeSpinqickData) -> file_manager.SaveData:
+    def _save_composite(self, data: CompositeSpinqickData) -> SaveData:
         """Save a CompositeSpinqickData object to a single netCDF4 file.
 
         Each sub-dataset is nested in its own group labelled by
         ``data.dset_labels``.
         """
-        nc_file = file_manager.SaveData(data.data_file, "a", format="NETCDF4")
+        nc_file = SaveData(data.data_file, "a", format="NETCDF4")
         for i, d in enumerate(data.qdata_array):
             self._basic_save(d, nc_file, nest_in_group=data.dset_labels[i])
         if data.dset_coordinates is not None:
@@ -108,13 +225,11 @@ class NetCDF4Handler(DataHandler):
         logger.info("data saved at %s", data.data_file)
         return nc_file
 
-    def save_plot(
-        self, handle: file_manager.SaveData, fignum: int | str | None = None
-    ) -> None:
+    def save_plot(self, handle: SaveData, fignum: int | str | None = None) -> None:
         """Save the current (or specified) matplotlib figure as a PNG alongside the dataset."""
         handle.save_last_plot(fignum=fignum)
 
-    def close(self, handle: file_manager.SaveData) -> None:
+    def close(self, handle: SaveData) -> None:
         """Close the underlying netCDF4 dataset."""
         handle.close()
 
@@ -171,12 +286,12 @@ class NetCDF4Handler(DataHandler):
     def _basic_save(
         self,
         data: SpinqickData,
-        nc_file: file_manager.SaveData,
+        nc_file: SaveData,
         nest_in_group: str | None = None,
-    ) -> file_manager.SaveData:
+    ) -> SaveData:
         """Save data from a SpinqickData object into a netCDF4 file/group."""
         if nest_in_group is None:
-            nc_group: netCDF4.Group | file_manager.SaveData = nc_file
+            nc_group: netCDF4.Group | SaveData = nc_file
         else:
             nc_group = nc_file.createGroup(nest_in_group)
         meta = data.metadata
@@ -208,9 +323,8 @@ class NetCDF4Handler(DataHandler):
         nc_group.createDimension("reps_dim", data.reps)
         nc_group.createDimension("triggers_dim", data.triggers)
         nc_group.createDimension("IQ_dim", 2)
-        adc_ind = 0
         axes_names: list[str] = []
-        for array in data.raw_data:
+        for adc_ind, array in enumerate(data.raw_data):
             axes_names = ["reps", "triggers"]
             sweep_ax_order = []
             sweep_ax_label = []
@@ -235,13 +349,11 @@ class NetCDF4Handler(DataHandler):
                 units="adc_raw",
                 group_path=gp,
             )
-            adc_ind += 1
         if data.analyzed_data:
             ana_group = nc_group.createGroup("analyzed_data")
-            adc_ind = 0
             if "analysis_avged" in meta:
                 ana_group.analysis_avged = meta["analysis_avged"]
-            for array in data.analyzed_data:
+            for adc_ind, array in enumerate(data.analyzed_data):
                 axes_names_analyzed = []
                 for axis in axes_names:
                     # these axes need to be in the correct order
@@ -261,7 +373,6 @@ class NetCDF4Handler(DataHandler):
                     group_path=ana_group.path,
                     units=data.analysis_type,
                 )
-                adc_ind += 1
         if "fit_params" in meta:
             self._save_fit_params(meta["fit_params"], nc_file)
         nc_group.cfg = meta["cfg_json"]
@@ -274,9 +385,7 @@ class NetCDF4Handler(DataHandler):
             )
         return nc_file
 
-    def _save_fit_params(
-        self, fit_params: dict[str, Any], nc_file: file_manager.SaveData
-    ) -> None:
+    def _save_fit_params(self, fit_params: dict[str, Any], nc_file: SaveData) -> None:
         """Save fit parameters from the metadata dict."""
         fit_grp = nc_file.createGroup("fits")
         if fit_params["fit_param_dict"]:
@@ -291,7 +400,7 @@ class NetCDF4Handler(DataHandler):
     def _save_voltage_data(
         self,
         voltage_state: dict[str, float],
-        nc_file: file_manager.SaveData,
+        nc_file: SaveData,
         nest_in_group: str | None = None,
     ) -> None:
         """Save voltage state as a JSON string attribute."""
@@ -301,7 +410,7 @@ class NetCDF4Handler(DataHandler):
         else:
             nc_file.voltage_state = vstate_json
 
-    def _save_difference_data(self, data: PsbData, ncdf: file_manager.SaveData) -> None:
+    def _save_difference_data(self, data: PsbData, ncdf: SaveData) -> None:
         """Save difference data.
 
         :meth:`_save_data_group`.
@@ -320,7 +429,7 @@ class NetCDF4Handler(DataHandler):
             prefix="difference",
         )
 
-    def _save_threshed_data(self, data: PsbData, ncdf: file_manager.SaveData) -> None:
+    def _save_threshed_data(self, data: PsbData, ncdf: SaveData) -> None:
         """Save thresholded data.
 
         :meth:`_save_data_group`.
@@ -368,7 +477,7 @@ class NetCDF4Handler(DataHandler):
 
     @staticmethod
     def _save_data_group(
-        ncdf: file_manager.SaveData,
+        ncdf: SaveData,
         ana_group: netCDF4.Group,
         data_arrays: list[np.ndarray],
         source_dims: tuple[str, ...],
@@ -431,14 +540,14 @@ class NetCDF4Handler(DataHandler):
             if "raw_data" in d:
                 data_array = np.asarray(nc_file[d][:])
                 raw.append(data_array)
-        if "analyzed_data" in nc_file.groups.keys():
+        if "analyzed_data" in nc_file.groups:
             processed, analysis_type, ana_avg = _load_analysis_data(
                 nc_file, "analyzed", "analysis_avged"
             )
         else:
             processed = None
             ana_avg = None
-        if "swept_variables" in nc_file.groups.keys():
+        if "swept_variables" in nc_file.groups:
             sweep = nc_file["swept_variables"]
             sweep_axis_keys = list(sweep.groups.keys())
             for sw in sweep_axis_keys:
@@ -476,7 +585,7 @@ class NetCDF4Handler(DataHandler):
         if hasattr(nc_file, "voltage_state"):
             v_json = nc_file.voltage_state
             data_obj.voltage_state = json.loads(v_json)
-        if "fits" in nc_file.groups.keys():
+        if "fits" in nc_file.groups:
             fit_grp = nc_file["fits"]
             best_fit = fit_grp["best_fit"]
             best_fit_dim_label = best_fit.dimensions
@@ -491,7 +600,7 @@ class NetCDF4Handler(DataHandler):
         if (
             load_psb
             and isinstance(data_obj, PsbData)
-            and "analyzed_data" in nc_file.groups.keys()
+            and "analyzed_data" in nc_file.groups
         ):
             processed_diff, _, _ = _load_analysis_data(nc_file, "difference")
             if processed_diff:

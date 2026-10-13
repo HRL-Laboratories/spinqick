@@ -1,6 +1,6 @@
 """Module for setting up exchange-only pulse sequences."""
 
-from typing import List, Literal
+from typing import Literal
 
 import numpy as np
 from qick import QickConfig, asm_v2
@@ -173,7 +173,7 @@ def play_pi(
 def setup_evol_sweep(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    exchange_axis: List[spinqick_enums.ExchangeAxis],
+    exchange_axis: list[spinqick_enums.ExchangeAxis],
     sweep_dict: dict,
 ):
     """Set up an evol pulse for one or both axes of a qubit.
@@ -189,8 +189,8 @@ def setup_evol_sweep(
             gen = gate_obj.gen
             gate_name = gate_obj.name
             idle_gain = gate_obj.gains.idle_gain
-            if sweep_dict is not None and axis in sweep_dict.keys():
-                if gate in sweep_dict[axis].keys():
+            if sweep_dict is not None and axis in sweep_dict:
+                if gate in sweep_dict[axis]:
                     exchange_gain = sweep_dict[axis][gate]
                 else:
                     exchange_gain = gate_obj.gains.exchange_gain
@@ -262,7 +262,7 @@ def setup_evol(
             gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
             gen = gate_obj.gen
             gate_name = gate_obj.name
-            if sweep_dict is not None and axis in sweep_dict.keys():
+            if sweep_dict is not None and axis in sweep_dict:
                 exchange_gain = sweep_dict[axis][gate]
             else:
                 exchange_gain = gate_obj.gains.exchange_gain
@@ -356,7 +356,7 @@ def setup_evol_comp(
         gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
         gen = gate_obj.gen
         gate_name = gate_obj.name
-        if sweep_dict is not None and axis in sweep_dict.keys():
+        if sweep_dict is not None and axis in sweep_dict:
             exchange_gain = sweep_dict[axis][gate]
         else:
             exchange_gain = gate_obj.gains.exchange_gain
@@ -424,7 +424,7 @@ def setup_evol_comp(
 def setup_evol_sweep_comp(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    exchange_axis: List[spinqick_enums.ExchangeAxis],
+    exchange_axis: list[spinqick_enums.ExchangeAxis],
     sweep_dict: dict,
     n_pulses: int,
 ):
@@ -440,8 +440,8 @@ def setup_evol_sweep_comp(
     """
     for axis in exchange_axis:
         cfg: qubit_models.ExchangeAxisConfig = getattr(qubit_cfg, axis)
-        if axis in sweep_dict.keys():
-            for gate in sweep_dict[axis].keys():
+        if axis in sweep_dict:
+            for gate in sweep_dict[axis]:
                 exchange_gain = sweep_dict[axis][gate]
                 gate_obj: qubit_models.ExchangeGate = getattr(cfg.gates, gate)
                 gen = gate_obj.gen
@@ -570,8 +570,8 @@ def theta_to_x_gain(
 def dumb_1q_compiler(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    n_recipe: List,
-    z_recipe: List,
+    n_recipe: list,
+    z_recipe: list,
     x_n_conversion: float,
     x_z_conversion: float,
 ):
@@ -623,7 +623,7 @@ def clifford_to_recipe(clifford: str):
 def setup_1q_cliffords(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    cliffords: List[str],
+    cliffords: list[str],
     x_n_conversion: float,
     x_z_conversion: float,
 ):
@@ -674,7 +674,7 @@ def setup_1q_cliffords(
 def play_1q_clifford(
     prog: asm_v2.QickProgramV2,
     qubit_cfg: qubit_models.Eo1Qubit,
-    cliffords: List[str],
+    cliffords: list[str],
     t: float = 0,
 ):
     """Play a single qubit clifford.
@@ -683,12 +683,18 @@ def play_1q_clifford(
     :param t: time in qickprogram to execute the cliffords in microseconds.
     """
 
-    ncfg = getattr(qubit_cfg, "n")
-    ngate_obj: qubit_models.ExchangeGate = getattr(ncfg.gates, "x")
+    ncfg = qubit_cfg.n
+    n_gates = ncfg.gates
+    if not isinstance(n_gates, qubit_models.ExchangeGateMap):
+        raise TypeError("n axis must contain RFSoC ExchangeGate values")
+    ngate_obj = n_gates.x
     n_gen = ngate_obj.gen
 
-    zcfg = getattr(qubit_cfg, "z")
-    zgate_obj: qubit_models.ExchangeGate = getattr(zcfg.gates, "x")
+    zcfg = qubit_cfg.z
+    z_gates = zcfg.gates
+    if not isinstance(z_gates, qubit_models.ExchangeGateMap):
+        raise TypeError("z axis must contain RFSoC ExchangeGate values")
+    zgate_obj = z_gates.x
     z_gen = zgate_obj.gen
     label = ""
     for clifford in cliffords:

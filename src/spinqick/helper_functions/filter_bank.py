@@ -63,7 +63,6 @@ class Filter(ABC):
 
     def apply(self, wf, **kwargs):
         """Apply the filter to the input waveform."""
-        pass
 
 
 class FilterPath:

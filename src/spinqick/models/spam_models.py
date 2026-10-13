@@ -1,6 +1,6 @@
 """Pydantic models to hold SPAM parameters."""
 
-from typing import Mapping, Union
+from collections.abc import Mapping
 
 import pydantic
 
@@ -38,7 +38,7 @@ class SpamStep(pydantic.BaseModel):
 
     duration: float  # pulse durations in microseconds
     gate_list: Mapping[
-        spinqick_enums.GateNames, Union[SpamPulse, SpamRamp]
+        spinqick_enums.GateNames, SpamPulse | SpamRamp
     ]  # supply a dict of SpamPulse objects and corresponding gate names
 
 
@@ -46,7 +46,7 @@ class SpamStepDac(pydantic.BaseModel):
     """Spam step definition in DAC units."""
 
     duration: float  # pulse durations in microseconds
-    gate_list: Mapping[spinqick_enums.GateNames, Union[SpamPulseDac, SpamRampDac]]
+    gate_list: Mapping[spinqick_enums.GateNames, SpamPulseDac | SpamRampDac]
 
 
 class DefaultSpam(pydantic.BaseModel):

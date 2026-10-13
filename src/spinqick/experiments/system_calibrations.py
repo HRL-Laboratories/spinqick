@@ -1,7 +1,6 @@
 """This module holds scripts which can be useful when setting up a new device or system."""
 
 import logging
-from typing import Tuple
 
 import numpy as np
 
@@ -39,7 +38,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
     @dot_experiment.updater
     def sweep_adc_trig_offset(
         self,
-        times: Tuple[float, float, int],
+        times: tuple[float, float, int],
         point_avgs: int,
         full_avgs: int,
         loop_slack: float,
@@ -96,7 +95,7 @@ class SystemCalibrations(dot_experiment.DotExperiment):
                         delay_sweep,
                         data_obj.analyzed_data[adc_idx][0],
                         data_obj.timestamp,
-                        title="adc %d" % adc_idx,
+                        title=f"adc {adc_idx}",
                         ylabel="conductance (arbs)",
                         xlabel="adc trigger delay (us)",
                     )

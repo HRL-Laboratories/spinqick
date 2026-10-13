@@ -5,7 +5,7 @@ Converted to tprocv2 compatibility.
 
 import logging
 import time
-from typing import List, Literal, Tuple
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,7 +38,7 @@ def plot_gvg_2d(
     y_gate: str,
     x_label: str,
     y_label: str,
-    adc_units: str | List[str] = "arbs",
+    adc_units: str | list[str] = "arbs",
 ):
     """Plotting function for 2D electrostatics type sweeps."""
     if data.analyzed_data is not None:
@@ -66,13 +66,13 @@ def plot_gvg_2d(
                 data=plot_mag,
                 timestamp=data.timestamp,
                 cbar_label=data.analysis_type + "_" + units[i],
-                title="%s v %s, adc %d" % (x_gate, y_gate, i),
-                xlabel="%s (mV)" % x_label,
-                ylabel="%s (mV)" % y_label,
+                title=f"{x_gate} v {y_gate}, adc {i}",
+                xlabel=f"{x_label} (mV)",
+                ylabel=f"{y_label} (mV)",
             )
             fignums.append(fig.number)
     else:
-        raise Exception("no analyzed data exists on spinqickdata object")
+        raise ValueError("no analyzed data exists on spinqickdata object")
     return fignums
 
 
@@ -96,7 +96,7 @@ def plot_g_1d(
                 dset_label=dset_label,
                 xlabel=x_label,
                 ylabel=y_label,
-                title=" adc %d" % i,
+                title=f" adc {i}",
             )
             fignums.append(fig.number)
     return fignums
@@ -124,7 +124,7 @@ def add_g_1d(
                 new_figure=False,
                 xlabel=x_label,
                 ylabel=y_label,
-                title=" adc %d" % i,
+                title=f" adc {i}",
             )
 
 
@@ -134,8 +134,8 @@ def analyze_cross_caps(
     fit_type: Literal["gaussian", "abs_max", "abs_min"] = "gaussian",
 ):
     """Analysis routine for the cross capacitance experiment."""
-    slow_gate_dict = list(get_sweep_vars(data_obj.axes["x"]).keys())[0]
-    fast_gate_dict = list(get_sweep_vars(data_obj.axes["y"]).keys())[0]
+    slow_gate_dict = next(iter(get_sweep_vars(data_obj.axes["x"]).keys()))
+    fast_gate_dict = next(iter(get_sweep_vars(data_obj.axes["y"]).keys()))
     n_vx = data_obj.axes["x"]["size"]
     center_data = np.zeros(n_vx)
     # fit each slice (fast sweep) to a gaussian
@@ -153,8 +153,8 @@ def analyze_cross_caps(
                     center_data[x_pt] = out.params["center"].value
                 else:
                     center_data[x_pt] = np.nan
-            except Exception as exc:
-                logger.error("fit failed: %s", exc, exc_info=True)
+            except Exception:
+                logger.exception("fit failed")
         elif fit_type == "abs_max":
             center_data[x_pt] = xdata[np.argmax(ydata)]
         elif fit_type == "abs_min":
@@ -165,9 +165,9 @@ def analyze_cross_caps(
         out = line.fit(center_data, pars, x=data_obj.axes["x"][slow_gate_dict]["data"])
         slope = out.params["slope"].value
         logger.info("slope is %f", slope)
-    except Exception as exc:
+    except Exception:
         slope = np.nan
-        logger.error("line fit failed, %s", exc, exc_info=True)
+        logger.exception("line fit failed")
     fit_params = {
         "slope": slope,
         "intercept": out.params["intercept"].value,
@@ -666,8 +666,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         self,
         x_gate: spinqick_enums.GateNames,
         y_gate: spinqick_enums.GateNames,
-        x_range: Tuple[float, float, int],
-        y_range: Tuple[float, float, int],
+        x_range: tuple[float, float, int],
+        y_range: tuple[float, float, int],
         measure_buffer: float,
         compensate: spinqick_enums.GateNames | None = None,
         mode: Literal["sd_chop", "transdc"] = "sd_chop",
@@ -728,7 +728,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             plt.text(
                 text_xcoord,
                 text_ycoord,
-                "slope = %.6f" % data_obj.fit_param_dict["slope"],
+                "slope = {:.6f}".format(data_obj.fit_param_dict["slope"]),
                 fontdict={"color": "red"},
             )
             line_fit = (
@@ -863,7 +863,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 best_v = halfmax
             else:
                 best_v = center
-            print("best voltage = %f" % best_v)
+            print(f"best voltage = {best_v:f}")
             # first make sure the voltage it picks is within limits of sweep for safety
             if set_v:
                 if np.logical_and(best_v < vm_stop, best_v > vm_start):
@@ -879,20 +879,18 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 "sigma": out.params["sigma"].value,
             }
             data_obj.add_fit_params(fit_dict, out.best_fit, "x")
-        except Exception as exc:
+        except Exception:
             if set_v:
                 self.vdc.set_dc_voltage(m_bias, m_dot)
             fwhm = 0
             center = 0
             halfmax = 0
-            logger.error(
-                "fit failed, setting m to initial value, error %s", exc, exc_info=True
-            )
+            logger.exception("fit failed, setting m to initial value")
 
         if self.plot:
             # plot the data
             adc_units = self.adc_units[0]
-            plot_g_1d(data_obj, m_dot, "M voltage (V)", "%s (%s)" % (mode, adc_units))
+            plot_g_1d(data_obj, m_dot, "M voltage (V)", f"{mode} ({adc_units})")
             plt.plot(vm_sweep, out.best_fit)
             plt.plot([best_v], [gaussian.eval(out.params, x=best_v)], "o")  # type: ignore
             plt.title("retune dcs")
@@ -1013,7 +1011,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                         dset,
                         gates[i],
                         x_label,
-                        "conductance (%s)" % adc_units,
+                        f"conductance ({adc_units})",
                         dset_label=dset.experiment_name,
                     )
                 else:
@@ -1022,7 +1020,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                         dset,
                         gatename[0],
                         x_label,
-                        "conductance (%s)" % adc_units,
+                        f"conductance ({adc_units})",
                         dset_label=dset.experiment_name,
                         fignums=fignums,
                     )
@@ -1034,7 +1032,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             plot_figs: list[int | str | None] = []
             if self.plot:
                 for adc in fignums:
-                    plot_figs.append(adc)
+                    plot_figs.extend([adc])
             self.finalize(
                 qd_composite,
                 fignums=plot_figs if plot_figs else None,
@@ -1081,7 +1079,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             dcs_cfg=self.dcs_config,
         )
 
-        v_0 = np.zeros((len(gates)))
+        v_0 = np.zeros(len(gates))
         vsweeps = []
         if compensate is not None:
             v_m = self.vdc.get_dc_voltage(compensate)
@@ -1091,10 +1089,9 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
 
             v_start = v_bias_0 + g_start
             v_stop = v_bias_0 + g_stop
-            if sweep_direction is not None:
-                if sweep_direction[i] == -1:
-                    v_start = v_bias_0 + g_stop
-                    v_stop = v_bias_0 + g_start
+            if sweep_direction is not None and sweep_direction[i] == -1:
+                v_start = v_bias_0 + g_stop
+                v_stop = v_bias_0 + g_start
             v_sweep = np.linspace(v_start, v_stop, num_points)
             vsweeps.append(v_sweep)
             if compensate is None:
@@ -1151,7 +1148,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
             for gate in gates:
                 x_label = x_label + " " + gate + ","
             adc_units = self.adc_units[0]
-            plot_g_1d(qd, gates[0], x_label, "%s (%s)" % (mode, adc_units))
+            plot_g_1d(qd, gates[0], x_label, f"{mode} ({adc_units})")
 
         self.finalize(qd)
         return qd
@@ -1186,8 +1183,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     def calibrate_baseband_voltage(
         self,
         gate: spinqick_enums.GateNames,
-        gate_dc_range: Tuple[float, float, int],
-        gate_pulse_range: Tuple[float, float, int],
+        gate_dc_range: tuple[float, float, int],
+        gate_pulse_range: tuple[float, float, int],
         gate_step: float,
         gate_freq: float,
         measure_buffer: float,
@@ -1296,7 +1293,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 full_dataset.timestamp,
                 cbar_label="differential conductance",
                 title=gate,
-                ylabel=" %s voltage (V)" % gate,
+                ylabel=f" {gate} voltage (V)",
                 xlabel="rfsoc dac gain",
             )
 
@@ -1307,8 +1304,8 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     def measure_bandwidth(
         self,
         gate: spinqick_enums.GateNames,
-        gate_dc_range: Tuple[float, float, int],
-        gate_freq_range: Tuple[float, float, int],
+        gate_dc_range: tuple[float, float, int],
+        gate_freq_range: tuple[float, float, int],
         gate_step: float,
         pulse_gain: float,
         measure_buffer: float,
@@ -1420,7 +1417,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
                 cbar_label="differential conductance",
             )
             plt.title(gate)
-            plt.ylabel(" %s voltage (V)" % gate)
+            plt.ylabel(f" {gate} voltage (V)")
             plt.xlabel("rfsoc dac freq")
             plt.xscale("log")
 
@@ -1431,7 +1428,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
     def tune_hsa(
         self,
         gate: spinqick_enums.GateNames,
-        gate_dc_range: Tuple[float, float, int],
+        gate_dc_range: tuple[float, float, int],
         pulse_time: float,
         pulse_gain: float,
         measure_buffer: float,
@@ -1496,7 +1493,7 @@ class TuneElectrostatics(dot_experiment.DotExperiment):
         )
         self.vdc.set_dc_voltage(v_p0, gate)
         if self.plot:
-            plot_g_1d(qd, gate, " %s voltage (V)" % gate, "conductance")
+            plot_g_1d(qd, gate, f" {gate} voltage (V)", "conductance")
 
         self.finalize(qd)
         return qd

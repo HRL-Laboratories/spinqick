@@ -16,6 +16,10 @@ from spinqick.models import hardware_config_models as hcm
 logger = logging.getLogger(__name__)
 
 
+class VoltageLimitError(ValueError):
+    """Raised when a requested voltage exceeds a configured hardware limit."""
+
+
 class VoltageSource(Protocol):
     def open(self, address: str):
         pass
@@ -98,16 +102,18 @@ class DCSource:
         :returns: Voltage in units of volts at the gate.
         """
 
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
-        vreturn = self.vsource.get_voltage(ch) / conversion
-        assert isinstance(vreturn, float)
-        self.vsource.close()
-        return vreturn
+        self.vsource.open(address=address)
+        try:
+            vreturn = self.vsource.get_voltage(ch) / conversion
+            assert isinstance(vreturn, float)
+            return vreturn
+        finally:
+            self.vsource.close()
 
     def set_dc_voltage(self, volts: float, gate: spinqick_enums.GateNames):
         """Sets gate voltage.
@@ -115,17 +121,22 @@ class DCSource:
         :param volts: Voltage in units of volts at the gate
         :param gate: Gate to set voltage on
         """
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
         vset = volts * conversion
+        if not np.isfinite(volts):
+            raise ValueError("requested voltage must be finite")
         if np.abs(volts) > channel_cfg.max_v:
-            raise Exception("requested voltage would exceed max_v on gate %s" % gate)
-        else:
+            raise VoltageLimitError(
+                f"requested voltage would exceed max_v on gate {gate}"
+            )
+        self.vsource.open(address=address)
+        try:
             self.vsource.set_voltage(ch, vset)
+        finally:
             self.vsource.close()
 
     def calculate_compensated_voltage(
@@ -217,23 +228,25 @@ class DCSource:
         :param gate: Gate to set voltage on
         """
 
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
         vstart_converted = vstart * conversion
-        if vstart > channel_cfg.max_v:
-            raise Exception(
-                "requested ramp start voltage would exceed max_v on gate %s" % gate
+        if not np.isfinite(vstart) or not np.isfinite(vstop):
+            raise ValueError("ramp voltages must be finite")
+        if np.abs(vstart) > channel_cfg.max_v:
+            raise VoltageLimitError(
+                f"requested ramp start voltage would exceed max_v on gate {gate}"
             )
         vstop_converted = vstop * conversion
-        if vstop > channel_cfg.max_v:
-            raise Exception(
-                "requested ramp end voltage would exceed max_v on gate %s" % gate
+        if np.abs(vstop) > channel_cfg.max_v:
+            raise VoltageLimitError(
+                f"requested ramp end voltage would exceed max_v on gate {gate}"
             )
-        else:
+        self.vsource.open(address=address)
+        try:
             self.vsource.set_sweep(
                 ch=ch,
                 start=vstart_converted,
@@ -241,6 +254,7 @@ class DCSource:
                 length=tstep * nsteps,
                 num_steps=nsteps,
             )
+        finally:
             self.vsource.close()
 
     def program_ramp_compensate(

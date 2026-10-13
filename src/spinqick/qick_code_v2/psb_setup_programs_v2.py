@@ -97,8 +97,8 @@ class MeasureScanStepRamp(asm_v2.AveragerProgramV2):
         n_steps = np.ceil(ramp_length / cfg.step_time)
         if n_steps > 29:
             raise ValueError(
-                "%d steps in ramp %s, number of steps needs to be less than 29. Raise step_time."
-                % (n_steps, step_label)
+                f"{n_steps} steps in ramp {step_label}, number of steps needs to be less than 29. "
+                "Raise step_time."
             )
 
         for gate, gen, addr in [

@@ -1,6 +1,6 @@
 """Pydantic templates for hardware config parameters."""
 
-from typing import Dict, List, Literal, Union
+from typing import Literal
 
 import pydantic
 
@@ -36,7 +36,7 @@ class SlowGate(pydantic.BaseModel):
     max_v: float
     gate_type: spinqick.helper_functions.spinqick_enums.GateTypes
     crosscoupling: (
-        Dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None
+        dict[spinqick.helper_functions.spinqick_enums.GateNames, float] | None
     ) = None  # crosscoupling between gates
 
 
@@ -75,16 +75,16 @@ class HardwareConfigBase(pydantic.BaseModel):
     """Model for the hardware config in versions < 2.0.2 ."""
 
     sd_in: SourceDrainIn
-    m1_readout: List[SourceDrainOut]
-    m2_readout: List[SourceDrainOut]
+    m1_readout: list[SourceDrainOut]
+    m2_readout: list[SourceDrainOut]
     rf_gen: int | None = None
     rf_trig_pin: int | None = None  # trigger pin for the RF switch
     ac_gate: SourceDrainIn | None = (
         None  # gate used to apply ac signal for transconductance
     )
-    channels: Dict[
+    channels: dict[
         spinqick.helper_functions.spinqick_enums.GateNames,
-        Union[FastGate, SlowGate, HemtGate, AuxGate],
+        FastGate | SlowGate | HemtGate | AuxGate,
     ]
     voltage_source: Literal["test", "slow_dac"] | None = (
         "test"  # specify the type of dc supply you're using for DCSource class

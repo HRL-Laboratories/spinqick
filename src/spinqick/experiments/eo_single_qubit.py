@@ -2,7 +2,7 @@
 qubit."""
 
 import logging
-from typing import Literal, Tuple
+from typing import Literal
 
 import numpy as np
 import pylab as plt
@@ -192,7 +192,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self,
         qubit: str,
         axis: spinqick_enums.ExchangeAxis,
-        p_range: Tuple[Tuple[float, float, int], Tuple[float, float, int]],
+        p_range: tuple[tuple[float, float, int], tuple[float, float, int]],
         point_avgs: int = 1,
         full_avgs: int = 1,
         t1j: bool = False,
@@ -306,8 +306,8 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self,
         qubit: str,
         axis: spinqick_enums.ExchangeAxis,
-        detuning_range: Tuple[float, float, int],
-        exchange_range: Tuple[float, float, int],
+        detuning_range: tuple[float, float, int],
+        exchange_range: tuple[float, float, int],
         n_pulses: int = 1,
         point_avgs: int = 1,
         full_avgs: int = 1,
@@ -576,7 +576,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self,
         qubit: str,
         axis: spinqick_enums.ExchangeAxis,
-        exchange_range: Tuple[float, float, int],
+        exchange_range: tuple[float, float, int],
         n_pulses: int = 3,
         point_avgs: int = 10,
         full_avgs: int = 10,
@@ -691,7 +691,7 @@ class EOSingleQubit(dot_experiment.DotExperiment):
         self,
         qubit: str,
         axis: spinqick_enums.ExchangeAxis,
-        theta_range: Tuple[float, float, int],
+        theta_range: tuple[float, float, int],
         t_res: Literal["fs", "fabric"] = "fs",
         n_pulses: int = 10,
         point_avgs: int = 5,
