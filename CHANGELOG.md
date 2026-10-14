@@ -1,3 +1,12 @@
+v2.0.6-dev3
+======
+- added unit tests for most core functions, data handling code and for both data backends
+- added CI and SAST
+- fixed numpy and pydantic dependencies
+- set memspectrum as an optional import, since it is only used once
+- removed setup.py and verified dependencies in pyproject.toml
+- removed pyro4 dependency, that is inherited from QICK and they are on the path to a pyro5 upgrade
+
 v2.0.6-dev2
 ======
 - updated details on setting env vars in getting_started.rst for clarity
