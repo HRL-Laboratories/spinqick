@@ -71,7 +71,7 @@ addopts = "--ignore-glob='*@neomake*' --ignore-glob='*__main__.py'  --doctest-mo
 testpaths = [
     "src",
     "tests",
-    "doc",
+    "docs",
 ]
 markers = [
     "qcodes: tests requiring the optional QCoDeS package and a temporary database",
