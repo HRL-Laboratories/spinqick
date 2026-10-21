@@ -32,7 +32,7 @@ jobs:
           cache: pip
 
       - name: Install package and test dependencies
-        run: python -m pip install "qick[full]==0.2.436" -e ".[qcodes]" pytest==9.1.1
+        run: python -m pip install -e ".[qick,qcodes]" pytest==9.1.1
 
       - name: Run tests
         run: python -m pytest

@@ -18,7 +18,7 @@ It is the responsibility of the contributor to ensure that contributed code does
 spinQICK Development Scope
 ==========================
 
-spinQICK makes heavy use of the `QICK <https://docs.qick.dev/latest/index.html>`__ API and firmware. The stable fork of QICK API and firmware supported by spinQICK is present `here <https://github.com/HRL-Laboratories/qick>`__. The spinQICK developers guide does not cover the contents of this repository and any modification to these repositories must be done through issue creation and feature requests with QICK. Issues can be made `here <https://github.com/openquantumhardware/qick/issues>`__. If there is a desire to create a custom firmware based on the spinQICK supported firmware, Vivado project files can be found `here <https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-01_216_tprocv2r25_rfbv2_16fullspeed_11xtalk/>`__
+spinQICK makes heavy use of the `QICK <https://docs.qick.dev/latest/index.html>`__ API and firmware. The default supported API release is ``qick[full]==0.2.436`` from PyPI, installed through spinQICK's ``qick`` package extra and tested in CI. The spinQICK developers guide does not cover changes to QICK; those should be proposed through `QICK issues <https://github.com/openquantumhardware/qick/issues>`__. If there is a desire to create custom firmware based on the spinQICK-supported firmware, Vivado project files can be found `here <https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-01_216_tprocv2r25_rfbv2_16fullspeed_11xtalk/>`__.
 
 
 
@@ -42,13 +42,21 @@ It is advised that spinQICK be installed as an editable package. This can be don
 
 .. code-block:: bash
 
-    pip install -e .
+    pip install -e ".[qick]"
 
-now navigate to the QICK repository and run
+This installs the pinned PyPI release used by CI and is the recommended setup
+for normal development. Developers working on the crosstalk compensation
+feature must instead use
+`HRL's QICK fork <https://github.com/HRL-Laboratories/qick>`__ with compatible
+crosstalk-compensation firmware. Install spinQICK without the ``qick`` extra,
+then install the fork as an editable package:
 
 .. code-block:: bash
 
-    pip install -e ".[full]"
+    pip install -e .
+    git clone https://github.com/HRL-Laboratories/qick.git ../qick
+    pip install -e "../qick[full]"
+
 
 ======================
 git pre-commit checks
