@@ -1,12 +1,34 @@
 """Unit tests for configuration and path helpers."""
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
 
 from spinqick.helper_functions import file_manager
+
+
+def test_save_data_is_reexported_from_legacy_import_path():
+    """The pre-backend-refactor public import path remains compatible."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from spinqick.helper_functions.file_manager import SaveData as LegacySaveData; "
+                "from spinqick.backends.netcdf4_backend import SaveData; "
+                "assert LegacySaveData is SaveData"
+            ),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 class ExampleConfig(BaseModel):

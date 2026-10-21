@@ -22,7 +22,6 @@ import pydantic
 
 from spinqick.backends import register_backend
 from spinqick.backends.data_protocols import DataHandler
-from spinqick.helper_functions import file_manager
 from spinqick.models import experiment_models
 
 if TYPE_CHECKING:
@@ -134,14 +133,18 @@ class SaveData(netCDF4.Dataset):
 
     def save_config_json(self, full_config: pydantic.BaseModel):
         """Save a Pydantic model beside the NetCDF file."""
+        from spinqick.helper_functions.file_manager import save_config_json
+
         config_file = self.filename_prefix + "_cfg.json"
-        file_manager.save_config_json(full_config, config_file)
+        save_config_json(full_config, config_file)
         logger.info("saved config at %s", config_file)
 
     def save_prog_json(self, prog):
         """Save a QICK program beside the NetCDF file."""
+        from spinqick.helper_functions.file_manager import save_prog
+
         prog_file = self.filename_prefix + "_prog.json"
-        file_manager.save_prog(prog, prog_file)
+        save_prog(prog, prog_file)
         logger.info("saved program at %s", prog_file)
 
 
