@@ -13,6 +13,7 @@ import yaml
 from qick import QickConfig, asm_v2, helpers
 from qick.qick_asm import AbsQickProgram
 
+from spinqick.backends.netcdf4_backend import SaveData  # noqa: F401
 from spinqick.models import hardware_config_models
 from spinqick.settings import file_settings
 
