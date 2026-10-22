@@ -282,8 +282,7 @@ def offset_sine_wave(
     # TODO need to handle high frequency pulses better
     remainder = steps % cycles_per_clk
     steps -= remainder
-    if steps < min_pulse_length:
-        steps = min_pulse_length
+    steps = max(steps, min_pulse_length)
     time_array = np.linspace(0, steps * cycle_time, int(steps))
     pulse = sine_ampl * np.sin(2 * np.pi * sine_freq * time_array) + step_ampl
     return pulse * MAX_DAC_GAIN

@@ -1,6 +1,6 @@
 """Pydantic models for passing in to qick_code classes."""
 
-from typing import List, Literal
+from typing import Literal
 
 import pydantic
 
@@ -204,4 +204,4 @@ class SpinEcho(LdSweepOne):
 
 class PlayXY(AvgedExperiment):
     qubit: ld_qubit_models.Ld1Qubit
-    gate_set: List[List[str]]
+    gate_set: list[list[str]]

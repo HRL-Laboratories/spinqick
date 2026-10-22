@@ -1,4 +1,5 @@
-from typing import Literal, Mapping, Union
+from collections.abc import Mapping
+from typing import Literal
 
 import pydantic
 
@@ -19,9 +20,9 @@ class QubitParams(pydantic.BaseModel):
     """Spam settings and qubit parameters for one qubit."""
 
     ro_cfg: ReadoutParams
-    qubit_params: Union[
-        qubit_models.Eo1QubitAxes, ld_qubit_models.Ld1QubitParams, None
-    ] = None
+    qubit_params: qubit_models.Eo1QubitAxes | ld_qubit_models.Ld1QubitParams | None = (
+        None
+    )
 
 
 class ExperimentConfig(pydantic.BaseModel):
@@ -44,5 +45,5 @@ class ExperimentConfigRfsoc(pydantic.BaseModel):
     m1_readout: dcs_model.DcsConfig
     m2_readout: dcs_model.DcsConfig
     qubit_configs: Mapping[
-        str, Union[qubit_models.Eo1Qubit, ld_qubit_models.Ld1Qubit, Ro1Qubit]
+        str, qubit_models.Eo1Qubit | ld_qubit_models.Ld1Qubit | Ro1Qubit
     ] = {}

@@ -16,12 +16,10 @@ def plot_decimated(iq_list, config, plot_iq=False):
 
     for iq in iq_list:
         iq = np.transpose(iq)
-        plt.plot(
-            time, np.abs(iq[0] + 1j * iq[1]), label="mag, ADC %d" % (config["ro_ch"])
-        )
+        plt.plot(time, np.abs(iq[0] + 1j * iq[1]), label=f"mag, ADC {config['ro_ch']}")
         if plot_iq:
-            plt.plot(time, iq[0], label="I value, ADC %d" % (config["ro_ch"]))
-            plt.plot(time, iq[1], label="Q value, ADC %d" % (config["ro_ch"]))
+            plt.plot(time, iq[0], label=f"I value, ADC {config['ro_ch']}")
+            plt.plot(time, iq[1], label=f"Q value, ADC {config['ro_ch']}")
 
     plt.legend()
     plt.xlabel(r"time ($\mu s$)")
@@ -36,9 +34,12 @@ def interpret_data_dcs(avgi, avgq, data_dim="2D"):
     mag = np.sqrt(avgi[0] ** 2 + avgq[0] ** 2)
 
     # average over the number of shots at each point, unless there is only 1 shot per point
-    if len(mag.shape) > 2 and data_dim == "2D":
-        avged_mag = np.mean(mag, axis=0)
-    elif len(mag.shape) > 1 and data_dim == "1D":
+    if (
+        len(mag.shape) > 2
+        and data_dim == "2D"
+        or len(mag.shape) > 1
+        and data_dim == "1D"
+    ):
         avged_mag = np.mean(mag, axis=0)
     else:
         avged_mag = mag  # each point is a single shot
@@ -58,9 +59,12 @@ def interpret_data_psb(avgi, avgq, data_dim="2D", thresh=None):
         mag = np.where(np.abs(mag) > thresh, 0, 1)
 
     # average over the number of shots at each point, unless there is only 1 shot per point
-    if len(mag.shape) > 2 and data_dim == "2D":
-        avged_mag = np.mean(mag, axis=0)
-    elif len(mag.shape) > 1 and data_dim == "1D":
+    if (
+        len(mag.shape) > 2
+        and data_dim == "2D"
+        or len(mag.shape) > 1
+        and data_dim == "1D"
+    ):
         avged_mag = np.mean(mag, axis=0)
     else:
         avged_mag = mag  # each point is a single shot
@@ -125,7 +129,7 @@ def plot2_simple(
     fig = plt.figure()
     plt.pcolormesh(xarray, yarray, data, shading="nearest", cmap="binary_r")
     plt.colorbar(label=cbar_label)
-    plt.title("t: %d" % timestamp, loc="right", fontdict={"fontsize": 6})
+    plt.title(f"t: {timestamp}", loc="right", fontdict={"fontsize": 6})
     if xlabel is not None:
         plt.xlabel(xlabel)
     if ylabel is not None:
@@ -161,7 +165,7 @@ def plot1_simple(
         plt.plot(xarray, data, **kwargs)
     else:
         plt.plot(xarray, data, label=dset_label, **kwargs)
-    plt.title("t: %d" % timestamp, loc="right", fontdict={"fontsize": 6})
+    plt.title(f"t: {timestamp}", loc="right", fontdict={"fontsize": 6})
     if xlabel is not None:
         plt.xlabel(xlabel)
     if ylabel is not None:

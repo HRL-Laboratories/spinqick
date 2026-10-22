@@ -25,15 +25,16 @@ def make_default_configs(
     r_hw = resources.files("spinqick") / "config/hardware_config.json"
     r_exp = resources.files("spinqick") / "config/experiment_config.json"
     r_filt = resources.files("spinqick") / "config/filter_config.json"
-    if make_hw_cfg:
-        if not os.path.isfile(hw_path) or overwrite:
-            with resources.as_file(r_hw) as file_path:
-                shutil.copy(file_path, hw_path)
-    if make_experiment_cfg:
-        if not os.path.isfile(exp_path) or overwrite:
-            with resources.as_file(r_exp) as file_path:
-                shutil.copy(file_path, exp_path)
-    if make_filter_cfg and filter_path is not None:
-        if not os.path.isfile(filter_path) or overwrite:
-            with resources.as_file(r_filt) as file_path:
-                shutil.copy(file_path, filter_path)
+    if make_hw_cfg and (not os.path.isfile(hw_path) or overwrite):
+        with resources.as_file(r_hw) as file_path:
+            shutil.copy(file_path, hw_path)
+    if make_experiment_cfg and (not os.path.isfile(exp_path) or overwrite):
+        with resources.as_file(r_exp) as file_path:
+            shutil.copy(file_path, exp_path)
+    if (
+        make_filter_cfg
+        and filter_path is not None
+        and (not os.path.isfile(filter_path) or overwrite)
+    ):
+        with resources.as_file(r_filt) as file_path:
+            shutil.copy(file_path, filter_path)

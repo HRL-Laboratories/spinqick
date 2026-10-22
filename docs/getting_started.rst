@@ -42,7 +42,9 @@ A complete kit can be customized and purchased `here <https://www.realdigital.or
 Installation
 ============
 
-You will need to clone both `spinQICK <https://github.com/HRL-Laboratories/spinqick>`__ and `our fork of QICK <https://github.com/HRL-Laboratories/qick>`__ from github.
+Clone `spinQICK <https://github.com/HRL-Laboratories/spinqick>`__ from GitHub. The
+default supported QICK API is installed from PyPI through the ``qick`` package extra.
+This extra is pinned to the same ``qick[full]==0.2.436`` release tested in CI.
 
 Navigate to your local spinQICK repository and run
 
@@ -50,13 +52,20 @@ Navigate to your local spinQICK repository and run
 
     conda env create -f environment.yml
     conda activate spinqick
-    pip install .
+    pip install ".[qick]"
 
-now navigate to the QICK repository and run
+The PyPI installation above is recommended unless you need the crosstalk
+compensation feature. Crosstalk compensation requires
+`HRL's QICK fork <https://github.com/HRL-Laboratories/qick>`__ and compatible
+crosstalk-compensation firmware. In that case, install spinQICK without its
+``qick`` extra, then clone and install the fork instead:
 
 ::
 
     pip install .
+    git clone https://github.com/HRL-Laboratories/qick.git ../qick
+    pip install -e "../qick[full]"
+
 
 You will need to complete one additional step in order to run the user-facing methods in `spinqick.experiments`. This step is explained in `00_make_configs.ipynb` notebook within
 the demo notebooks folder of the repository.  You'll need to set a few environment variables to tell spinQICK where to look for your specific configuration files.  In windows, this entails running these commands in command prompt (you may need administrative priviledges to set variables depending on your organization's policies):

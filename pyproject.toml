@@ -1,3 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spinqick"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "lmfit",
+    "matplotlib",
+    "netcdf4",
+    "numpy>=1.26,<2",
+    "pydantic>=2.13.4",
+    "pydantic-settings",
+    "scipy",
+    "scikit-learn",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+qick = ["qick[full]==0.2.436"]
+qcodes = ["qcodes"]
+
+[tool.setuptools.dynamic]
+version = {file = ["VERSION.txt"]}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+spinqick = ["config/*.yaml", "config/*.json"]
+
 [tool.black]
 line-length = 100
 target-version = ['py312']
@@ -37,8 +71,11 @@ line_length = 100
 addopts = "--ignore-glob='*@neomake*' --ignore-glob='*__main__.py'  --doctest-modules --doctest-glob='*.md' --doctest-glob='*.rst'"
 testpaths = [
     "src",
-    "test",
-    "doc",
+    "tests",
+    "docs",
+]
+markers = [
+    "qcodes: tests requiring the optional QCoDeS package and a temporary database",
 ]
 
 [tool.mypy]

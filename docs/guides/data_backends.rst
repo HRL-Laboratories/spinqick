@@ -25,7 +25,15 @@ Quick start
 
 The default backend (netCDF4) works out of the box once you set
 the ``SPINQICK_DATA_DIRECTORY`` environment variable
-(see :ref:`environment-variables`).  To use QCoDeS instead:
+(see :ref:`environment-variables`).  You can confirm which handler is selected
+without writing any data:
+
+>>> from spinqick.backends import get_backend, set_backend
+>>> _ = set_backend("netcdf4")
+>>> type(get_backend()).__name__
+'NetCDF4Handler'
+
+To use QCoDeS instead:
 
 .. code-block:: python
 

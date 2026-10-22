@@ -27,7 +27,7 @@ The repository contains code for spinQICK V2, which updates spinQICK for compati
 ### QICKBox usage
 RealDigital provides a modular RFSoC frontend and enclosure, called [QICKBox](https://www.realdigital.org/hardware/qick) for use with QICK and by extension spinQICK, which makes integration of frontend hardware simpler. A recommended QICKBox setup for spinQICK includes:
 - RF 216 Main board and Case (1x)
-- Balun In (1x)
+- DC In (1x)
 - DC Out (2x)
 
 A complete kit can be customized and purchased [here](https://www.realdigital.org/hardware/qick)
@@ -38,9 +38,9 @@ The Harvey-Mudd College Quantum Analog Control Kit (QuACK) is an add-on that pro
 
 ## Software
 - Python 3.10, specific packages can be found in the _dev_environment.yml_ file
-- [QICK](https://github.com/openquantumhardware/qick) version 0.2.360 (later versions will be checked for compatibility)
+- [QICK](https://github.com/openquantumhardware/qick) `qick[full]==0.2.436`, installed with `pip install ".[qick]"` and tested in CI
 - Pynq 2.7 bootloader, QICK standard boot can be found [here](https://github.com/sarafs1926/ZCU216-PYNQ/issues/1)
-- Pyro4 must also be installed on the ZCU216 board, see [QICK demo](https://github.com/openquantumhardware/qick/blob/main/pyro4/00_nameserver.ipynb) for information on running Pyro server on the RFSoC
+- Pyro must also be installed on the ZCU216 board, see [QICK demo](https://github.com/openquantumhardware/qick/blob/main/pyro4/00_nameserver.ipynb) for information on running Pyro server on the RFSoC
 
 ## Package Structure
 All code for the API can be found in `src/spinqick` with demo notebooks illustrating the use of the API and resources for getting started found in `demo_notebooks`. The spinQICK API is organized into five folders as follows.
@@ -68,11 +68,6 @@ SpinQICK is under active development. As such there may be changes that break ex
 
 ### Near-term Updates
 Current implementation of the spinQICK API is built on the QICK [tProc V2r23](https://github.com/meeg/qick_demos_sho/blob/main/tprocv2/qick_processor_TRM.pdf) instruction set. Near-term updates to spinQICK in future revisions will add cross-talk compensation via DSP (based on an experimental firmware developed for spinQICK by Fermilab and found [here](https://s3df.slac.stanford.edu/people/meeg/qick/tprocv2/2025-08-01_216_tprocv2r25_rfbv2_16fullspeed_11xtalk/)), QuACK API integration, and improved handling of pulse-distortion. In addition to this spinQICK hopes to add 2-qubit operations to it's library of existing experiments.
-
-
-
-
-
 
 ## Acknowledgements
 Earlier revisions of this software was created by HRL under Army Research Office (ARO) Award Number: W911NF‐24‐1‐0020. ARO, as the Federal awarding agency, reserves a royalty‐ free, nonexclusive and irrevocable right to reproduce, publish, or otherwise use this software for Federal purposes, and to authorize others to do so in accordance with 2 CFR 200.315(b). We would like to thank Sho Uemura, Gustavo Cancelo, Sara Sussman and the QICK team on their continued support in developing this package. We would like to acknowledge the help of Joe Broz, Edwin Acuna, and Jason Petta for the creation of this package.

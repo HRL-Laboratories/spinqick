@@ -239,7 +239,7 @@ class Ramsey2D(asm_v2.AveragerProgramV2):
         self.declare_gen(cfg.qubit.rf_gen, nqz=nqz)
         freq_sweep = asm_v2.QickSweep1D(
             "freq", cfg.gx_start + cfg.qubit.f0, cfg.gx_stop + cfg.qubit.f0
-        )  #
+        )
         self.add_pulse(
             cfg.qubit.rf_gen,
             "rf_90",
