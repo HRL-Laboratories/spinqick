@@ -10,7 +10,7 @@ Please **do not** report security vulnerabilities through public GitHub issues, 
 
 Instead, email:
 
-**foss-disclosure@hrl.com**
+**dl.foss-disclosure@hrl.com**
 
 Please include, to the extent possible:
 
@@ -31,7 +31,7 @@ If you encounter sensitive data while testing, please:
 
 1. stop testing immediately,
 2. do not retain, copy, or share the data beyond what is strictly necessary to report the issue, and
-3. notify us right away at **foss-disclosure@hrl.com**.
+3. notify us right away at **dl.foss-disclosure@hrl.com**.
 
 ## Scope
 

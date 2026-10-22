@@ -1,3 +1,8 @@
+v3.0.0
+======
+- update security reporting email
+- bump major version
+
 v2.0.6-dev4
 ======
 - added responsible disclosure policy
