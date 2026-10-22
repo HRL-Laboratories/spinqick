@@ -11,7 +11,7 @@ dependencies = [
     "lmfit",
     "matplotlib",
     "netcdf4",
-    "numpy>=1.26,<2",
+    "numpy>=2.2.6,<3",
     "pydantic>=2.13.4",
     "pydantic-settings",
     "scipy",
