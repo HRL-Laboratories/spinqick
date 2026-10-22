@@ -5,7 +5,7 @@ We use these DACs to control steady-state operation of the devices.
 """
 
 import logging
-from typing import List, Protocol
+from typing import Protocol
 
 import numpy as np
 import yaml
@@ -14,6 +14,10 @@ from spinqick.helper_functions import file_manager, spinqick_enums
 from spinqick.models import hardware_config_models as hcm
 
 logger = logging.getLogger(__name__)
+
+
+class VoltageLimitError(ValueError):
+    """Raised when a requested voltage exceeds a configured hardware limit."""
 
 
 class VoltageSource(Protocol):
@@ -98,16 +102,18 @@ class DCSource:
         :returns: Voltage in units of volts at the gate.
         """
 
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
-        vreturn = self.vsource.get_voltage(ch) / conversion
-        assert isinstance(vreturn, float)
-        self.vsource.close()
-        return vreturn
+        self.vsource.open(address=address)
+        try:
+            vreturn = self.vsource.get_voltage(ch) / conversion
+            assert isinstance(vreturn, float)
+            return vreturn
+        finally:
+            self.vsource.close()
 
     def set_dc_voltage(self, volts: float, gate: spinqick_enums.GateNames):
         """Sets gate voltage.
@@ -115,24 +121,29 @@ class DCSource:
         :param volts: Voltage in units of volts at the gate
         :param gate: Gate to set voltage on
         """
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
         vset = volts * conversion
-        if volts > channel_cfg.max_v:
-            raise Exception("requested voltage would exceed max_v on gate %s" % gate)
-        else:
+        if not np.isfinite(volts):
+            raise ValueError("requested voltage must be finite")
+        if np.abs(volts) > channel_cfg.max_v:
+            raise VoltageLimitError(
+                f"requested voltage would exceed max_v on gate {gate}"
+            )
+        self.vsource.open(address=address)
+        try:
             self.vsource.set_voltage(ch, vset)
+        finally:
             self.vsource.close()
 
     def calculate_compensated_voltage(
         self,
         delta_v: list[float],
         gates: list[spinqick_enums.GateNames],
-        iso_gates: List[spinqick_enums.GateNames],
+        iso_gates: list[spinqick_enums.GateNames],
     ):
         """Given crosscoupling parameters in hardware_config and desired voltages at gates,
         calculate voltages to apply.
@@ -145,7 +156,7 @@ class DCSource:
         gate_list = gates + iso_gates
         g_dim = len(gate_list)
         g_array = np.eye(g_dim)
-        voltage_vector = np.zeros((g_dim))
+        voltage_vector = np.zeros(g_dim)
         voltage_vector[: len(gates)] = delta_v
         for i, gate_i in enumerate(gate_list):
             if gate_i in gates:
@@ -166,9 +177,9 @@ class DCSource:
 
     def set_dc_voltage_compensate(
         self,
-        volts: float | List[float],
-        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
-        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        volts: float | list[float],
+        gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
     ):
         """Set gate voltage while compensating on iso_gates.
 
@@ -217,23 +228,25 @@ class DCSource:
         :param gate: Gate to set voltage on
         """
 
-        address = self.cfg.channels[gate].slow_dac_address
-        self.vsource.open(address=address)
-        ch = self.cfg.channels[gate].slow_dac_channel
         channel_cfg = self.cfg.channels[gate]
         assert not isinstance(channel_cfg, hcm.AuxGate)
+        address = channel_cfg.slow_dac_address
+        ch = channel_cfg.slow_dac_channel
         conversion = channel_cfg.dc_conversion_factor
         vstart_converted = vstart * conversion
-        if vstart > channel_cfg.max_v:
-            raise Exception(
-                "requested ramp start voltage would exceed max_v on gate %s" % gate
+        if not np.isfinite(vstart) or not np.isfinite(vstop):
+            raise ValueError("ramp voltages must be finite")
+        if np.abs(vstart) > channel_cfg.max_v:
+            raise VoltageLimitError(
+                f"requested ramp start voltage would exceed max_v on gate {gate}"
             )
         vstop_converted = vstop * conversion
-        if vstart > channel_cfg.max_v:
-            raise Exception(
-                "requested ramp end voltage would exceed max_v on gate %s" % gate
+        if np.abs(vstop) > channel_cfg.max_v:
+            raise VoltageLimitError(
+                f"requested ramp end voltage would exceed max_v on gate {gate}"
             )
-        else:
+        self.vsource.open(address=address)
+        try:
             self.vsource.set_sweep(
                 ch=ch,
                 start=vstart_converted,
@@ -241,16 +254,17 @@ class DCSource:
                 length=tstep * nsteps,
                 num_steps=nsteps,
             )
+        finally:
             self.vsource.close()
 
     def program_ramp_compensate(
         self,
-        vstart: float | List[float],
-        vstop: float | List[float],
+        vstart: float | list[float],
+        vstop: float | list[float],
         tstep: float,
         nsteps: int,
-        gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
-        iso_gates: spinqick_enums.GateNames | List[spinqick_enums.GateNames],
+        gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
+        iso_gates: spinqick_enums.GateNames | list[spinqick_enums.GateNames],
     ):
         """Program a fast sweep on DCSource with compensation on a charge sensor gate. Needs to be
         followed with arm and trigger.

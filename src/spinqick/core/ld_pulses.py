@@ -1,7 +1,5 @@
 """Module for setting up and playing LD qubit pulse sequences."""
 
-from typing import List
-
 from qick import asm_v2
 
 from spinqick.core import utils
@@ -34,7 +32,7 @@ def setup_1_ld_qubit(prog: asm_v2.QickProgramV2, cfg: ld_qubit_models.Ld1Qubit):
 
 
 def parse_and_play_1q(
-    prog: asm_v2.QickProgramV2, cfg: ld_qubit_models.Ld1Qubit, gate_list: List[str]
+    prog: asm_v2.QickProgramV2, cfg: ld_qubit_models.Ld1Qubit, gate_list: list[str]
 ):
     """Parses the gate and angle and play pulses.  This plays a 180 degree x- or y- pulse as two 90
     degree pulses.

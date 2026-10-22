@@ -1,3 +1,38 @@
+v3.0.0
+======
+- update security reporting email
+- bump major version
+
+v2.0.6-dev4
+======
+- added responsible disclosure policy
+
+v2.0.6-dev3
+======
+- added unit tests for most core functions, data handling code and for both data backends
+- added CI and SAST
+- fixed numpy and pydantic dependencies
+- set memspectrum as an optional import, since it is only used once
+- removed setup.py and verified dependencies in pyproject.toml
+- removed pyro4 dependency, that is inherited from QICK and they are on the path to a pyro5 upgrade
+
+v2.0.6-dev2
+======
+- updated details on setting env vars in getting_started.rst for clarity
+- updated demo notebooks 00 and 01 to make them consistent with each other and with the docs
+
+v2.0.6-dev1
+======
+- refactored data handling backend to allow for switchable data backends
+- made netcdf4 default data backend and added qcodes backend
+- added documentation on the data structures and backends
+
+v2.0.6-dev0
+======
+- software waveform envelope filtering module added as a configurable filter bank
+- example filter_config.json added
+- filtering documented in readthedocs
+
 v2.0.5
 ======
 - fixed bug in setup_pi_pulse and setup_1q_clifford that defaults stdysel to ZERO instead of LAST

@@ -50,7 +50,6 @@ repos:
         language: system
         types: [yaml]
         args: [--allow-multiple-documents, --unsafe]
-        exclude: "conda/meta.yaml"
       - id: end-of-file-fixer
         name: end-of-file-fixer
         description: Ensures that a file is either empty, or ends with one newline.

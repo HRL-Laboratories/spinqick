@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Literal, Tuple
+from typing import Literal
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -124,31 +124,36 @@ class MeasureNoise(dot_experiment.DotExperiment):
 
         if self.plot:
             fig = plot_tools.plot1_simple(
-                freq, asd_tot, full_dataset.timestamp, marker="."
+                freq,
+                asd_tot,
+                full_dataset.timestamp,
+                marker=".",
+                xlabel="freq (Hz)",
+                ylabel="ADCrms/RtHz",
+                title=f"mbias = {m_bias:.4f}",
             )
             plt.xscale("log")
             plt.yscale("log")
             plt.ylabel("ADCrms/RtHz")
             plt.xlabel("freq (Hz)")
             plt.ylim(1e-4, 1)
-            plt.title("mbias = %.4f" % m_bias)
+            plt.title(f"mbias = {m_bias:.4f}")
             full_plot_num = fig.number
         # TODO implement data and plot saving
 
         self.vdc.set_dc_voltage(current_m_bias, m_dot)
         if self.save_data:
-            nc_file = full_dataset.basic_composite_save()
+            plot_figs: list[int | str | None] = []
             if self.plot:
-                nc_file.save_last_plot(fignum=full_plot_num)
-            nc_file.close()
-            logger.info("data saved at %s", full_dataset.data_file)
-        return qd
+                plot_figs.append(full_plot_num)
+            self.finalize(full_dataset, fignums=plot_figs if plot_figs else None)
+        return qd  # TODO: should this be full_dataset?
 
     @dot_experiment.updater
     def dcs_stability(
         self,
         m_dot: spinqick_enums.GateNames,
-        m_range: Tuple[float, float, int],
+        m_range: tuple[float, float, int],
         measure_buffer: float,
         time_steps: int = 1000,
         freq_cutoff: float = 0.1,
@@ -192,7 +197,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         slow_dac_step_len = self.dcs_config.length + 2 * measure_buffer
 
         data_list = []
-        times = np.zeros((time_steps))
+        times = np.zeros(time_steps)
         data_array = np.zeros((len(times), n_vm))
         for step in range(time_steps):
             self.vdc.program_ramp(
@@ -244,7 +249,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
         )
 
         ### now fit the data
-        center_data = np.zeros((time_steps))
+        center_data = np.zeros(time_steps)
         for step in range(time_steps):
             step_data = full_dataset.qdata_array[step]
             assert step_data.analyzed_data is not None
@@ -259,8 +264,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
                     center_data[step] = out.params["center"].value
                 else:
                     center_data[step] = np.nan
-            except Exception as exc:
-                logger.error("fit failed: %s", exc, exc_info=True)
+            except Exception:
+                logger.exception("fit failed")
             if np.logical_and(
                 out.params["center"].value > vm_start,
                 out.params["center"].value < vm_stop,
@@ -293,8 +298,8 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 icept = np.power(10, popt[1])
                 fit_params = {"power": popt[0], "intercept": popt[1]}
                 full_dataset.fit_param_dict = fit_params
-                print("pow equals %f" % popt[0])
-                print("intercept equals %f" % icept)  # pylint: disable=possibly-used-before-assignment
+                print(f"pow equals {popt[0]:f}")
+                print(f"intercept equals {icept:f}")  # pylint: disable=possibly-used-before-assignment
                 freq_fit = linfit(freq, popt[0], 10 ** popt[1])
             except ValueError:
                 print("PSD fit failed")
@@ -311,22 +316,30 @@ class MeasureNoise(dot_experiment.DotExperiment):
                 freq_plot_num = freq_fig.number
         if self.plot:
             fig = plot_tools.plot2_simple(
-                times, vm_sweep, np.transpose(data_array), full_dataset.timestamp
+                times,
+                vm_sweep,
+                np.transpose(data_array),
+                full_dataset.timestamp,
+                title=m_dot,
+                ylabel=f" {m_dot} voltage (V)",
+                xlabel="time in seconds",
             )
             plt.plot(times, center_data)
             plt.title(m_dot)
-            plt.ylabel(" %s voltage (V)" % m_dot)
+            plt.ylabel(f" {m_dot} voltage (V)")
             plt.xlabel("time in seconds")
             full_plot_num = fig.number
 
         if self.save_data:
-            nc_file = full_dataset.basic_composite_save()
+            plot_figs_stability: list[int | str | None] = []
             if self.plot:
-                nc_file.save_last_plot(fignum=full_plot_num)
+                plot_figs_stability.append(full_plot_num)
                 if frequency_fit:
-                    nc_file.save_last_plot(fignum=freq_plot_num)
-            nc_file.close()
-            logger.info("data saved at %s", full_dataset.data_file)
+                    plot_figs_stability.append(freq_plot_num)
+            self.finalize(
+                full_dataset,
+                fignums=plot_figs_stability if plot_figs_stability else None,
+            )
         return full_dataset
 
     @dot_experiment.updater
@@ -368,7 +381,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             self.soc.reset_gens()  # in case the readout tone was left on
             complex_iq = iq.dot([1, 1j])
 
-            print("done, average number %d" % n)
+            print(f"done, average number {n}")
             self.soc.reset_gens()
             if n == 0:
                 freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
@@ -431,7 +444,7 @@ class MeasureNoise(dot_experiment.DotExperiment):
             iq = self.soc.get_ddr4(n_transfers)
             complex_iq = iq.dot([1, 1j])
 
-            print("done, average number %d" % n)
+            print(f"done, average number {n}")
             if n == 0:
                 freq, power = periodogram(np.abs(complex_iq), fs=1 / clock_tick)
                 power_fft = power

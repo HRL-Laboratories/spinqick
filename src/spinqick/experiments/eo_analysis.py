@@ -2,7 +2,6 @@
 
 import logging
 
-import memspectrum
 import numpy as np
 import pylab as plt
 from scipy import optimize, signal
@@ -76,12 +75,25 @@ def course_cal_fit(sqd: spinqick_data.PsbData, n_pulses: int, x_gate: str):
     threshed_data = sqd.threshed_data
     assert threshed_data is not None
     data = threshed_data[0]
-    xvolts = sqd.axes["x"]["sweeps"][x_gate]["data"]
+    xvolts = sqd.axes["x"][x_gate]["data"]
     angle_array, d_filt, best_fit, popt, v_array, p0_array, fit_dict, _ = course_cal(
         data, xvolts, n_pulses
     )
     sqd.add_fit_params(fit_dict, best_fit=d_filt, fit_axis="x")
     return angle_array, d_filt, best_fit, popt, v_array, p0_array
+
+
+def _get_memspectrum():
+    """Lazy import for memspectrum."""
+    try:
+        import memspectrum
+
+        return memspectrum
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "memspectrum is required for legacy MESA processing. "
+            "Install it or choose the non-MESA processor."
+        ) from exc
 
 
 def process_fine_cal(
@@ -93,6 +105,7 @@ def process_fine_cal(
     plot: bool = True,
 ):
     """fitting procedure for fine calibration from https://doi.org/10.1038/s41565-019-0500-4"""
+    memspectrum = _get_memspectrum()
     mesa = memspectrum.MESA()
     mesa.solve(data_array, method="standard", optimisation_method="FPE")
     extension_length = 5000
@@ -117,12 +130,12 @@ def process_fine_cal(
             + np.mean(data_array),
             timestamp,
             dset_label="fit",
+            xlabel="estimated theta (rad)",
+            ylabel="singlet probability",
         )
         plot_tools.plot1_simple(
             theta_array, data_array, timestamp, dset_label="data", new_figure=False
         )
-        plt.xlabel("estimated theta (rad)")
-        plt.ylabel("singlet probability")
         plt.legend()
         first_fignum = fig1.number
         fignums.append(first_fignum)
@@ -137,12 +150,15 @@ def process_fine_cal(
     )
     if plot:
         fig2 = plot_tools.plot1_simple(
-            voltage_array, theta_fit, timestamp, dset_label="new theta vals"
+            voltage_array,
+            theta_fit,
+            timestamp,
+            dset_label="new theta vals",
+            xlabel="x gate voltage (V)",
+            ylabel="theta (rad)",
         )
         plt.plot(voltage_array, theta_array, "o", label="initial theta vals")
         plt.yscale("log")
-        plt.xlabel("x gate voltage (V)")
-        plt.ylabel("theta (rad)")
         plt.legend()
         fignum = fig2.number
         fignums.append(fignum)

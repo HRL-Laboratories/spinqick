@@ -1,6 +1,6 @@
 """Helpful functions and enums for commonly used key word arguements within qick functions."""
 
-from enum import StrEnum
+from spinqick._compat import StrEnum
 
 
 class Outsel(StrEnum):

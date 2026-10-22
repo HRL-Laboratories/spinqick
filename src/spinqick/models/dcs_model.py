@@ -1,7 +1,6 @@
 """Work in progress, reorganizing models for use in tprocv2 experiments."""
 
 # from typing import Dict, Optional
-from typing import List
 
 import pydantic
 
@@ -26,4 +25,4 @@ class DcsConfig(DcsConfigParams):
 
     sd_gen: int  # readout pulse dac channel
     ac_gate_gen: int | None = None  # optional gate for transconductance
-    ro_chs: List[int]  # adc channel
+    ro_chs: list[int]  # adc channel

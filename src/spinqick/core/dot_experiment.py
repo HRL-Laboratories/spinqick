@@ -6,11 +6,14 @@ models.
 """
 
 import logging
-from typing import Literal, TypeVar, Union
+from typing import Literal, TypeVar
 
 import numpy as np
 
+from spinqick.backends import get_backend
+from spinqick.backends.data_protocols import DataHandler
 from spinqick.helper_functions import file_manager, spinqick_enums
+from spinqick.helper_functions.filter_bank import build_filter_map, load_filter_config
 from spinqick.models import (
     dcs_model,
     full_experiment_model,
@@ -23,6 +26,14 @@ from spinqick.settings import file_settings
 
 logger = logging.getLogger(__name__)
 G = TypeVar("G", float, np.ndarray)
+
+
+class InvalidGateConfiguration(TypeError):
+    """Raised when a conversion requires a fast gate but receives another gate type."""
+
+
+class ExperimentConfigurationError(ValueError):
+    """Raised when an experiment configuration is incomplete or inconsistent."""
 
 
 def convert_dcs_to_rfsoc(
@@ -67,7 +78,7 @@ def convert_spam_to_rfsoc(
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
             spinqick_enums.GateNames,
-            Union[spam_models.SpamRampDac, spam_models.SpamPulseDac],
+            spam_models.SpamRampDac | spam_models.SpamPulseDac,
         ] = {}
         for gate in gate_list:
             assert isinstance(gate, spinqick_enums.GateNames)
@@ -75,7 +86,7 @@ def convert_spam_to_rfsoc(
             if isinstance(gate_cfg, hardware_config_models.FastGate):
                 gen = gate_cfg.qick_gen
             else:
-                raise Exception("gate %s is not a FastGate" % gate)
+                raise InvalidGateConfiguration(f"gate {gate} is not a FastGate")
             pulse_gain_volts = gate_list[gate].voltage
             dac_units = volts2dacunits(pulse_gain_volts, gate, hardware_config)
             if isinstance(gate_list[gate], spam_models.SpamRamp):
@@ -115,7 +126,7 @@ def convert_spam_to_voltage(
         duration = getattr(spam_config, spamstep).duration
         gate_list = getattr(spam_config, spamstep).gate_list
         temp_gate_dict: dict[
-            spinqick_enums.GateNames, Union[spam_models.SpamRamp, spam_models.SpamPulse]
+            spinqick_enums.GateNames, spam_models.SpamRamp | spam_models.SpamPulse
         ] = {}
         for gate in gate_list:
             pulse_gain = gate_list[gate].coordinate
@@ -200,11 +211,9 @@ def convert_experiment_to_rfsoc(
     if experiment_config.qubit_configs is not None:
         q_cfg: dict[
             str,
-            Union[
-                ld_qubit_models.Ld1Qubit,
-                qubit_models.Eo1Qubit,
-                full_experiment_model.Ro1Qubit,
-            ],
+            ld_qubit_models.Ld1Qubit
+            | qubit_models.Eo1Qubit
+            | full_experiment_model.Ro1Qubit,
         ] = {}
         for qubit_name, qubit in experiment_config.qubit_configs.items():
             spam = qubit.ro_cfg.psb_cfg
@@ -267,7 +276,7 @@ def volts2dacunits(
     try:
         assert isinstance(gate_config, hardware_config_models.FastGate)
     except AssertionError as exc:
-        raise Exception("gate %s is not a FastGate" % gate) from exc
+        raise InvalidGateConfiguration(f"gate {gate} is not a FastGate") from exc
     conversion = gate_config.dac_conversion_factor
     return volts * conversion
 
@@ -287,7 +296,7 @@ def dacunits2volts(
     try:
         assert isinstance(gate_config, hardware_config_models.FastGate)
     except AssertionError as exc:
-        raise Exception("gate %s is not a FastGate" % gate) from exc
+        raise InvalidGateConfiguration(f"gate {gate} is not a FastGate") from exc
     conversion = gate_config.dac_conversion_factor
     return dacunits / conversion
 
@@ -306,10 +315,12 @@ class DotExperiment:
         datadir: str = file_settings.data_directory,
         save_data: bool = True,
         plot: bool = True,
+        backend: DataHandler | None = None,
     ):
         self.datadir = datadir
         self.save_data = save_data
         self.plot = plot
+        self.backend = backend if backend is not None else get_backend()
         self.data_path = file_manager.get_data_dir(datadir=datadir)
         file_manager.check_configs_exist()
         self.config_path = file_settings.dot_experiment_config
@@ -327,6 +338,8 @@ class DotExperiment:
         )
         self.dcs: Literal["M1", "M2"] = "M1"  # selects which M gate is being used
         self.qubit: str = ""  # select which qubit the user is currently measuring
+        load_filter_config()
+        build_filter_map(self.hardware_config)
 
     @property
     def experiment_config(self):
@@ -360,7 +373,7 @@ class DotExperiment:
         if qubit_cfg is not None:
             s2c = qubit_cfg[self.qubit].ro_cfg.psb_cfg
         else:
-            raise Exception("No qubit is defined")
+            raise ExperimentConfigurationError("No qubit is defined")
         return s2c
 
     @property
@@ -386,7 +399,7 @@ class DotExperiment:
         return units
 
     def update_local(self):
-        """Update local config parameters from hardware and experiment config files."""
+        """Update local config parameters from hardware, filtering, and experiment config files."""
 
         self.hardware_config = file_manager.load_config_json(
             self.hardware_path, hardware_config_models.HardwareConfig
@@ -394,7 +407,39 @@ class DotExperiment:
         self.experiment_config_params = file_manager.load_config_json(
             self.config_path, full_experiment_model.ExperimentConfig
         )
+        load_filter_config()
+        build_filter_map(self.hardware_config)
         logger.info("updated local params")
+
+    def finalize(
+        self,
+        data,
+        fignums: list[int | str | None] | None = None,
+    ) -> None:
+        """Save data and plots via the configured backend, then close the handle.
+
+        :param data: A :class:`SpinqickData` or :class:`CompositeSpinqickData` to persist.
+        :param fignums: Optional list of matplotlib figure numbers to save alongside
+            the data.  ``None`` entries are passed through (backend saves the current
+            figure).  When *fignums* is ``None`` and ``self.plot`` is ``True``, a single
+            ``None`` fignum is saved (i.e. the current figure).  An empty list skips
+            plot saving while still saving the data and closing the backend handle.
+        """
+        if not self.save_data:
+            return
+
+        backend = self.backend
+        handle = backend.save(data)
+
+        try:
+            if self.plot:
+                if fignums is None:
+                    backend.save_plot(handle, None)
+                else:
+                    for fig in fignums:
+                        backend.save_plot(handle, fig)
+        finally:
+            backend.close(handle)
 
     def volts2dac(self, volts: G, gate: spinqick_enums.GateNames) -> G:
         """Convert voltage out of qick frontend to dac units.

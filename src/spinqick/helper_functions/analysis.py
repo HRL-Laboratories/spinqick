@@ -1,7 +1,6 @@
 """Functions for analyzing data."""
 
 import logging
-from typing import List
 
 import numpy as np
 from lmfit import models
@@ -13,7 +12,7 @@ from spinqick.helper_functions import spinqick_enums
 logger = logging.getLogger(__name__)
 
 
-def analyze_conductance(data: List[np.ndarray]):
+def analyze_conductance(data: list[np.ndarray]):
     """Calculate data magnitude from acquire function output."""
     full_data = []
     for adc_data in data:
@@ -24,7 +23,7 @@ def analyze_conductance(data: List[np.ndarray]):
     return full_data
 
 
-def analyze_transconductance(data: List[np.ndarray]):
+def analyze_transconductance(data: list[np.ndarray]):
     """Calculate transconductance from acquire function output."""
     full_data = []
     for adc_data in data:
@@ -110,10 +109,10 @@ def calculate_electron_temperature(
 ):
     """Calculates the electron temperature from a 1D sweep over a loading line."""
 
-    x_data = data.axes["x"]["sweeps"][plunger_gate]["data"]
+    x_data = data.axes["x"][plunger_gate]["data"]
     y_data = data.analyzed_data
     assert y_data is not None
-    sigmoid, out = fit_sigmoid(x_data, y_data[0][0])
+    _sigmoid, out = fit_sigmoid(x_data, y_data[0][0])
 
     kta = out.params["kt"].value
     return kta
@@ -168,13 +167,15 @@ def fit_gaussian(x_data, y_data):
     mag = y_data
     # pars = gaussian.guess(mag, x=x_data)
     pars = model.make_params(
-        center=dict(
-            value=x_data[np.argmax(y_data)], min=np.min(x_data), max=np.max(x_data)
-        ),
-        amplitude=dict(value=np.sum(y_data), min=0),
+        center={
+            "value": x_data[np.argmax(y_data)],
+            "min": np.min(x_data),
+            "max": np.max(x_data),
+        },
+        amplitude={"value": np.sum(y_data), "min": 0},
         # amplitude=dict(value=np.sum(y_data)),
-        sigma=dict(value=(np.max(x_data) - np.min(x_data)) / 10, min=0),
-        c=dict(value=np.min(y_data)),
+        sigma={"value": (np.max(x_data) - np.min(x_data)) / 10, "min": 0},
+        c={"value": np.min(y_data)},
     )
     out = model.fit(mag, pars, x=x_data)
     return model, out
@@ -187,25 +188,25 @@ def fit_sigmoid(x_data: np.ndarray, y_data: np.ndarray):
     offset = models.ConstantModel(prefix="o")
     model = sigmoid * amp + offset
     pars = model.make_params(
-        c=dict(
-            value=np.max(y_data) - np.min(y_data),
-            min=0,
-            max=np.max(y_data),
-        ),
-        oc=dict(
-            value=np.min(y_data),
-            min=np.min(y_data),
-            max=np.max(y_data),
-        ),
-        center=dict(
-            min=np.min(x_data),
-            max=np.max(x_data),
-            value=np.mean(x_data),
-        ),
-        kt=dict(
-            value=np.mean(x_data[1:] - x_data[:-1]),
-        ),
-        amplitude=dict(value=1, vary=False),
+        c={
+            "value": np.max(y_data) - np.min(y_data),
+            "min": 0,
+            "max": np.max(y_data),
+        },
+        oc={
+            "value": np.min(y_data),
+            "min": np.min(y_data),
+            "max": np.max(y_data),
+        },
+        center={
+            "min": np.min(x_data),
+            "max": np.max(x_data),
+            "value": np.mean(x_data),
+        },
+        kt={
+            "value": np.mean(x_data[1:] - x_data[:-1]),
+        },
+        amplitude={"value": 1, "vary": False},
     )
     out = model.fit(y_data, pars, x=x_data)
     return model, out
@@ -242,7 +243,7 @@ def calculate_difference(
 
 def calculate_thresholded(
     data: spinqick_data.PsbData,
-    threshold: List[float],
+    threshold: list[float],
     average_level: spinqick_enums.AverageLevel | None = None,
 ):
     """Calculate thresholded 0 or 1 data from analyzed data and average after thresholding."""
@@ -275,7 +276,7 @@ def calculate_thresholded(
 
 def analyze_psb_standard(
     sq_data: spinqick_data.PsbData,
-    adc_unit_conversions: List[float],
+    adc_unit_conversions: list[float],
     reference: bool,
     thresh: bool,
     threshold: float | None,
