@@ -1,3 +1,7 @@
+v2.0.6-dev4
+======
+- added responsible disclosure policy
+
 v2.0.6-dev3
 ======
 - added unit tests for most core functions, data handling code and for both data backends
