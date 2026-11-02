@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-qick = ["qick[full]==0.2.436"]
+qick = ["qick[full]==0.2.439"]
 qcodes = ["qcodes"]
 
 [tool.setuptools.dynamic]
